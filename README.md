@@ -1,36 +1,50 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Fire Bun
 
-## Getting Started
+Mobile-first point-of-sale, inventory and finance app for the Fire Bun fast-food shop.
+Staff take orders and print bills on an Android phone; the admin manages inventory, the menu
+(with recipes that deduct stock), expenses and finance reports.
 
-First, run the development server:
+- **Stack**: Next.js 16 (App Router, Server Actions), React 19, Tailwind CSS v4, Drizzle ORM on
+  Supabase Postgres, ESC/POS receipts for 58 mm Bluetooth printers.
+- **Roles**: `admin` (everything) and `staff` (counter, orders, expenses). No self-signup.
+
+## Local setup
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env.local      # fill in the Supabase session-pooler URL, AUTH_SECRET, Supabase keys
+npm run db:migrate              # apply drizzle/ migrations
+npm run db:seed                 # first admin (admin@gmail.com / Admin@123), settings, menu, starting inventory
+npm run dev                     # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Other commands: `npm run build`, `npm run lint`, `npm run typecheck`,
+`npm run db:generate -- --name <change>` (new migration from `db/schema`), `npm run db:studio`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Environment variables
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Name | Purpose |
+|---|---|
+| `DATABASE_URL` | Supabase **session** pooler (port 5432). The transaction pooler stalls pipelined queries — see `db/pool.ts`. |
+| `DIRECT_URL` | Optional; used by drizzle-kit (defaults to `DATABASE_URL`). |
+| `AUTH_SECRET` | Signs the session cookie (`openssl rand -base64 32`). |
+| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SECRET_KEY` | Supabase API keys, reserved for file storage. |
+| `SEED_ADMIN_EMAIL`, `SEED_ADMIN_PASSWORD` | Optional overrides for `npm run db:seed`. |
 
-## Learn More
+## Deploying (Vercel)
 
-To learn more about Next.js, take a look at the following resources:
+Import the repository in Vercel, add the environment variables above, and deploy. `vercel.json`
+pins functions to Mumbai (`bom1`), next to the database. HTTPS is required for Bluetooth printing
+and the installable PWA. Note that Vercel's Hobby plan does not allow commercial use.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Printing
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+More → Printer on each phone chooses one of three transports: Bluetooth (Chrome, printers with
+Bluetooth LE), the RawBT Android app (most Bluetooth thermal printers), or the phone's print dialog.
+Receipts are built in `utils/printing/receipt.ts`; `GET /api/orders/[id]/receipt` serves the
+JSON model or a 58 mm HTML page.
 
-## Deploy on Vercel
+## Project conventions
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+See `CLAUDE.md` and the skills under `.claude/skills/` for the folder layout, data-access pattern
+and coding standards.

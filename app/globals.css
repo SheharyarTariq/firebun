@@ -1,26 +1,102 @@
 @import "tailwindcss";
 
+/*
+ * Fire Bun design tokens. Colours come from the printed menu: near-black surfaces,
+ * yellow (#ffb400) and orange (#f28c0f) accents. Light UI with a dark brand header.
+ * Add or change tokens here — they become Tailwind utilities (bg-brand, text-muted, …).
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
+
+  --background: #f6f5f2;
+  --foreground: #16130f;
+  --surface: #ffffff;
+  --surface-2: #f0eee8;
+  --border: #e3e0d8;
+  --muted: #7d7870;
+  --muted-bg: #efede7;
+
+  --brand: #ffb400;
+  --brand-strong: #f28c0f;
+  --brand-ink: #1b1305;
+
+  --ink: #141210;
+  --ink-foreground: #fbfaf7;
+  --ink-muted: #a39e94;
+
+  --danger: #d92d20;
+  --danger-bg: #fee4e2;
+  --success: #12923f;
+  --success-bg: #dcfae6;
+  --warning: #b54708;
+  --warning-bg: #fef0c7;
+  --info: #175cd3;
+  --info-bg: #d1e9ff;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-muted: var(--muted);
+  --color-muted-bg: var(--muted-bg);
+
+  --color-brand: var(--brand);
+  --color-brand-strong: var(--brand-strong);
+  --color-brand-ink: var(--brand-ink);
+
+  --color-ink: var(--ink);
+  --color-ink-foreground: var(--ink-foreground);
+  --color-ink-muted: var(--ink-muted);
+
+  --color-danger: var(--danger);
+  --color-danger-bg: var(--danger-bg);
+  --color-success: var(--success);
+  --color-success-bg: var(--success-bg);
+  --color-warning: var(--warning);
+  --color-warning-bg: var(--warning-bg);
+  --color-info: var(--info);
+  --color-info-bg: var(--info-bg);
+
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  --radius-card: 1rem;
+  --radius-field: 0.75rem;
+  --shadow-sheet: 0 -8px 30px rgb(0 0 0 / 0.12);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Safe-area helpers for phones with notches / gesture bars (PWA standalone mode). */
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+
+html {
+  height: 100%;
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
+  min-height: 100%;
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+
+/* Hide native number spinners; the app uses its own steppers and numeric keyboards. */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+  appearance: textfield;
 }

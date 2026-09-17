@@ -1,0 +1,171 @@
+"use client";
+
+import { useSyncExternalStore } from "react";
+import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
+import type { OrderType, PaymentMethod } from "@/db/schema/orders";
+import { roundMoney } from "@/utils/helper";
+
+export interface CartChoice {
+  variantId: number;
+  itemName: string;
+  variantName: string;
+  quantity: number;
+}
+
+export interface CartSlotChoice {
+  slotId: number;
+  label: string;
+  choices: CartChoice[];
+}
+
+export interface CartLine {
+  key: string;
+  menuItemId: number;
+  variantId: number;
+  kind: "single" | "deal";
+  name: string;
+  variantName: string;
+  unitPrice: number;
+  quantity: number;
+  note: string | null;
+  /** Deals only: what was picked for each slot (per one deal). */
+  dealChoices: CartSlotChoice[];
+}
+
+export interface CartState {
+  /** Sent with the order so a double tap cannot create two orders. */
+  clientId: string;
+  lines: CartLine[];
+  orderType: OrderType;
+  discountAmount: number;
+  /** null = use the shop default when delivery. */
+  deliveryCharge: number | null;
+  customerName: string;
+  customerPhone: string;
+  deliveryAddress: string;
+  note: string;
+  paymentMethod: PaymentMethod | null;
+
+  addLine: (line: Omit<CartLine, "key">) => void;
+  replaceLines: (lines: Omit<CartLine, "key">[]) => void;
+  setQuantity: (key: string, quantity: number) => void;
+  removeLine: (key: string) => void;
+  setOrderType: (orderType: OrderType) => void;
+  setDiscount: (amount: number) => void;
+  setDeliveryCharge: (charge: number | null) => void;
+  setCustomer: (patch: Partial<Pick<CartState, "customerName" | "customerPhone" | "deliveryAddress">>) => void;
+  setNote: (note: string) => void;
+  setPaymentMethod: (method: PaymentMethod | null) => void;
+  clear: () => void;
+}
+
+const newId = () =>
+  typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+const emptyOrder = () => ({
+  clientId: newId(),
+  lines: [] as CartLine[],
+  orderType: "takeaway" as OrderType,
+  discountAmount: 0,
+  deliveryCharge: null as number | null,
+  customerName: "",
+  customerPhone: "",
+  deliveryAddress: "",
+  note: "",
+  paymentMethod: "cash" as PaymentMethod | null,
+});
+
+/** Same item + size + note + identical deal choices merge into one line. */
+function sameLine(a: Omit<CartLine, "key">, b: CartLine): boolean {
+  return (
+    a.variantId === b.variantId &&
+    (a.note ?? "") === (b.note ?? "") &&
+    JSON.stringify(a.dealChoices) === JSON.stringify(b.dealChoices)
+  );
+}
+
+export const useCart = create<CartState>()(
+  persist(
+    (set) => ({
+      ...emptyOrder(),
+
+      addLine: (line) =>
+        set((state) => {
+          const existing = state.lines.find((l) => sameLine(line, l));
+          if (existing) {
+            return {
+              lines: state.lines.map((l) =>
+                l.key === existing.key ? { ...l, quantity: l.quantity + line.quantity } : l
+              ),
+            };
+          }
+          return { lines: [...state.lines, { ...line, key: newId() }] };
+        }),
+
+      replaceLines: (lines) =>
+        set({ ...emptyOrder(), lines: lines.map((l) => ({ ...l, key: newId() })) }),
+
+      setQuantity: (key, quantity) =>
+        set((state) => ({
+          lines:
+            quantity <= 0
+              ? state.lines.filter((l) => l.key !== key)
+              : state.lines.map((l) => (l.key === key ? { ...l, quantity } : l)),
+        })),
+
+      removeLine: (key) => set((state) => ({ lines: state.lines.filter((l) => l.key !== key) })),
+
+      setOrderType: (orderType) =>
+        set((state) => ({
+          orderType,
+          // Counter orders are always paid now; delivery may be paid on delivery.
+          paymentMethod: orderType === "delivery" ? state.paymentMethod : (state.paymentMethod ?? "cash"),
+        })),
+
+      setDiscount: (amount) => set({ discountAmount: Math.max(0, amount) }),
+      setDeliveryCharge: (charge) => set({ deliveryCharge: charge }),
+      setCustomer: (patch) => set(patch),
+      setNote: (note) => set({ note }),
+      setPaymentMethod: (method) => set({ paymentMethod: method }),
+      clear: () => set(emptyOrder()),
+    }),
+    {
+      name: "firebun-cart",
+      storage: createJSONStorage(() => sessionStorage),
+      partialize: (state) => ({
+        clientId: state.clientId,
+        lines: state.lines,
+        orderType: state.orderType,
+        discountAmount: state.discountAmount,
+        deliveryCharge: state.deliveryCharge,
+        customerName: state.customerName,
+        customerPhone: state.customerPhone,
+        deliveryAddress: state.deliveryAddress,
+        note: state.note,
+        paymentMethod: state.paymentMethod,
+      }),
+    }
+  )
+);
+
+/** Derived totals; the server recomputes all of this from the database. */
+export function cartTotals(state: Pick<CartState, "lines" | "discountAmount" | "deliveryCharge" | "orderType">, defaultDeliveryCharge: number) {
+  const subtotal = roundMoney(state.lines.reduce((n, l) => n + l.unitPrice * l.quantity, 0));
+  const discount = Math.min(roundMoney(state.discountAmount), subtotal);
+  const delivery = state.orderType === "delivery" ? roundMoney(state.deliveryCharge ?? defaultDeliveryCharge) : 0;
+  const total = roundMoney(subtotal - discount + delivery);
+  const count = state.lines.reduce((n, l) => n + l.quantity, 0);
+  return { subtotal, discount, delivery, total, count };
+}
+
+/** false during server render and the first client paint, true once the page has hydrated. */
+export function useHydrated(): boolean {
+  return useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false
+  );
+}
