@@ -8,6 +8,7 @@ import Button from "@/components/common/Button";
 import Input from "@/components/common/Input";
 import Select from "@/components/common/Select";
 import type { InventoryItem } from "@/db/schema";
+import { callAction } from "@/utils/call-action";
 import { entryUnitOptions, formatQty, type EntryUnit } from "@/utils/helper";
 import { validateAndSetErrors } from "@/utils/validation";
 import { wastageSchema, type WastageFormInput } from "../schema";
@@ -36,7 +37,7 @@ export default function WastageSheet({ open, onOpenChange, item }: WastageSheetP
     if (!(await validateAndSetErrors(wastageSchema, values, setErrors))) return;
 
     startTransition(async () => {
-      const result = await recordWastageAction(item.id, values);
+      const result = await callAction(recordWastageAction(item.id, values));
       if (!result.ok) {
         if (result.fieldErrors) setErrors(result.fieldErrors);
         toast.error(result.error);

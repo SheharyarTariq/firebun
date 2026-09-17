@@ -8,6 +8,7 @@ import Button from "@/components/common/Button";
 import Input from "@/components/common/Input";
 import Select from "@/components/common/Select";
 import type { InventoryItem } from "@/db/schema";
+import { callAction } from "@/utils/call-action";
 import { cn } from "@/utils/cn";
 import {
   entryQtyToBase,
@@ -48,7 +49,7 @@ export default function StockCountSheet({ open, onOpenChange, item }: StockCount
     if (!(await validateAndSetErrors(stockCountSchema, values, setErrors))) return;
 
     startTransition(async () => {
-      const result = await setStockCountAction(item.id, values);
+      const result = await callAction(setStockCountAction(item.id, values));
       if (!result.ok) {
         if (result.fieldErrors) setErrors(result.fieldErrors);
         toast.error(result.error);

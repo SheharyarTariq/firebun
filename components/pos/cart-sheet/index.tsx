@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-import { Trash2 } from "lucide-react";
+import { useRef, useState, useTransition } from "react";
+import { MessageSquarePlus, Percent, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
 import { placeOrderAction } from "@/app/(app)/pos/actions";
 import BottomSheet from "@/components/common/BottomSheet";
@@ -10,13 +9,12 @@ import Button from "@/components/common/Button";
 import Chips from "@/components/common/Chips";
 import Input from "@/components/common/Input";
 import NumberStepper from "@/components/common/NumberStepper";
-import { usePrinter } from "@/components/printing/use-printer";
 import type { OrderType, PaymentMethod } from "@/db/schema/orders";
 import type { UserRole } from "@/db/schema/users";
-import type { PlaceOrderInput } from "@/server/orders/service";
+import type { PlaceOrderInput, PlaceOrderResult } from "@/server/orders/service";
+import { callAction } from "@/utils/call-action";
 import { cn } from "@/utils/cn";
-import { formatMoney, formatOrderNumber } from "@/utils/helper";
-import { routes } from "@/utils/routes";
+import { formatMoney, roundMoney } from "@/utils/helper";
 import { validateAndSetErrors } from "@/utils/validation";
 import { cartTotals, useCart, type CartLine } from "../cart-store";
 import { placeOrderSchema } from "../schema";
@@ -27,6 +25,8 @@ interface CartSheetProps {
   onOpenChange: (open: boolean) => void;
   settings: PosSettings;
   role: UserRole;
+  /** Runs inside the same tap (auto-print needs the activation window) after the sheet closes. */
+  onPlaced: (result: PlaceOrderResult) => Promise<void>;
 }
 
 type PayChoice = PaymentMethod | "cod";
@@ -37,25 +37,48 @@ const ORDER_TYPES: { value: OrderType; label: string }[] = [
   { value: "delivery", label: "Delivery" },
 ];
 
-export default function CartSheet({ open, onOpenChange, settings, role }: CartSheetProps) {
-  const router = useRouter();
+const PLACE_OFFLINE = "No connection. Tap Place order again once online — the same cart is never charged twice.";
+
+export default function CartSheet({ open, onOpenChange, settings, role, onPlaced }: CartSheetProps) {
   const cart = useCart();
-  const printer = usePrinter();
   const [discountText, setDiscountText] = useState(cart.discountAmount ? String(cart.discountAmount) : "");
+  const [showDiscount, setShowDiscount] = useState(cart.discountAmount > 0);
+  const [showNote, setShowNote] = useState(cart.note.trim() !== "");
   const [deliveryText, setDeliveryText] = useState(
     cart.deliveryCharge === null ? String(settings.defaultDeliveryCharge) : String(cart.deliveryCharge)
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isPending, startTransition] = useTransition();
+  const deliveryRef = useRef<HTMLDivElement>(null);
 
   const totals = cartTotals(cart, settings.defaultDeliveryCharge);
   const isDelivery = cart.orderType === "delivery";
   const payChoice: PayChoice = cart.paymentMethod ?? "cod";
-  const staffCap = role === "staff" ? Math.floor((totals.subtotal * settings.staffMaxDiscountPct) / 100) : null;
+  const staffCap = role === "staff" ? roundMoney((totals.subtotal * settings.staffMaxDiscountPct) / 100) : null;
+
+  // Live discount check so the cashier sees the limit before tapping Place.
+  const discountError =
+    cart.discountAmount > totals.subtotal
+      ? "More than the subtotal"
+      : staffCap !== null && cart.discountAmount > staffCap
+        ? settings.staffMaxDiscountPct === 0
+          ? "Only an admin can give discounts"
+          : `Over your limit of Rs ${staffCap} (${settings.staffMaxDiscountPct}%)`
+        : null;
+  const canPlace = cart.lines.length > 0 && discountError === null;
 
   const clearError = (field: string) => {
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: "" }));
   };
+
+  const applyDiscount = (amount: number) => {
+    const value = Math.min(roundMoney(amount), totals.subtotal);
+    setDiscountText(value ? String(value) : "");
+    cart.setDiscount(value);
+    clearError("discountAmount");
+  };
+
+  const scrollToDelivery = () => deliveryRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
 
   const handlePlace = async () => {
     const input: PlaceOrderInput = {
@@ -81,30 +104,25 @@ export default function CartSheet({ open, onOpenChange, settings, role }: CartSh
     }
     if (isDelivery && !input.customerPhone) {
       setErrors({ customerPhone: "Needed for delivery" });
+      toast.error("Add the customer's phone number");
+      scrollToDelivery();
       return;
     }
 
     startTransition(async () => {
-      const result = await placeOrderAction(input);
+      const result = await callAction(placeOrderAction(input), { offline: PLACE_OFFLINE });
       if (!result.ok) {
         if (result.fieldErrors) setErrors(result.fieldErrors);
-        toast.error(result.error);
+        // The server reports a missing/hidden variant by id; the cart knows its name.
+        const badId = result.fieldErrors?.lines;
+        const badLine = badId ? cart.lines.find((l) => String(l.variantId) === badId) : undefined;
+        toast.error(badLine ? `${badLine.name} is no longer on the menu. Remove it from the cart.` : result.error);
+        if (result.fieldErrors?.customerPhone) scrollToDelivery();
         return;
       }
-      const { dailySeq, total, warnings, orderId, duplicate } = result.data;
-      toast.success(duplicate ? `Order ${formatOrderNumber(dailySeq)} was already placed` : `Order ${formatOrderNumber(dailySeq)} placed · ${formatMoney(total)}`, { duration: 4000 });
-      for (const w of warnings) toast(w, { icon: "⚠️", duration: 6000 });
       cart.clear();
       onOpenChange(false);
-      // Still inside the tap's activation window, so Bluetooth / RawBT are allowed to print.
-      if (settings.autoPrintOnPlace && printer.isConfigured && !duplicate) {
-        if (printer.prefs.transport === "bluetooth" && !printer.bluetoothConnected) {
-          toast("Printer not paired on this phone — open the order and tap Print bill.", { icon: "🖨️" });
-        } else {
-          await printer.print(orderId, { kitchenCopy: settings.printKitchenCopy });
-        }
-      }
-      router.push(routes.ui.orderDetails(orderId));
+      await onPlaced(result.data);
     });
   };
 
@@ -115,7 +133,7 @@ export default function CartSheet({ open, onOpenChange, settings, role }: CartSh
       title="Cart"
       description={`${totals.count} item${totals.count === 1 ? "" : "s"}`}
       footer={
-        <Button size="lg" className="w-full" isLoading={isPending} disabled={cart.lines.length === 0} onClick={handlePlace}>
+        <Button size="lg" className="w-full" isLoading={isPending} disabled={!canPlace} onClick={handlePlace}>
           Place order · {formatMoney(totals.total)}
         </Button>
       }
@@ -126,18 +144,32 @@ export default function CartSheet({ open, onOpenChange, settings, role }: CartSh
         ) : (
           <ul className="divide-y divide-border rounded-field border border-border">
             {cart.lines.map((line) => (
-              <CartRow key={line.key} line={line} onQuantity={(q) => cart.setQuantity(line.key, q)} onRemove={() => cart.removeLine(line.key)} />
+              <CartRow
+                key={line.key}
+                line={line}
+                onQuantity={(q) => cart.setQuantity(line.key, q)}
+                onNote={(note) => cart.setLineNote(line.key, note)}
+                onRemove={() => cart.removeLine(line.key)}
+              />
             ))}
           </ul>
         )}
 
-        <div className="space-y-2">
+        <div className="space-y-1">
           <span className="block text-sm font-medium">Order type</span>
-          <Chips<OrderType> value={cart.orderType} onChange={cart.setOrderType} options={ORDER_TYPES} />
+          <Chips<OrderType>
+            aria-label="Order type"
+            value={cart.orderType}
+            onChange={(t) => {
+              cart.setOrderType(t);
+              clearError("paymentMethod");
+            }}
+            options={ORDER_TYPES}
+          />
         </div>
 
         {isDelivery && (
-          <div className="space-y-3 rounded-field border border-border p-3">
+          <div ref={deliveryRef} className="space-y-3 rounded-field border border-border p-3">
             <Input
               label="Customer phone"
               type="tel"
@@ -152,76 +184,110 @@ export default function CartSheet({ open, onOpenChange, settings, role }: CartSh
               error={errors.customerPhone}
             />
             <Input
-              label="Customer name (optional)"
-              autoComplete="off"
-              value={cart.customerName}
-              onChange={(e) => cart.setCustomer({ customerName: e.target.value })}
-            />
-            <Input
               label="Address"
               placeholder="Street, block, landmark"
               autoComplete="off"
               value={cart.deliveryAddress}
               onChange={(e) => cart.setCustomer({ deliveryAddress: e.target.value })}
             />
-            <Input
-              label="Delivery charge (Rs)"
-              inputMode="decimal"
-              value={deliveryText}
-              onChange={(e) => {
-                setDeliveryText(e.target.value);
-                const n = Number(e.target.value);
-                cart.setDeliveryCharge(e.target.value.trim() === "" ? null : Number.isFinite(n) ? n : null);
-                clearError("deliveryCharge");
-              }}
-              error={errors.deliveryCharge}
-              hint={`Default Rs ${settings.defaultDeliveryCharge}`}
-            />
+            <div className="grid grid-cols-2 gap-3">
+              <Input
+                label="Name (optional)"
+                autoComplete="off"
+                value={cart.customerName}
+                onChange={(e) => cart.setCustomer({ customerName: e.target.value })}
+              />
+              <Input
+                label="Delivery (Rs)"
+                inputMode="decimal"
+                value={deliveryText}
+                onChange={(e) => {
+                  setDeliveryText(e.target.value);
+                  const n = Number(e.target.value);
+                  cart.setDeliveryCharge(e.target.value.trim() === "" ? null : Number.isFinite(n) ? n : null);
+                  clearError("deliveryCharge");
+                }}
+                error={errors.deliveryCharge}
+              />
+            </div>
           </div>
         )}
 
-        <Input
-          label="Discount (Rs)"
-          inputMode="decimal"
-          placeholder="0"
-          value={discountText}
-          onChange={(e) => {
-            setDiscountText(e.target.value);
-            const n = Number(e.target.value);
-            cart.setDiscount(Number.isFinite(n) ? n : 0);
-            clearError("discountAmount");
-          }}
-          error={errors.discountAmount}
-          hint={staffCap !== null ? (settings.staffMaxDiscountPct === 0 ? "Only an admin can give discounts" : `You can give up to Rs ${staffCap} (${settings.staffMaxDiscountPct}%)`) : undefined}
-        />
-
-        <div className="space-y-2">
+        <div className="space-y-1">
           <span className="block text-sm font-medium">Payment</span>
           <Chips<PayChoice>
+            aria-label="Payment"
             value={payChoice}
             onChange={(v) => {
               cart.setPaymentMethod(v === "cod" ? null : v);
               clearError("paymentMethod");
             }}
             options={[
+              ...(isDelivery ? [{ value: "cod" as const, label: "Pay on delivery" }] : []),
               { value: "cash", label: "Cash" },
               { value: "online", label: "Online / transfer" },
-              ...(isDelivery ? [{ value: "cod" as const, label: "Pay on delivery" }] : []),
             ]}
           />
           {errors.paymentMethod && <p className="text-xs text-danger">{errors.paymentMethod}</p>}
           {isDelivery && payChoice === "cod" && (
-            <p className="text-xs text-muted">The order stays “pending” until you mark it paid when the rider returns.</p>
+            <p className="text-xs text-muted">Stays “pending” until you mark it paid when the rider returns.</p>
           )}
         </div>
 
-        <Input
-          label="Order note (optional)"
-          placeholder="e.g. call on arrival"
-          autoComplete="off"
-          value={cart.note}
-          onChange={(e) => cart.setNote(e.target.value)}
-        />
+        {(!showDiscount || !showNote) && (
+          <div className="flex flex-wrap gap-2">
+            {!showDiscount && (
+              <Button size="sm" variant="outline" startIcon={<Percent className="h-4 w-4" />} onClick={() => setShowDiscount(true)}>
+                Discount
+              </Button>
+            )}
+            {!showNote && (
+              <Button size="sm" variant="outline" startIcon={<MessageSquarePlus className="h-4 w-4" />} onClick={() => setShowNote(true)}>
+                Order note
+              </Button>
+            )}
+          </div>
+        )}
+
+        {showDiscount && (
+          <div className="space-y-2">
+            <Input
+              label="Discount (Rs)"
+              inputMode="decimal"
+              placeholder="0"
+              autoFocus={cart.discountAmount === 0}
+              value={discountText}
+              onChange={(e) => {
+                setDiscountText(e.target.value);
+                const n = Number(e.target.value);
+                cart.setDiscount(Number.isFinite(n) ? n : 0);
+                clearError("discountAmount");
+              }}
+              error={discountError ?? errors.discountAmount}
+              hint={staffCap !== null && settings.staffMaxDiscountPct > 0 ? `Up to Rs ${staffCap} (${settings.staffMaxDiscountPct}%) without an admin` : undefined}
+            />
+            <div className="flex flex-wrap gap-2">
+              {[5, 10].map((pct) => (
+                <QuickChip key={pct} onClick={() => applyDiscount((totals.subtotal * pct) / 100)}>
+                  {pct}%
+                </QuickChip>
+              ))}
+              <QuickChip onClick={() => applyDiscount(50)}>Rs 50</QuickChip>
+              {cart.discountAmount > 0 && <QuickChip onClick={() => applyDiscount(0)}>None</QuickChip>}
+            </div>
+          </div>
+        )}
+
+        {showNote && (
+          <Input
+            label="Order note"
+            placeholder="e.g. call on arrival"
+            autoComplete="off"
+            autoFocus={cart.note === ""}
+            value={cart.note}
+            onChange={(e) => cart.setNote(e.target.value)}
+          />
+        )}
 
         <dl className="space-y-1 rounded-field bg-surface-2 px-4 py-3 text-sm">
           <div className="flex justify-between"><dt className="text-muted">Subtotal</dt><dd className="tabular-nums">{formatMoney(totals.subtotal)}</dd></div>
@@ -234,7 +300,30 @@ export default function CartSheet({ open, onOpenChange, settings, role }: CartSh
   );
 }
 
-function CartRow({ line, onQuantity, onRemove }: { line: CartLine; onQuantity: (q: number) => void; onRemove: () => void }) {
+function QuickChip({ children, onClick }: { children: React.ReactNode; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="h-9 rounded-full border border-border bg-surface px-3.5 text-sm font-medium transition-colors active:bg-surface-2"
+    >
+      {children}
+    </button>
+  );
+}
+
+function CartRow({
+  line,
+  onQuantity,
+  onNote,
+  onRemove,
+}: {
+  line: CartLine;
+  onQuantity: (q: number) => void;
+  onNote: (note: string) => void;
+  onRemove: () => void;
+}) {
+  const [editingNote, setEditingNote] = useState(false);
   return (
     <li className="space-y-2 px-3 py-3">
       <div className="flex items-start gap-3">
@@ -248,15 +337,36 @@ function CartRow({ line, onQuantity, onRemove }: { line: CartLine; onQuantity: (
               {slot.choices.map((c) => `${c.quantity > 1 ? `${c.quantity} × ` : ""}${c.itemName}${c.variantName !== "Regular" ? ` (${c.variantName})` : ""}`).join(", ")}
             </p>
           ))}
-          {line.note && <p className="text-xs italic text-muted">“{line.note}”</p>}
+          {line.note && !editingNote && <p className="text-xs italic text-muted">“{line.note}”</p>}
         </div>
         <p className={cn("shrink-0 font-semibold tabular-nums")}>{formatMoney(line.unitPrice * line.quantity)}</p>
       </div>
+      {editingNote && (
+        <Input
+          placeholder="Note for the kitchen"
+          autoComplete="off"
+          autoFocus
+          className="h-10 text-sm"
+          defaultValue={line.note ?? ""}
+          onBlur={(e) => {
+            onNote(e.target.value);
+            setEditingNote(false);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") e.currentTarget.blur();
+          }}
+        />
+      )}
       <div className="flex items-center justify-between">
-        <NumberStepper size="sm" value={line.quantity} min={0} max={99} onChange={onQuantity} />
-        <Button size="sm" variant="ghost" className="text-danger" startIcon={<Trash2 className="h-4 w-4" />} onClick={onRemove}>
-          Remove
-        </Button>
+        <NumberStepper value={line.quantity} min={0} max={99} onChange={onQuantity} />
+        <div className="flex items-center">
+          <Button size="sm" variant="ghost" className="text-muted" aria-label={line.note ? "Edit note" : "Add note"} onClick={() => setEditingNote(true)}>
+            <MessageSquarePlus className="h-4 w-4" />
+          </Button>
+          <Button size="sm" variant="ghost" className="text-danger" aria-label="Remove" onClick={onRemove}>
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
       </div>
     </li>
   );

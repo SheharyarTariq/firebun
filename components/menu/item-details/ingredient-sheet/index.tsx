@@ -12,6 +12,7 @@ import Button from "@/components/common/Button";
 import Input from "@/components/common/Input";
 import Select from "@/components/common/Select";
 import type { InventoryChoice, RecipeLine, VariantFull } from "@/server/menu/queries";
+import { callAction } from "@/utils/call-action";
 import { cn } from "@/utils/cn";
 import {
   entryQtyToBase,
@@ -73,7 +74,7 @@ export default function IngredientSheet({
     const values = { inventoryItemId: selected?.id ?? Number.NaN, qty: Number(qty), unit };
     if (!(await validateAndSetErrors(recipeLineSchema, values, setErrors))) return;
     startTransition(async () => {
-      const result = await setRecipeLineAction(variant.id, values);
+      const result = await callAction(setRecipeLineAction(variant.id, values));
       if (!result.ok) {
         if (result.fieldErrors) setErrors(result.fieldErrors);
         toast.error(result.error);
@@ -87,7 +88,7 @@ export default function IngredientSheet({
   const handleRemove = () => {
     if (!line) return;
     startTransition(async () => {
-      const result = await removeRecipeLineAction(line.id);
+      const result = await callAction(removeRecipeLineAction(line.id));
       if (!result.ok) {
         toast.error(result.error);
         return;

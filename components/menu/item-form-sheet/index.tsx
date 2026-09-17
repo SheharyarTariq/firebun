@@ -16,6 +16,7 @@ import Select from "@/components/common/Select";
 import Textarea from "@/components/common/Textarea";
 import Toggle from "@/components/common/Toggle";
 import type { MenuCategory, MenuItem, MenuItemKind } from "@/db/schema";
+import { callAction } from "@/utils/call-action";
 import { routes } from "@/utils/routes";
 import { validateAndSetErrors } from "@/utils/validation";
 import { createMenuItemSchema, updateMenuItemSchema } from "../schema";
@@ -84,7 +85,7 @@ export default function ItemFormSheet({ open, onOpenChange, categories, item }: 
       };
       if (!(await validateAndSetErrors(updateMenuItemSchema, values, setErrors))) return;
       startTransition(async () => {
-        const result = await updateMenuItemAction(item.id, values);
+        const result = await callAction(updateMenuItemAction(item.id, values));
         if (!result.ok) {
           if (result.fieldErrors) setErrors(result.fieldErrors);
           toast.error(result.error);
@@ -105,7 +106,7 @@ export default function ItemFormSheet({ open, onOpenChange, categories, item }: 
     };
     if (!(await validateAndSetErrors(createMenuItemSchema, values, setErrors))) return;
     startTransition(async () => {
-      const result = await createMenuItemAction(values);
+      const result = await callAction(createMenuItemAction(values));
       if (!result.ok) {
         if (result.fieldErrors) setErrors(result.fieldErrors);
         toast.error(result.error);

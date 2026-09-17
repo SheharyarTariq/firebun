@@ -15,6 +15,7 @@ import type {
   RecipeLine,
   VariantFull,
 } from "@/server/menu/queries";
+import { callAction } from "@/utils/call-action";
 import { routes } from "@/utils/routes";
 import ItemFormSheet from "../item-form-sheet";
 import IngredientSheet from "./ingredient-sheet";
@@ -49,7 +50,7 @@ export default function MenuItemDetails({ details }: MenuItemDetailsProps) {
 
   const toggleAvailability = (isAvailable: boolean) => {
     startTransition(async () => {
-      const result = await setItemAvailabilityAction(item.id, isAvailable);
+      const result = await callAction(setItemAvailabilityAction(item.id, isAvailable));
       if (!result.ok) toast.error(result.error);
       else toast.success(isAvailable ? "Back on sale" : "Marked sold out");
     });

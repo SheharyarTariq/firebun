@@ -8,6 +8,7 @@ import Button from "@/components/common/Button";
 import Input from "@/components/common/Input";
 import Select from "@/components/common/Select";
 import type { UserRole } from "@/db/schema/users";
+import { callAction } from "@/utils/call-action";
 import { validateAndSetErrors } from "@/utils/validation";
 import { createUserSchema } from "../schema";
 
@@ -46,7 +47,7 @@ export default function UserFormSheet({ open, onOpenChange }: UserFormSheetProps
     if (!(await validateAndSetErrors(createUserSchema, values, setErrors))) return;
 
     startTransition(async () => {
-      const result = await createUserAction(values);
+      const result = await callAction(createUserAction(values));
       if (!result.ok) {
         if (result.fieldErrors) setErrors(result.fieldErrors);
         toast.error(result.error);

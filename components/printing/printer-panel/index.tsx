@@ -9,8 +9,10 @@ import { cn } from "@/utils/cn";
 import { usePrinter } from "../use-printer";
 
 interface PrinterPanelProps {
-  /** Called after a transport is chosen or a printer paired (e.g. to close a sheet). */
-  onConfigured?: () => void;
+  /** Called once printing can work: a non-Bluetooth transport chosen, or a printer paired. */
+  onReady?: () => void;
+  /** Hide the test-print button (the first-use sheet prints the real order instead). */
+  hideTestPrint?: boolean;
 }
 
 interface Option {
@@ -24,35 +26,35 @@ const OPTIONS: Option[] = [
   {
     value: "bluetooth",
     title: "Bluetooth (direct)",
-    description: "Prints straight from Chrome. Works when the printer supports Bluetooth LE. Pair once per session.",
+    description: "Prints straight from Chrome. Pair the printer once per session.",
     icon: Bluetooth,
   },
   {
     value: "rawbt",
     title: "RawBT app",
-    description: "Free Android app that talks to almost any Bluetooth thermal printer. Set the printer up in RawBT once.",
+    description: "Free Android app that talks to almost any Bluetooth thermal printer.",
     icon: Smartphone,
   },
   {
     value: "browser",
     title: "Phone print dialog",
-    description: "Uses the normal print screen. Works with any printer the phone can see; slower.",
+    description: "The normal print screen. Works with any printer the phone can see; slower.",
     icon: Printer,
   },
 ];
 
 /** Transport choice + pairing + test print. Used on /printer and in the first-use sheet. */
-export default function PrinterPanel({ onConfigured }: PrinterPanelProps) {
+export default function PrinterPanel({ onReady, hideTestPrint = false }: PrinterPanelProps) {
   const printer = usePrinter();
   const { prefs } = printer;
 
   const choose = (value: PrinterTransport) => {
     printer.setTransport(value);
-    if (value !== "bluetooth") onConfigured?.();
+    if (value !== "bluetooth") onReady?.();
   };
 
   const pair = async () => {
-    if (await printer.pairBluetooth()) onConfigured?.();
+    if (await printer.pairBluetooth()) onReady?.();
   };
 
   return (
@@ -65,9 +67,10 @@ export default function PrinterPanel({ onConfigured }: PrinterPanelProps) {
             <button
               key={option.value}
               type="button"
+              disabled={unsupported}
               onClick={() => choose(option.value)}
               className={cn(
-                "flex w-full items-start gap-3 rounded-card border p-3 text-left transition-colors active:bg-surface-2",
+                "flex w-full items-start gap-3 rounded-card border p-3 text-left transition-colors active:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-50",
                 active ? "border-brand-strong bg-brand/10" : "border-border bg-surface"
               )}
             >
@@ -131,17 +134,19 @@ export default function PrinterPanel({ onConfigured }: PrinterPanelProps) {
         </div>
       )}
 
-      <Button
-        variant="outline"
-        size="lg"
-        className="w-full"
-        startIcon={<Printer className="h-5 w-5" />}
-        disabled={!printer.isConfigured}
-        isLoading={printer.busy}
-        onClick={() => printer.print("sample")}
-      >
-        Test print
-      </Button>
+      {!hideTestPrint && (
+        <Button
+          variant="outline"
+          size="lg"
+          className="w-full"
+          startIcon={<Printer className="h-5 w-5" />}
+          disabled={!printer.isConfigured || printer.needsPairing}
+          isLoading={printer.busy}
+          onClick={() => printer.print("sample")}
+        >
+          Test print
+        </Button>
+      )}
     </div>
   );
 }

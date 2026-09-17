@@ -9,6 +9,7 @@ import Chips from "@/components/common/Chips";
 import Input from "@/components/common/Input";
 import Select from "@/components/common/Select";
 import type { InventoryItem } from "@/db/schema";
+import { callAction } from "@/utils/call-action";
 import {
   entryQtyToBase,
   entryUnitLabel,
@@ -70,7 +71,7 @@ export default function PurchaseSheet({ open, onOpenChange, item }: PurchaseShee
     if (!(await validateAndSetErrors(purchaseSchema, values, setErrors))) return;
 
     startTransition(async () => {
-      const result = await recordPurchaseAction(values);
+      const result = await callAction(recordPurchaseAction(values));
       if (!result.ok) {
         if (result.fieldErrors) setErrors(result.fieldErrors);
         toast.error(result.error);

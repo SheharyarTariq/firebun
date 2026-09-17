@@ -13,6 +13,7 @@ import BottomSheet from "@/components/common/BottomSheet";
 import Button from "@/components/common/Button";
 import Input from "@/components/common/Input";
 import type { MenuCategory } from "@/db/schema";
+import { callAction } from "@/utils/call-action";
 import { validateAndSetErrors } from "@/utils/validation";
 import { categorySchema } from "../schema";
 
@@ -36,7 +37,7 @@ export default function CategoryManagerSheet({
   const handleCreate = async () => {
     if (!(await validateAndSetErrors(categorySchema, { name: newName }, setErrors))) return;
     startTransition(async () => {
-      const result = await createCategoryAction({ name: newName });
+      const result = await callAction(createCategoryAction({ name: newName }));
       if (!result.ok) {
         toast.error(result.error);
         return;
@@ -49,10 +50,10 @@ export default function CategoryManagerSheet({
   const handleRename = async (category: MenuCategory) => {
     if (!(await validateAndSetErrors(categorySchema, { name: editName }, setErrors))) return;
     startTransition(async () => {
-      const result = await updateCategoryAction(category.id, {
+      const result = await callAction(updateCategoryAction(category.id, {
         name: editName,
         isActive: category.isActive,
-      });
+      }));
       if (!result.ok) {
         toast.error(result.error);
         return;
@@ -63,17 +64,17 @@ export default function CategoryManagerSheet({
 
   const handleToggle = (category: MenuCategory) => {
     startTransition(async () => {
-      const result = await updateCategoryAction(category.id, {
+      const result = await callAction(updateCategoryAction(category.id, {
         name: category.name,
         isActive: !category.isActive,
-      });
+      }));
       if (!result.ok) toast.error(result.error);
     });
   };
 
   const handleMove = (id: number, direction: "up" | "down") => {
     startTransition(async () => {
-      const result = await moveCategoryAction(id, direction);
+      const result = await callAction(moveCategoryAction(id, direction));
       if (!result.ok) toast.error(result.error);
     });
   };

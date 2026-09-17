@@ -9,6 +9,7 @@ import Button from "@/components/common/Button";
 import Card from "@/components/common/Card";
 import Select from "@/components/common/Select";
 import type { RecipeLine, VariantFull } from "@/server/menu/queries";
+import { callAction } from "@/utils/call-action";
 import { cn } from "@/utils/cn";
 import { formatMoney, formatQty } from "@/utils/helper";
 import { estimateCost, marginPct } from "../../format";
@@ -39,7 +40,7 @@ export default function VariantCard({
   const handleCopy = () => {
     if (!copyFrom) return;
     startTransition(async () => {
-      const result = await copyRecipeAction(Number(copyFrom), variant.id);
+      const result = await callAction(copyRecipeAction(Number(copyFrom), variant.id));
       if (!result.ok) toast.error(result.error);
       else toast.success("Recipe copied — adjust the quantities");
     });

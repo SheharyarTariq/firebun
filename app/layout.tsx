@@ -33,8 +33,9 @@ export const viewport: Viewport = {
   themeColor: "#141210",
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
   viewportFit: "cover",
+  // The on-screen keyboard shrinks the layout so sheet footers stay reachable.
+  interactiveWidget: "resizes-content",
 };
 
 export default function RootLayout({
@@ -51,6 +52,7 @@ export default function RootLayout({
         {children}
         <Toaster
           position="top-center"
+          containerStyle={{ top: "calc(env(safe-area-inset-top) + 12px)" }}
           toastOptions={{ duration: 3000, className: "text-sm" }}
         />
       </body>

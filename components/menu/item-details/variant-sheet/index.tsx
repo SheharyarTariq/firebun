@@ -14,6 +14,7 @@ import ConfirmSheet from "@/components/common/ConfirmSheet";
 import Input from "@/components/common/Input";
 import Toggle from "@/components/common/Toggle";
 import type { VariantFull } from "@/server/menu/queries";
+import { callAction } from "@/utils/call-action";
 import { validateAndSetErrors } from "@/utils/validation";
 import { variantSchema } from "../../schema";
 
@@ -51,8 +52,8 @@ export default function VariantSheet({
     if (!(await validateAndSetErrors(variantSchema, values, setErrors))) return;
     startTransition(async () => {
       const result = variant
-        ? await updateVariantAction(variant.id, values)
-        : await addVariantAction(itemId, values);
+        ? await callAction(updateVariantAction(variant.id, values))
+        : await callAction(addVariantAction(itemId, values));
       if (!result.ok) {
         if (result.fieldErrors) setErrors(result.fieldErrors);
         toast.error(result.error);
@@ -66,7 +67,7 @@ export default function VariantSheet({
   const handleDelete = () => {
     if (!variant) return;
     startTransition(async () => {
-      const result = await deleteVariantAction(variant.id);
+      const result = await callAction(deleteVariantAction(variant.id));
       if (!result.ok) {
         toast.error(result.error);
         setConfirmDelete(false);

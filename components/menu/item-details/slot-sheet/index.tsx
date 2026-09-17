@@ -15,6 +15,7 @@ import ConfirmSheet from "@/components/common/ConfirmSheet";
 import Input from "@/components/common/Input";
 import NumberStepper from "@/components/common/NumberStepper";
 import type { DealSlotFull, VariantChoice } from "@/server/menu/queries";
+import { callAction } from "@/utils/call-action";
 import { cn } from "@/utils/cn";
 import { formatMoney } from "@/utils/helper";
 import { validateAndSetErrors } from "@/utils/validation";
@@ -98,8 +99,8 @@ export default function SlotSheet({ open, onOpenChange, dealVariantId, slot, cho
     if (!(await validateAndSetErrors(dealSlotSchema, values, setErrors))) return;
     startTransition(async () => {
       const result = slot
-        ? await updateDealSlotAction(slot.id, values)
-        : await addDealSlotAction(dealVariantId, values);
+        ? await callAction(updateDealSlotAction(slot.id, values))
+        : await callAction(addDealSlotAction(dealVariantId, values));
       if (!result.ok) {
         if (result.fieldErrors) setErrors(result.fieldErrors);
         toast.error(result.error);
@@ -113,7 +114,7 @@ export default function SlotSheet({ open, onOpenChange, dealVariantId, slot, cho
   const handleDelete = () => {
     if (!slot) return;
     startTransition(async () => {
-      const result = await deleteDealSlotAction(slot.id);
+      const result = await callAction(deleteDealSlotAction(slot.id));
       if (!result.ok) {
         toast.error(result.error);
         setConfirmDelete(false);

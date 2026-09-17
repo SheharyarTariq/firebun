@@ -12,6 +12,7 @@ import Button from "@/components/common/Button";
 import Input from "@/components/common/Input";
 import Select from "@/components/common/Select";
 import type { InventoryItem } from "@/db/schema";
+import { callAction } from "@/utils/call-action";
 import {
   DEFAULT_PACK_LABEL,
   DISPLAY_UNITS_FOR_BASE,
@@ -101,8 +102,8 @@ export default function ItemFormSheet({
 
     startTransition(async () => {
       const result = item
-        ? await updateInventoryItemAction(item.id, values)
-        : await createInventoryItemAction(values);
+        ? await callAction(updateInventoryItemAction(item.id, values))
+        : await callAction(createInventoryItemAction(values));
       if (!result.ok) {
         if (result.fieldErrors) setErrors(result.fieldErrors);
         toast.error(result.error);

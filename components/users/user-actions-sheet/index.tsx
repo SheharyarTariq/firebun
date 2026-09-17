@@ -12,6 +12,7 @@ import Button from "@/components/common/Button";
 import ConfirmSheet from "@/components/common/ConfirmSheet";
 import Input from "@/components/common/Input";
 import type { UserRow } from "@/server/users/queries";
+import { callAction } from "@/utils/call-action";
 import { validateAndSetErrors } from "@/utils/validation";
 import { resetPasswordSchema } from "../schema";
 
@@ -42,7 +43,7 @@ export default function UserActionsSheet({ user, isSelf, onOpenChange }: UserAct
 
   const runUpdate = (input: Parameters<typeof updateUserAction>[1], success: string) => {
     startTransition(async () => {
-      const result = await updateUserAction(user.id, input);
+      const result = await callAction(updateUserAction(user.id, input));
       if (!result.ok) {
         toast.error(result.error);
         return;
@@ -55,7 +56,7 @@ export default function UserActionsSheet({ user, isSelf, onOpenChange }: UserAct
   const handleReset = async () => {
     if (!(await validateAndSetErrors(resetPasswordSchema, { password }, setErrors))) return;
     startTransition(async () => {
-      const result = await resetUserPasswordAction(user.id, { password });
+      const result = await callAction(resetUserPasswordAction(user.id, { password }));
       if (!result.ok) {
         if (result.fieldErrors) setErrors(result.fieldErrors);
         toast.error(result.error);

@@ -12,6 +12,7 @@ import Textarea from "@/components/common/Textarea";
 import Toggle from "@/components/common/Toggle";
 import PageHeader from "@/components/layout/page-header";
 import type { Settings } from "@/db/schema";
+import { callAction } from "@/utils/call-action";
 import { routes } from "@/utils/routes";
 import { validateAndSetErrors } from "@/utils/validation";
 import { settingsSchema, type SettingsFormInput } from "./schema";
@@ -64,7 +65,7 @@ export default function SettingsScreen({ settings }: SettingsScreenProps) {
       return;
     }
     startTransition(async () => {
-      const result = await updateSettingsAction(values);
+      const result = await callAction(updateSettingsAction(values));
       if (!result.ok) {
         if (result.fieldErrors) setErrors(result.fieldErrors);
         toast.error(result.error);

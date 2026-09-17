@@ -50,6 +50,7 @@ export interface CartState {
   addLine: (line: Omit<CartLine, "key">) => void;
   replaceLines: (lines: Omit<CartLine, "key">[]) => void;
   setQuantity: (key: string, quantity: number) => void;
+  setLineNote: (key: string, note: string | null) => void;
   removeLine: (key: string) => void;
   setOrderType: (orderType: OrderType) => void;
   setDiscount: (amount: number) => void;
@@ -116,13 +117,19 @@ export const useCart = create<CartState>()(
               : state.lines.map((l) => (l.key === key ? { ...l, quantity } : l)),
         })),
 
+      setLineNote: (key, note) =>
+        set((state) => ({
+          lines: state.lines.map((l) => (l.key === key ? { ...l, note: note?.trim() || null } : l)),
+        })),
+
       removeLine: (key) => set((state) => ({ lines: state.lines.filter((l) => l.key !== key) })),
 
       setOrderType: (orderType) =>
         set((state) => ({
           orderType,
-          // Counter orders are always paid now; delivery may be paid on delivery.
-          paymentMethod: orderType === "delivery" ? state.paymentMethod : (state.paymentMethod ?? "cash"),
+          // Counter orders are paid now (cash unless changed); delivery defaults to
+          // "pay on delivery" because the rider collects the money.
+          paymentMethod: orderType === "delivery" ? null : (state.paymentMethod ?? "cash"),
         })),
 
       setDiscount: (amount) => set({ discountAmount: Math.max(0, amount) }),
@@ -159,6 +166,13 @@ export function cartTotals(state: Pick<CartState, "lines" | "discountAmount" | "
   const total = roundMoney(subtotal - discount + delivery);
   const count = state.lines.reduce((n, l) => n + l.quantity, 0);
   return { subtotal, discount, delivery, total, count };
+}
+
+/** Quantity of each menu item in the cart (all sizes / choices combined), for the item grid. */
+export function quantitiesByItem(lines: CartLine[]): Map<number, number> {
+  const map = new Map<number, number>();
+  for (const l of lines) map.set(l.menuItemId, (map.get(l.menuItemId) ?? 0) + l.quantity);
+  return map;
 }
 
 /** false during server render and the first client paint, true once the page has hydrated. */

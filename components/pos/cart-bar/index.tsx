@@ -25,9 +25,13 @@ export default function CartBar({ defaultDeliveryCharge, onOpen }: CartBarProps)
       <button
         type="button"
         onClick={onOpen}
-        className="mx-auto flex h-14 w-full max-w-lg items-center gap-3 rounded-card bg-brand px-4 text-brand-ink shadow-lg transition-colors active:bg-brand-strong"
+        className="mx-auto flex h-14 w-full max-w-lg items-center gap-3 rounded-card bg-brand px-4 text-brand-ink shadow-[0_8px_24px_-8px_rgb(255_180_0/0.7)] transition-[background-color,transform] active:scale-[0.99] active:bg-brand-strong motion-reduce:transition-none"
       >
-        <span className="flex h-8 min-w-8 items-center justify-center rounded-full bg-brand-ink/15 px-2 text-sm font-bold tabular-nums">
+        {/* Re-mounted on every count change so the pop animation replays. */}
+        <span
+          key={totals.count}
+          className="flex h-8 min-w-8 animate-pop items-center justify-center rounded-full bg-brand-ink/15 px-2 text-sm font-bold tabular-nums"
+        >
           {totals.count}
         </span>
         <span className="flex flex-1 items-center gap-2 font-semibold">

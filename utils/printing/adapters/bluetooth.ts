@@ -10,6 +10,19 @@ type Printer = InstanceType<typeof import("@/utils/printing/vendor/webbluetooth-
 let printer: Printer | null = null;
 let device: WebBluetoothPrinterDevice | null = null;
 
+// Components watch the connection through useSyncExternalStore (see use-printer.ts).
+const listeners = new Set<() => void>();
+function notify() {
+  for (const l of listeners) l();
+}
+
+export function subscribeBluetooth(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
 export function isBluetoothSupported(): boolean {
   return typeof navigator !== "undefined" && "bluetooth" in navigator;
 }
@@ -35,16 +48,19 @@ export async function connectBluetooth(timeoutMs = 45_000): Promise<WebBluetooth
   const instance = new WebBluetoothReceiptPrinter();
   printer = instance;
   device = null;
+  notify();
 
   return new Promise<WebBluetoothPrinterDevice>((resolve, reject) => {
     const timer = setTimeout(() => reject(new Error("No printer was selected.")), timeoutMs);
     instance.addEventListener("connected", (d) => {
       clearTimeout(timer);
       device = d;
+      notify();
       resolve(d);
     });
     instance.addEventListener("disconnected", () => {
       device = null;
+      notify();
     });
     // connect() never rejects on cancel; the timeout above covers that.
     void instance.connect();
@@ -53,7 +69,7 @@ export async function connectBluetooth(timeoutMs = 45_000): Promise<WebBluetooth
 
 export async function printBluetooth(bytes: Uint8Array): Promise<void> {
   if (!printer || !device) {
-    throw new Error("Printer not connected. Open Printer settings and tap “Pair printer”.");
+    throw new Error("Printer not connected. Tap “Pair printer” first.");
   }
   await printer.print(bytes);
 }
@@ -68,4 +84,5 @@ export async function disconnectBluetooth(): Promise<void> {
   }
   printer = null;
   device = null;
+  notify();
 }

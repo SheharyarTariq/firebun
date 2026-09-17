@@ -120,8 +120,9 @@ async function loadVariants(tx: DbOrTx, ids: number[]): Promise<Map<number, Vari
 }
 
 function assertSellable(v: VariantInfo | undefined, variantId: number): VariantInfo {
+  // `lines` carries the offending variant id so the counter can name the cart line.
   if (!v || !v.isActive || !v.itemActive) {
-    throw new ServiceError(`A menu item in the cart (#${variantId}) is no longer on the menu.`);
+    throw new ServiceError("An item in the cart is no longer on the menu. Remove it and try again.", { lines: String(variantId) });
   }
   if (!v.itemAvailable) {
     throw new ServiceError(`${v.itemName} is sold out. Remove it from the cart.`);

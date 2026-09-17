@@ -1,18 +1,25 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Search, ShoppingBag } from "lucide-react";
+import { useCallback, useEffect, useMemo, useOptimistic, useState } from "react";
+import { BluetoothOff, Search, ShoppingBag } from "lucide-react";
+import toast from "react-hot-toast";
 import Chips from "@/components/common/Chips";
 import EmptyState from "@/components/common/EmptyState";
 import Input from "@/components/common/Input";
 import PageHeader from "@/components/layout/page-header";
+import PrinterSheet from "@/components/printing/printer-sheet";
+import { usePrinter } from "@/components/printing/use-printer";
 import type { UserRole } from "@/db/schema/users";
 import type { CatalogCategory, CatalogItem } from "@/server/orders/queries";
+import type { PlaceOrderResult } from "@/server/orders/service";
+import { formatOrderNumber } from "@/utils/helper";
 import CartBar from "./cart-bar";
 import CartSheet from "./cart-sheet";
+import { quantitiesByItem, useCart, useHydrated } from "./cart-store";
 import DealSheet from "./deal-sheet";
 import ItemCard from "./item-card";
 import ItemSheet from "./item-sheet";
+import PlacedBar, { type PlacedOrder } from "./placed-bar";
 
 export interface PosSettings {
   defaultDeliveryCharge: number;
@@ -30,19 +37,39 @@ interface PosScreenProps {
 }
 
 const ALL = "all";
+const NO_QUANTITIES = new Map<number, number>();
 
-type Sheet = { type: "item"; item: CatalogItem } | { type: "deal"; item: CatalogItem } | { type: "cart" } | null;
+type SheetKind = "item" | "deal" | "cart" | "printer";
 
-export default function PosScreen({ catalog, settings, user, businessDateLabel }: PosScreenProps) {
+type AvailabilityPatch = { itemId: number; isAvailable: boolean };
+
+function withAvailability(catalog: CatalogCategory[], patch: AvailabilityPatch): CatalogCategory[] {
+  return catalog.map((c) => ({
+    ...c,
+    items: c.items.map((i) => (i.id === patch.itemId ? { ...i, isAvailable: patch.isAvailable } : i)),
+  }));
+}
+
+export default function PosScreen({ catalog: serverCatalog, settings, user, businessDateLabel }: PosScreenProps) {
+  const [catalog, applyAvailability] = useOptimistic(serverCatalog, withAvailability);
   const [query, setQuery] = useState("");
   const [categoryId, setCategoryId] = useState<string>(ALL);
-  const [sheet, setSheet] = useState<Sheet>(null);
+
+  // Which sheet is open, and the item the item/deal sheets show. The item is kept after
+  // closing so vaul can play the slide-out; `sheetKey` remounts a sheet on every open.
+  const [openSheet, setOpenSheet] = useState<SheetKind | null>(null);
+  const [sheetItemId, setSheetItemId] = useState<number | null>(null);
   const [sheetKey, setSheetKey] = useState(0);
 
-  const openSheet = (next: Exclude<Sheet, null>) => {
-    setSheetKey((k) => k + 1);
-    setSheet(next);
-  };
+  const [placed, setPlaced] = useState<PlacedOrder | null>(null);
+  const [pendingPrint, setPendingPrint] = useState<number | null>(null);
+
+  const hydrated = useHydrated();
+  const lines = useCart((s) => s.lines);
+  const addLine = useCart((s) => s.addLine);
+  const printer = usePrinter();
+
+  const inCart = useMemo(() => (hydrated ? quantitiesByItem(lines) : NO_QUANTITIES), [hydrated, lines]);
 
   const items = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -52,11 +79,96 @@ export default function PosScreen({ catalog, settings, user, businessDateLabel }
       .filter((i) => q === "" || i.name.toLowerCase().includes(q));
   }, [catalog, categoryId, query]);
 
+  const sheetItem = useMemo(
+    () => (sheetItemId === null ? undefined : catalog.flatMap((c) => c.items).find((i) => i.id === sheetItemId)),
+    [catalog, sheetItemId]
+  );
+
+  const show = (kind: SheetKind, item?: CatalogItem) => {
+    setSheetKey((k) => k + 1);
+    if (item) setSheetItemId(item.id);
+    setOpenSheet(kind);
+  };
+  const closeSheet = (open: boolean) => {
+    if (!open) setOpenSheet(null);
+  };
+
+  const quickAdd = (item: CatalogItem) => {
+    const variant = item.variants[0];
+    addLine({
+      menuItemId: item.id,
+      variantId: variant.id,
+      kind: "single",
+      name: item.name,
+      variantName: variant.name,
+      unitPrice: variant.price,
+      quantity: 1,
+      note: null,
+      dealChoices: [],
+    });
+  };
+
+  const handleTap = (item: CatalogItem) => {
+    if (item.kind === "deal") return show("deal", item);
+    if (item.variants.length > 1 || !item.isAvailable) return show("item", item);
+    quickAdd(item);
+  };
+
+  /** Prints a bill, or opens printer setup first and prints as soon as it is ready. */
+  const printBill = async (orderId: number) => {
+    if (!printer.canPrintNow()) {
+      setPendingPrint(orderId);
+      show("printer");
+      return;
+    }
+    const id = toast.loading("Printing bill…");
+    const ok = await printer.print(orderId, { kitchenCopy: settings.printKitchenCopy, quiet: true });
+    if (ok) toast.success("Bill printed", { id });
+    else toast.dismiss(id);
+  };
+
+  const handlePlaced = async (result: PlaceOrderResult) => {
+    setPlaced({ orderId: result.orderId, dailySeq: result.dailySeq, total: result.total, warnings: result.warnings, duplicate: result.duplicate });
+    if (!settings.autoPrintOnPlace || result.duplicate || !printer.isConfigured) return;
+    // Still inside the tap's activation window, so Bluetooth / RawBT are allowed to print.
+    if (printer.canPrintNow()) {
+      await printBill(result.orderId);
+    } else {
+      toast(`Printer not paired on this phone — tap Print to pair and print ${formatOrderNumber(result.dailySeq)}.`, { icon: <BluetoothOff className="h-4 w-4 text-warning" /> });
+    }
+  };
+
+  const dismissPlaced = useCallback(() => setPlaced(null), []);
+
+  // The confirmation strip makes way as soon as the next order starts.
+  useEffect(
+    () =>
+      useCart.subscribe((state, previous) => {
+        if (state.lines.length > 0 && previous.lines.length === 0) setPlaced(null);
+      }),
+    []
+  );
+
   return (
     <>
-      <PageHeader title="Counter" subtitle={`${businessDateLabel} · ${user.name}`} />
+      <PageHeader
+        title="Counter"
+        subtitle={`${businessDateLabel} · ${user.name}`}
+        actions={
+          printer.needsPairing ? (
+            <button
+              type="button"
+              onClick={() => show("printer")}
+              className="flex h-9 items-center gap-1.5 rounded-full border border-white/20 px-3 text-xs font-medium text-ink-muted transition-colors active:bg-white/10"
+            >
+              <BluetoothOff className="h-3.5 w-3.5" />
+              Printer · not paired
+            </button>
+          ) : undefined
+        }
+      />
 
-      <div className="sticky top-14 z-20 space-y-2 bg-background px-4 pb-2 pt-3">
+      <div className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-20 space-y-1 bg-background px-4 pb-1 pt-3">
         <Input
           type="search"
           placeholder="Search menu"
@@ -72,7 +184,7 @@ export default function PosScreen({ catalog, settings, user, businessDateLabel }
         />
       </div>
 
-      <div className="px-4 pb-24">
+      <div className="px-4 pb-28">
         {items.length === 0 ? (
           <EmptyState
             icon={ShoppingBag}
@@ -89,33 +201,53 @@ export default function PosScreen({ catalog, settings, user, businessDateLabel }
               <ItemCard
                 key={item.id}
                 item={item}
-                onSelect={() => openSheet({ type: item.kind === "deal" ? "deal" : "item", item })}
+                inCart={inCart.get(item.id) ?? 0}
+                onTap={() => handleTap(item)}
+                onMore={() => show("item", item)}
               />
             ))}
           </div>
         )}
       </div>
 
-      <CartBar defaultDeliveryCharge={settings.defaultDeliveryCharge} onOpen={() => openSheet({ type: "cart" })} />
+      {placed && lines.length === 0 ? (
+        <PlacedBar placed={placed} printing={printer.busy} onPrint={() => printBill(placed.orderId)} onDismiss={dismissPlaced} />
+      ) : (
+        <CartBar defaultDeliveryCharge={settings.defaultDeliveryCharge} onOpen={() => show("cart")} />
+      )}
 
       <ItemSheet
         key={`item-${sheetKey}`}
-        open={sheet?.type === "item"}
-        onOpenChange={(open) => !open && setSheet(null)}
-        item={sheet?.type === "item" ? sheet.item : undefined}
+        open={openSheet === "item"}
+        onOpenChange={closeSheet}
+        item={sheetItem}
+        onAvailabilityChange={(itemId, isAvailable) => applyAvailability({ itemId, isAvailable })}
       />
       <DealSheet
         key={`deal-${sheetKey}`}
-        open={sheet?.type === "deal"}
-        onOpenChange={(open) => !open && setSheet(null)}
-        item={sheet?.type === "deal" ? sheet.item : undefined}
+        open={openSheet === "deal"}
+        onOpenChange={closeSheet}
+        item={sheetItem}
+        onAvailabilityChange={(itemId, isAvailable) => applyAvailability({ itemId, isAvailable })}
       />
       <CartSheet
         key={`cart-${sheetKey}`}
-        open={sheet?.type === "cart"}
-        onOpenChange={(open) => !open && setSheet(null)}
+        open={openSheet === "cart"}
+        onOpenChange={closeSheet}
         settings={settings}
         role={user.role}
+        onPlaced={handlePlaced}
+      />
+      <PrinterSheet
+        open={openSheet === "printer"}
+        onOpenChange={closeSheet}
+        description={pendingPrint !== null ? "The bill prints as soon as the printer is ready." : undefined}
+        onReady={() => {
+          if (pendingPrint === null) return;
+          const orderId = pendingPrint;
+          setPendingPrint(null);
+          void printBill(orderId);
+        }}
       />
     </>
   );

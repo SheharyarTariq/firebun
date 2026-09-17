@@ -10,6 +10,7 @@ import Chips from "@/components/common/Chips";
 import ConfirmSheet from "@/components/common/ConfirmSheet";
 import Input from "@/components/common/Input";
 import type { ExpenseRow } from "@/server/expenses/queries";
+import { callAction } from "@/utils/call-action";
 import { formatMoney } from "@/utils/helper";
 import { validateAndSetErrors } from "@/utils/validation";
 import { expenseSchema, type ExpenseFormInput } from "../schema";
@@ -52,7 +53,7 @@ export default function ExpenseSheet({ open, onOpenChange, expense, categories, 
     const values: ExpenseFormInput = { category, amount: Number(amount), description, expenseDate: date };
     if (!(await validateAndSetErrors(expenseSchema, values, setErrors))) return;
     startTransition(async () => {
-      const result = expense ? await updateExpenseAction(expense.id, values) : await createExpenseAction(values);
+      const result = expense ? await callAction(updateExpenseAction(expense.id, values)) : await callAction(createExpenseAction(values));
       if (!result.ok) {
         if (result.fieldErrors) setErrors(result.fieldErrors);
         toast.error(result.error);
@@ -66,7 +67,7 @@ export default function ExpenseSheet({ open, onOpenChange, expense, categories, 
   const handleDelete = () => {
     if (!expense) return;
     startTransition(async () => {
-      const result = await deleteExpenseAction(expense.id);
+      const result = await callAction(deleteExpenseAction(expense.id));
       if (!result.ok) {
         toast.error(result.error);
         setConfirmDelete(false);

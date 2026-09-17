@@ -11,6 +11,7 @@ import ConfirmSheet from "@/components/common/ConfirmSheet";
 import EmptyState from "@/components/common/EmptyState";
 import Input from "@/components/common/Input";
 import type { PurchaseRow } from "@/server/inventory/queries";
+import { callAction } from "@/utils/call-action";
 import { cn } from "@/utils/cn";
 import {
   formatDate,
@@ -44,7 +45,7 @@ export default function PurchaseList({ purchases, item }: PurchaseListProps) {
     if (!target) return;
     if (!(await validateAndSetErrors(voidPurchaseSchema, { reason }, setErrors))) return;
     startTransition(async () => {
-      const result = await voidPurchaseAction(target.id, { reason });
+      const result = await callAction(voidPurchaseAction(target.id, { reason }));
       if (!result.ok) {
         if (result.fieldErrors) setErrors(result.fieldErrors);
         toast.error(result.error);

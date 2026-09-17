@@ -7,6 +7,7 @@ import { changePasswordAction } from "@/app/(app)/more/actions";
 import BottomSheet from "@/components/common/BottomSheet";
 import Button from "@/components/common/Button";
 import Input from "@/components/common/Input";
+import { callAction } from "@/utils/call-action";
 import { validateAndSetErrors } from "@/utils/validation";
 import { changePasswordSchema } from "../schema";
 
@@ -35,7 +36,7 @@ export default function ChangePasswordSheet() {
     if (!(await validateAndSetErrors(changePasswordSchema, values, setErrors))) return;
 
     startTransition(async () => {
-      const result = await changePasswordAction(values);
+      const result = await callAction(changePasswordAction(values));
       if (!result.ok) {
         if (result.fieldErrors) setErrors(result.fieldErrors);
         toast.error(result.error);
