@@ -98,7 +98,11 @@ export default function CartSheet({ open, onOpenChange, settings, role }: CartSh
       onOpenChange(false);
       // Still inside the tap's activation window, so Bluetooth / RawBT are allowed to print.
       if (settings.autoPrintOnPlace && printer.isConfigured && !duplicate) {
-        await printer.print(orderId, { kitchenCopy: settings.printKitchenCopy });
+        if (printer.prefs.transport === "bluetooth" && !printer.bluetoothConnected) {
+          toast("Printer not paired on this phone — open the order and tap Print bill.", { icon: "🖨️" });
+        } else {
+          await printer.print(orderId, { kitchenCopy: settings.printKitchenCopy });
+        }
       }
       router.push(routes.ui.orderDetails(orderId));
     });

@@ -29,5 +29,7 @@ export const routes = {
   api: {
     /** `id` may be "sample" for a test print. */
     orderReceipt: (id: string | number) => `/api/orders/${id}/receipt`,
+    financeExport: (type: "orders" | "purchases" | "expenses", from: string, to: string) =>
+      `/api/finance/export?type=${type}&from=${from}&to=${to}`,
   },
 };

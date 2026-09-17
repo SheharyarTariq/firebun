@@ -12,10 +12,19 @@ const KEY = "firebun-printer";
 
 export const EMPTY_PREFS: PrinterPrefs = { transport: null, deviceName: null };
 
+/**
+ * First-time default for a device. The shop's printer (Media Link G3) supports Bluetooth LE,
+ * so browsers with Web Bluetooth start on the direct transport; others must pick one.
+ */
+function defaultPrefs(): PrinterPrefs {
+  const bluetooth = typeof navigator !== "undefined" && "bluetooth" in navigator;
+  return { transport: bluetooth ? "bluetooth" : null, deviceName: null };
+}
+
 export function loadPrinterPrefs(): PrinterPrefs {
   try {
     const raw = localStorage.getItem(KEY);
-    if (!raw) return EMPTY_PREFS;
+    if (!raw) return defaultPrefs();
     const parsed = JSON.parse(raw) as Partial<PrinterPrefs>;
     const transport = parsed.transport;
     return {
@@ -23,7 +32,7 @@ export function loadPrinterPrefs(): PrinterPrefs {
       deviceName: typeof parsed.deviceName === "string" ? parsed.deviceName : null,
     };
   } catch {
-    return EMPTY_PREFS;
+    return defaultPrefs();
   }
 }
 

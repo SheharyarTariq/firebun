@@ -84,6 +84,70 @@ export function businessDateFor(
 }
 
 // ---------------------------------------------------------------------------
+// Date ranges for reports (inclusive yyyy-mm-dd business dates in shop time)
+// ---------------------------------------------------------------------------
+
+export type PeriodPreset =
+  | "today"
+  | "yesterday"
+  | "last7"
+  | "last30"
+  | "thisMonth"
+  | "lastMonth"
+  | "custom";
+
+export interface DateRange {
+  from: string;
+  to: string;
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function shiftDays(isoDate: string, days: number): string {
+  // Dates are whole days in shop time; noon keeps us clear of DST/cutoff edges.
+  const noon = new Date(`${isoDate}T12:00:00+05:00`);
+  return format(new TZDate(noon.getTime() + days * DAY_MS, config.timeZone), "yyyy-MM-dd");
+}
+
+function monthRange(isoDate: string, monthOffset: number): DateRange {
+  const [y, m] = isoDate.split("-").map(Number);
+  const first = new TZDate(y, m - 1 + monthOffset, 1, 12, config.timeZone);
+  const last = new TZDate(y, m + monthOffset, 0, 12, config.timeZone);
+  return { from: format(first, "yyyy-MM-dd"), to: format(last, "yyyy-MM-dd") };
+}
+
+/** Resolve a preset to an inclusive range, anchored on the given business date ("today"). */
+export function rangeForPreset(preset: Exclude<PeriodPreset, "custom">, today: string): DateRange {
+  switch (preset) {
+    case "today":
+      return { from: today, to: today };
+    case "yesterday": {
+      const d = shiftDays(today, -1);
+      return { from: d, to: d };
+    }
+    case "last7":
+      return { from: shiftDays(today, -6), to: today };
+    case "last30":
+      return { from: shiftDays(today, -29), to: today };
+    case "thisMonth":
+      return { from: monthRange(today, 0).from, to: today };
+    case "lastMonth":
+      return monthRange(today, -1);
+  }
+}
+
+export function isIsoDate(value: string | undefined | null): value is string {
+  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value));
+}
+
+/** Number of days in an inclusive range. */
+export function rangeDays(range: DateRange): number {
+  const a = new Date(`${range.from}T12:00:00Z`).getTime();
+  const b = new Date(`${range.to}T12:00:00Z`).getTime();
+  return Math.round((b - a) / DAY_MS) + 1;
+}
+
+// ---------------------------------------------------------------------------
 // Units — inventory is stored in base units (g / ml / pcs)
 // ---------------------------------------------------------------------------
 

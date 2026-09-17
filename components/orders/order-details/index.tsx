@@ -80,7 +80,8 @@ export default function OrderDetails({ order, viewer, canCancel, printKitchenCop
   };
 
   const handlePrint = () => {
-    if (!printer.isConfigured) {
+    // No transport yet, or Bluetooth chosen but not paired in this session → open the setup sheet.
+    if (!printer.isConfigured || (printer.prefs.transport === "bluetooth" && !printer.bluetoothConnected)) {
       setSheet("printer");
       return;
     }

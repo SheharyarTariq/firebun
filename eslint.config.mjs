@@ -7,6 +7,8 @@ const eslintConfig = defineConfig([
   ...nextTs,
   // Override default ignores of eslint-config-next.
   globalIgnores([
+    // Vendored third-party bundle (minified).
+    "utils/printing/vendor/**",
     // Default ignores of eslint-config-next:
     ".next/**",
     "out/**",

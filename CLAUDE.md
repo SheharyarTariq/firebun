@@ -11,8 +11,9 @@ Staff take orders and print bills on an Android phone; the admin manages invento
 (with recipes that deduct inventory), expenses and finance reports. The full design, data model,
 business rules and phased build plan are in `~/.claude/plans/i-want-to-create-compressed-mccarthy.md`
 (approved 2026-09-16). Phases: 0 Foundation ✅ · 1 Inventory ✅ · 2 Menu & recipes ✅ · 3 POS & orders ✅ ·
-4 Printing ✅ (transport still to be confirmed on the shop's phone) · 5 Expenses & finance ·
-6 Hardening (staff accounts, change password and shop settings already done).
+4 Printing ✅ (G3 prints over Web Bluetooth; live at https://firebun.vercel.app) · 5 Expenses & finance ✅ ·
+6 Hardening (staff accounts, change password and shop settings already done; remaining: item images,
+nightly DB dump, public menu page).
 
 ## Critical: Next.js 16 — verify APIs against bundled docs
 
@@ -85,6 +86,12 @@ There is no test runner. Verification = typecheck + lint + build + walking throu
   SSR graph —, RawBT `intent:` URL, hidden-iframe print dialog); the per-phone choice is in
   localStorage (`utils/printing/prefs.ts`); `components/printing/use-printer.ts` is the hook.
   Auto-print runs inside the "Place order" tap's activation window so intents/Bluetooth are allowed.
+- **Expenses & finance**: `server/expenses/service.ts` (staff may add when `staffCanAddExpenses`,
+  only admins edit/delete; staff see only their own rows), `server/finance/queries.ts#getFinanceReport`
+  (cash basis over inclusive business-date ranges: income from completed orders, spend = non-voided
+  purchases + expenses, pending COD shown separately, ingredient cost from `sale` movement cost
+  snapshots, top sellers from parent lines only). Period presets live in `utils/helper`
+  (`rangeForPreset`, `PeriodPicker` component). CSV export: `GET /api/finance/export` (admin).
 - **Cart**: `components/pos/cart-store.ts` (zustand, persisted to `sessionStorage`, one
   `clientId` per cart). Render cart-dependent UI only after `useHydrated()` is true.
 - **Lint rules to respect**: no `setState` inside effects; no `Date.now()`/impure calls during
