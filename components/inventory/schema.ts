@@ -102,16 +102,6 @@ export const wastageSchema = yup.object({
 
 // ---------------------------------------------------------------------------
 
-export interface VoidPurchaseFormInput {
-  reason: string;
-}
-
-export const voidPurchaseSchema = yup.object({
-  reason: yup.string().trim().required("Give a reason").max(200),
-});
-
-// ---------------------------------------------------------------------------
-
 export interface LowStockLimitsFormInput {
   /** Threshold in base units per item; null clears the limit. */
   limits: { id: number; lowStockThreshold: number | null }[];

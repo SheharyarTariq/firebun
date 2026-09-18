@@ -7,9 +7,9 @@ import {
   type CancelOrderFormInput,
   type MarkPaidFormInput,
 } from "@/components/orders/schema";
-import { getCurrentUser } from "@/server/auth/dal";
-import { cancelOrder, markOrderPaid } from "@/server/orders/service";
-import { validatedAction } from "@/server/run-action";
+import { getCurrentUser, requireAdmin } from "@/server/auth/dal";
+import { cancelOrder, deleteOrder, markOrderPaid } from "@/server/orders/service";
+import { runAction, validatedAction } from "@/server/run-action";
 import type { ActionResult } from "@/utils/action-result";
 
 export async function markOrderPaidAction(
@@ -30,6 +30,15 @@ export async function cancelOrderAction(
   const user = await getCurrentUser();
   return validatedAction(cancelOrderSchema, input, async () => {
     await cancelOrder(id, input, user);
+    revalidatePath("/", "layout");
+  });
+}
+
+/** Admin only; the order must already be cancelled. */
+export async function deleteOrderAction(id: number): Promise<ActionResult<void>> {
+  await requireAdmin();
+  return runAction(async () => {
+    await deleteOrder(id);
     revalidatePath("/", "layout");
   });
 }

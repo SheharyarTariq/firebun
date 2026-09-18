@@ -3,9 +3,9 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Ban, Plus, Printer, RotateCcw, Wallet } from "lucide-react";
+import { Ban, Plus, Printer, RotateCcw, Trash2, Wallet } from "lucide-react";
 import toast from "react-hot-toast";
-import { cancelOrderAction, markOrderPaidAction } from "@/app/(app)/orders/actions";
+import { cancelOrderAction, deleteOrderAction, markOrderPaidAction } from "@/app/(app)/orders/actions";
 import Badge from "@/components/common/Badge";
 import BottomSheet from "@/components/common/BottomSheet";
 import Button from "@/components/common/Button";
@@ -36,7 +36,7 @@ interface OrderDetailsProps {
   printKitchenCopy: boolean;
 }
 
-type Sheet = "paid" | "cancel" | "printer" | "repeat" | null;
+type Sheet = "paid" | "cancel" | "printer" | "repeat" | "delete" | null;
 
 export default function OrderDetails({ order, viewer, canCancel, printKitchenCopy }: OrderDetailsProps) {
   const router = useRouter();
@@ -53,7 +53,20 @@ export default function OrderDetails({ order, viewer, canCancel, printKitchenCop
 
   const parents = order.items.filter((i) => i.parentOrderItemId === null);
   const childrenOf = (parentId: number) => order.items.filter((i) => i.parentOrderItemId === parentId);
-  void viewer;
+  // Test or mistaken orders: admins may remove them once cancelled.
+  const canDelete = viewer.role === "admin" && order.status === "cancelled";
+
+  const handleDelete = () => {
+    startTransition(async () => {
+      const result = await callAction(deleteOrderAction(order.id));
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success(`Order ${formatOrderNumber(order.dailySeq)} deleted`);
+      router.push(routes.ui.orders);
+    });
+  };
 
   const handleMarkPaid = async () => {
     if (!(await validateAndSetErrors(markPaidSchema, { paymentMethod }, setErrors))) return;
@@ -211,6 +224,11 @@ export default function OrderDetails({ order, viewer, canCancel, printKitchenCop
               Cancel order
             </Button>
           )}
+          {canDelete && (
+            <Button variant="ghost" className="text-danger" startIcon={<Trash2 className="h-4 w-4" />} onClick={() => setSheet("delete")}>
+              Delete order
+            </Button>
+          )}
         </div>
       </div>
 
@@ -234,6 +252,21 @@ export default function OrderDetails({ order, viewer, canCancel, printKitchenCop
         onOpenChange={(open) => !open && setSheet(null)}
         description={`Order ${formatOrderNumber(order.dailySeq)} prints as soon as the printer is ready.`}
         onReady={() => void printBill()}
+      />
+
+      <ConfirmSheet
+        open={sheet === "delete"}
+        onOpenChange={(open) => !open && setSheet(null)}
+        title={`Delete order ${formatOrderNumber(order.dailySeq)}?`}
+        description={
+          order.restocked
+            ? "The order and its lines are removed for good. Stock was already returned when it was cancelled."
+            : "The order and its lines are removed for good, and the ingredients it used go back into stock as if it never happened."
+        }
+        confirmLabel="Delete"
+        destructive
+        isLoading={isPending}
+        onConfirm={handleDelete}
       />
 
       <ConfirmSheet

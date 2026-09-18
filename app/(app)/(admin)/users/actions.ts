@@ -10,7 +10,7 @@ import {
 import type { UserRole } from "@/db/schema/users";
 import { requireAdmin } from "@/server/auth/dal";
 import { runAction, validatedAction } from "@/server/run-action";
-import { createUser, resetUserPassword, updateUser } from "@/server/users/service";
+import { createUser, deleteUser, resetUserPassword, updateUser } from "@/server/users/service";
 import type { ActionResult } from "@/utils/action-result";
 import { routes } from "@/utils/routes";
 
@@ -43,5 +43,13 @@ export async function resetUserPasswordAction(
   await requireAdmin();
   return validatedAction(resetPasswordSchema, input, async () => {
     await resetUserPassword(id, input.password);
+  });
+}
+
+export async function deleteUserAction(id: number): Promise<ActionResult<void>> {
+  const actor = await requireAdmin();
+  return runAction(async () => {
+    await deleteUser(id, actor.id);
+    revalidatePath(routes.ui.users);
   });
 }

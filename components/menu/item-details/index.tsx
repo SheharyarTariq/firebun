@@ -38,7 +38,7 @@ interface MenuItemDetailsProps {
 }
 
 export default function MenuItemDetails({ details }: MenuItemDetailsProps) {
-  const { item, categories, inventory, variantChoices, recipeSources } = details;
+  const { item, categories, inventory, variantChoices, recipeSources, orderLines, dealUses } = details;
   const isDeal = item.kind === "deal";
   const [sheet, setSheet] = useState<Sheet>(null);
   const [sheetKey, setSheetKey] = useState(0);
@@ -192,6 +192,7 @@ export default function MenuItemDetails({ details }: MenuItemDetailsProps) {
         onOpenChange={(open) => !open && closeSheet()}
         categories={categories}
         item={item}
+        deleteBlock={{ orderLines, dealUses }}
       />
       <VariantSheet
         key={`variant-${sheetKey}`}

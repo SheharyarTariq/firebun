@@ -1,9 +1,10 @@
 import "server-only";
-import { asc, count, eq, isNotNull, and } from "drizzle-orm";
+import { and, asc, count, eq, inArray, isNotNull } from "drizzle-orm";
 import { getDb, type DbOrTx } from "@/db";
 import {
   inventoryItems,
   inventoryPurchases,
+  recipes,
   stockMovements,
   type InventoryItem,
   type StockMovementType,
@@ -335,37 +336,72 @@ export async function recordPurchase(
   });
 }
 
-export async function voidPurchase(
-  purchaseId: number,
-  reason: string,
-  actorId: number
-): Promise<InventoryItem> {
+/**
+ * Deletes a purchase and its ledger rows, then rebuilds the item's stock and average cost
+ * from what is left — as if the purchase had never been typed in.
+ */
+export async function deletePurchase(purchaseId: number): Promise<InventoryItem> {
   return getDb().transaction(async (tx) => {
     const [purchase] = await tx
-      .select()
+      .select({ id: inventoryPurchases.id, inventoryItemId: inventoryPurchases.inventoryItemId })
       .from(inventoryPurchases)
       .where(eq(inventoryPurchases.id, purchaseId))
       .for("update");
     if (!purchase) throw new ServiceError("Purchase not found.");
-    if (purchase.voidedAt) throw new ServiceError("This purchase is already voided.");
 
     await tx
-      .update(inventoryPurchases)
-      .set({ voidedAt: new Date(), voidedBy: actorId, voidReason: reason.trim() })
-      .where(eq(inventoryPurchases.id, purchaseId));
-
-    await applyMovement(tx, {
-      itemId: purchase.inventoryItemId,
-      type: "purchase_void",
-      delta: -purchase.quantityBase,
-      unitCost: purchase.unitCost,
-      referenceType: "purchase",
-      referenceId: purchaseId,
-      note: `Purchase voided — ${reason.trim()}`,
-      createdBy: actorId,
-    });
-
+      .delete(stockMovements)
+      .where(and(eq(stockMovements.referenceType, "purchase"), eq(stockMovements.referenceId, purchaseId)));
+    await tx.delete(inventoryPurchases).where(eq(inventoryPurchases.id, purchaseId));
     return recomputeItem(tx, purchase.inventoryItemId);
+  });
+}
+
+/** Ledger rows the admin may delete by hand; sales and purchases are undone through their record. */
+const DELETABLE_MOVEMENTS: StockMovementType[] = ["opening", "adjustment", "wastage"];
+
+export async function deleteMovement(movementId: number): Promise<InventoryItem> {
+  return getDb().transaction(async (tx) => {
+    const [movement] = await tx.select().from(stockMovements).where(eq(stockMovements.id, movementId)).for("update");
+    if (!movement) throw new ServiceError("Ledger entry not found.");
+    if (!DELETABLE_MOVEMENTS.includes(movement.type)) {
+      throw new ServiceError(
+        movement.type === "sale" || movement.type === "sale_reversal"
+          ? "This entry comes from an order. Cancel or delete the order instead."
+          : "This entry comes from a purchase. Delete the purchase instead."
+      );
+    }
+    await tx.delete(stockMovements).where(eq(stockMovements.id, movementId));
+    return recomputeItem(tx, movement.inventoryItemId);
+  });
+}
+
+/**
+ * Removes an item together with its purchases and ledger. Refused when a recipe still uses
+ * it or when orders have consumed it (that history would lose its ingredient cost) — the
+ * owner archives those instead.
+ */
+export async function deleteInventoryItem(id: number): Promise<void> {
+  await getDb().transaction(async (tx) => {
+    const item = await lockItem(tx, id);
+    const [[{ n: recipeUses }], [{ n: soldRows }]] = await Promise.all([
+      tx.select({ n: count() }).from(recipes).where(eq(recipes.inventoryItemId, id)),
+      tx
+        .select({ n: count() })
+        .from(stockMovements)
+        .where(and(eq(stockMovements.inventoryItemId, id), inArray(stockMovements.type, ["sale", "sale_reversal"]))),
+    ]);
+    if (recipeUses > 0) {
+      throw new ServiceError(
+        `${item.name} is used in ${recipeUses} recipe${recipeUses === 1 ? "" : "s"}. Remove it from those recipes first, or archive it.`
+      );
+    }
+    if (soldRows > 0) {
+      throw new ServiceError(`${item.name} has been used in orders, so its history must stay. Archive it instead.`);
+    }
+    await tx.delete(stockMovements).where(eq(stockMovements.inventoryItemId, id));
+    await tx.delete(inventoryPurchases).where(eq(inventoryPurchases.inventoryItemId, id));
+    await tx.delete(inventoryItems).where(eq(inventoryItems.id, id));
   });
 }
 

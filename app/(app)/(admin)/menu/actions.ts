@@ -25,7 +25,9 @@ import {
   copyRecipe,
   createCategory,
   createMenuItem,
+  deleteCategory,
   deleteDealSlot,
+  deleteMenuItem,
   deleteVariant,
   moveCategory,
   removeRecipeLine,
@@ -229,6 +231,24 @@ export async function deleteDealSlotAction(slotId: number): Promise<ActionResult
   await requireAdmin();
   return runAction(async () => {
     await deleteDealSlot(slotId);
+    revalidateMenu();
+  });
+}
+
+// --- Deletion ---------------------------------------------------------------
+
+export async function deleteCategoryAction(id: number): Promise<ActionResult<void>> {
+  await requireAdmin();
+  return runAction(async () => {
+    await deleteCategory(id);
+    revalidateMenu();
+  });
+}
+
+export async function deleteMenuItemAction(id: number): Promise<ActionResult<void>> {
+  await requireAdmin();
+  return runAction(async () => {
+    await deleteMenuItem(id);
     revalidateMenu();
   });
 }

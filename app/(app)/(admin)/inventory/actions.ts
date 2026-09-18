@@ -6,26 +6,26 @@ import {
   lowStockLimitsSchema,
   purchaseSchema,
   stockCountSchema,
-  voidPurchaseSchema,
   wastageSchema,
   type InventoryItemFormInput,
   type LowStockLimitsFormInput,
   type PurchaseFormInput,
   type StockCountFormInput,
-  type VoidPurchaseFormInput,
   type WastageFormInput,
 } from "@/components/inventory/schema";
 import { requireAdmin } from "@/server/auth/dal";
 import {
   createItem,
+  deleteInventoryItem,
+  deleteMovement,
+  deletePurchase,
   recordPurchase,
   recordWastage,
   setLowStockLimits,
   setStockCount,
   updateItem,
-  voidPurchase,
 } from "@/server/inventory/service";
-import { validatedAction } from "@/server/run-action";
+import { runAction, validatedAction } from "@/server/run-action";
 import type { ActionResult } from "@/utils/action-result";
 
 /** Stock changes affect the list, the details page and the nav badge, so refresh everything. */
@@ -66,15 +66,29 @@ export async function recordPurchaseAction(
   });
 }
 
-export async function voidPurchaseAction(
-  purchaseId: number,
-  input: VoidPurchaseFormInput
-): Promise<ActionResult<{ currentQty: number }>> {
-  const user = await requireAdmin();
-  return validatedAction(voidPurchaseSchema, input, async () => {
-    const item = await voidPurchase(purchaseId, input.reason, user.id);
+export async function deletePurchaseAction(purchaseId: number): Promise<ActionResult<{ currentQty: number }>> {
+  await requireAdmin();
+  return runAction(async () => {
+    const item = await deletePurchase(purchaseId);
     revalidateInventory();
     return { currentQty: item.currentQty };
+  });
+}
+
+export async function deleteMovementAction(movementId: number): Promise<ActionResult<{ currentQty: number }>> {
+  await requireAdmin();
+  return runAction(async () => {
+    const item = await deleteMovement(movementId);
+    revalidateInventory();
+    return { currentQty: item.currentQty };
+  });
+}
+
+export async function deleteInventoryItemAction(id: number): Promise<ActionResult<void>> {
+  await requireAdmin();
+  return runAction(async () => {
+    await deleteInventoryItem(id);
+    revalidateInventory();
   });
 }
 

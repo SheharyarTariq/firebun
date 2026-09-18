@@ -2,7 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { asc, count, desc, eq, getTableColumns, sql } from "drizzle-orm";
 import { getDb } from "@/db";
-import { inventoryItems, inventoryPurchases, stockMovements } from "@/db/schema";
+import { inventoryItems, inventoryPurchases, recipes, stockMovements } from "@/db/schema";
 
 /** true when the owner set a limit and stock is at or below it. */
 const neededExpr = sql<boolean>`(${inventoryItems.lowStockThreshold} is not null and ${inventoryItems.currentQty} <= ${inventoryItems.lowStockThreshold})`;
@@ -42,7 +42,7 @@ export const getInventoryItemDetails = cache(async (id: number) => {
   });
   if (!item) return null;
 
-  const [movements, purchases] = await Promise.all([
+  const [movements, purchases, [recipeRow]] = await Promise.all([
     db.query.stockMovements.findMany({
       where: eq(stockMovements.inventoryItemId, id),
       orderBy: [desc(stockMovements.createdAt), desc(stockMovements.id)],
@@ -55,9 +55,12 @@ export const getInventoryItemDetails = cache(async (id: number) => {
       limit: 50,
       with: { createdByUser: { columns: { name: true } } },
     }),
+    db.select({ n: count() }).from(recipes).where(eq(recipes.inventoryItemId, id)),
   ]);
 
-  return { item, movements, purchases };
+  // What blocks a delete, so the page can say so before the tap.
+  const soldRows = movements.some((m) => m.type === "sale" || m.type === "sale_reversal");
+  return { item, movements, purchases, recipeUses: recipeRow?.n ?? 0, usedInOrders: soldRows };
 });
 
 export type InventoryItemDetails = NonNullable<

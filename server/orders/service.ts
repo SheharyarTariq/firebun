@@ -17,7 +17,7 @@ import {
 } from "@/db/schema";
 import type { CurrentUser } from "@/server/auth/dal";
 import { ServiceError } from "@/server/errors";
-import { applyMovement } from "@/server/inventory/service";
+import { applyMovement, recomputeItem } from "@/server/inventory/service";
 import { getSettings } from "@/server/settings/queries";
 import { businessDateFor, formatQty, roundMoney } from "@/utils/helper";
 
@@ -446,5 +446,36 @@ export async function cancelOrder(id: number, input: CancelOrderInput, user: Cur
     }
 
     return updated;
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Delete (test / mistaken orders)
+// ---------------------------------------------------------------------------
+
+/**
+ * Admin-only removal of a cancelled order: its lines and the stock movements it caused
+ * disappear and every affected item is rebuilt from its ledger. The day's numbering keeps
+ * its gap. Live orders must be cancelled first so the money side stays honest.
+ */
+export async function deleteOrder(id: number): Promise<void> {
+  await getDb().transaction(async (tx) => {
+    const [order] = await tx.select().from(orders).where(eq(orders.id, id)).for("update");
+    if (!order) throw new ServiceError("Order not found.");
+    if (order.status !== "cancelled") throw new ServiceError("Cancel the order first, then delete it.");
+
+    const affected = await tx
+      .selectDistinct({ itemId: stockMovements.inventoryItemId })
+      .from(stockMovements)
+      .where(and(eq(stockMovements.referenceType, "order"), eq(stockMovements.referenceId, id)));
+
+    await tx.delete(stockMovements).where(and(eq(stockMovements.referenceType, "order"), eq(stockMovements.referenceId, id)));
+    await tx.delete(orderItems).where(eq(orderItems.orderId, id));
+    await tx.delete(orders).where(eq(orders.id, id));
+
+    // Item ids ascending, matching placeOrder's lock order.
+    for (const { itemId } of [...affected].sort((a, b) => a.itemId - b.itemId)) {
+      await recomputeItem(tx, itemId);
+    }
   });
 }

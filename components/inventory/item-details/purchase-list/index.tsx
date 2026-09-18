@@ -1,15 +1,14 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { PackagePlus } from "lucide-react";
+import { PackagePlus, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
-import { voidPurchaseAction } from "@/app/(app)/(admin)/inventory/actions";
+import { deletePurchaseAction } from "@/app/(app)/(admin)/inventory/actions";
 import Badge from "@/components/common/Badge";
 import Button from "@/components/common/Button";
 import Card from "@/components/common/Card";
 import ConfirmSheet from "@/components/common/ConfirmSheet";
 import EmptyState from "@/components/common/EmptyState";
-import Input from "@/components/common/Input";
 import type { PurchaseRow } from "@/server/inventory/queries";
 import { callAction } from "@/utils/call-action";
 import { cn } from "@/utils/cn";
@@ -21,8 +20,6 @@ import {
   packLabelOf,
   type PackAware,
 } from "@/utils/helper";
-import { validateAndSetErrors } from "@/utils/validation";
-import { voidPurchaseSchema } from "../../schema";
 
 interface PurchaseListProps {
   purchases: PurchaseRow[];
@@ -31,28 +28,18 @@ interface PurchaseListProps {
 
 export default function PurchaseList({ purchases, item }: PurchaseListProps) {
   const [target, setTarget] = useState<PurchaseRow | null>(null);
-  const [reason, setReason] = useState("");
-  const [errors, setErrors] = useState<Record<string, string>>({});
   const [isPending, startTransition] = useTransition();
 
-  const close = () => {
-    setTarget(null);
-    setReason("");
-    setErrors({});
-  };
-
-  const handleVoid = async () => {
+  const handleDelete = () => {
     if (!target) return;
-    if (!(await validateAndSetErrors(voidPurchaseSchema, { reason }, setErrors))) return;
     startTransition(async () => {
-      const result = await callAction(voidPurchaseAction(target.id, { reason }));
+      const result = await callAction(deletePurchaseAction(target.id));
       if (!result.ok) {
-        if (result.fieldErrors) setErrors(result.fieldErrors);
         toast.error(result.error);
         return;
       }
-      toast.success("Purchase voided and stock recalculated");
-      close();
+      toast.success(`Purchase deleted · ${formatQty(result.data.currentQty, item.baseUnit)} in stock`);
+      setTarget(null);
     });
   };
 
@@ -67,20 +54,22 @@ export default function PurchaseList({ purchases, item }: PurchaseListProps) {
     );
   }
 
+  const unitName = (p: PurchaseRow) => (p.enteredUnit === "pack" ? packLabelOf(item) : p.enteredUnit);
+
   return (
     <>
       <Card className="divide-y divide-border p-0">
         {purchases.map((p) => {
+          // Rows voided before deletion existed stay struck through for the record.
           const voided = Boolean(p.voidedAt);
           const perUnit = p.enteredQty > 0 ? p.totalCost / p.enteredQty : 0;
           const isPack = p.enteredUnit === "pack";
-          const unitName = isPack ? packLabelOf(item) : p.enteredUnit;
           return (
             <div key={p.id} className={cn("px-4 py-3", voided && "opacity-60")}>
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <p className={cn("font-medium tabular-nums", voided && "line-through")}>
-                    {p.enteredQty} {unitName}
+                    {p.enteredQty} {unitName(p)}
                     {isPack && p.packSize !== null && (
                       <span className="font-normal text-muted">
                         {" "}
@@ -89,7 +78,7 @@ export default function PurchaseList({ purchases, item }: PurchaseListProps) {
                     )}
                     <span className="font-normal text-muted">
                       {" "}
-                      @ {formatMoneyExact(perUnit)} / {unitName}
+                      @ {formatMoneyExact(perUnit)} / {unitName(p)}
                     </span>
                   </p>
                   <p className="truncate text-xs text-muted">
@@ -97,19 +86,15 @@ export default function PurchaseList({ purchases, item }: PurchaseListProps) {
                     {p.supplier ? ` · ${p.supplier}` : ""} · {p.createdByUser.name}
                   </p>
                   {p.note && <p className="truncate text-xs text-muted">{p.note}</p>}
-                  {voided && (
-                    <p className="mt-1 text-xs text-danger">Voided — {p.voidReason}</p>
-                  )}
+                  {voided && <p className="mt-1 text-xs text-danger">Voided — {p.voidReason}</p>}
                 </div>
                 <div className="flex shrink-0 flex-col items-end gap-1.5">
-                  <p className={cn("font-semibold tabular-nums", voided && "line-through")}>
-                    {formatMoney(p.totalCost)}
-                  </p>
+                  <p className={cn("font-semibold tabular-nums", voided && "line-through")}>{formatMoney(p.totalCost)}</p>
                   {voided ? (
                     <Badge variant="danger">Voided</Badge>
                   ) : (
-                    <Button size="sm" variant="ghost" className="text-danger" onClick={() => setTarget(p)}>
-                      Void
+                    <Button size="sm" variant="ghost" className="text-danger" aria-label="Delete purchase" onClick={() => setTarget(p)}>
+                      <Trash2 className="h-4 w-4" />
                     </Button>
                   )}
                 </div>
@@ -121,31 +106,18 @@ export default function PurchaseList({ purchases, item }: PurchaseListProps) {
 
       <ConfirmSheet
         open={target !== null}
-        onOpenChange={(open) => !open && close()}
-        title="Void this purchase?"
+        onOpenChange={(open) => !open && setTarget(null)}
+        title="Delete this purchase?"
         description={
           target
-            ? `${target.enteredQty} ${target.enteredUnit === "pack" ? packLabelOf(item) : target.enteredUnit} for ${formatMoney(target.totalCost)} will be removed from stock and from spend reports.`
+            ? `${target.enteredQty} ${unitName(target)} for ${formatMoney(target.totalCost)} disappears from the ledger and from spend reports. Stock and average cost are recalculated as if it was never entered.`
             : undefined
         }
-        confirmLabel="Void purchase"
+        confirmLabel="Delete"
         destructive
         isLoading={isPending}
-        onConfirm={handleVoid}
-      >
-        <Input
-          label="Reason"
-          placeholder="e.g. Entered twice"
-          autoComplete="off"
-          data-autofocus="true"
-          value={reason}
-          onChange={(e) => {
-            setReason(e.target.value);
-            if (errors.reason) setErrors({});
-          }}
-          error={errors.reason}
-        />
-      </ConfirmSheet>
+        onConfirm={handleDelete}
+      />
     </>
   );
 }

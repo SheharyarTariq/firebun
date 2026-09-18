@@ -6,11 +6,13 @@ import { Plus, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
 import {
   createMenuItemAction,
+  deleteMenuItemAction,
   updateMenuItemAction,
 } from "@/app/(app)/(admin)/menu/actions";
 import BottomSheet from "@/components/common/BottomSheet";
 import Button from "@/components/common/Button";
 import Chips from "@/components/common/Chips";
+import ConfirmSheet from "@/components/common/ConfirmSheet";
 import Input from "@/components/common/Input";
 import Select from "@/components/common/Select";
 import Textarea from "@/components/common/Textarea";
@@ -27,6 +29,8 @@ interface ItemFormSheetProps {
   categories: MenuCategory[];
   /** Present when editing; sizes are then managed on the item page. */
   item?: MenuItem;
+  /** Editing only: what would block a delete (sold lines, offered inside a deal). */
+  deleteBlock?: { orderLines: number; dealUses: number };
 }
 
 interface VariantRow {
@@ -46,9 +50,10 @@ const makeRows = (names: string[]): VariantRow[] =>
   names.map((name) => ({ key: rowKey++, name, price: "" }));
 
 /** Parents remount this with a new `key` on each open so the form starts fresh. */
-export default function ItemFormSheet({ open, onOpenChange, categories, item }: ItemFormSheetProps) {
+export default function ItemFormSheet({ open, onOpenChange, categories, item, deleteBlock }: ItemFormSheetProps) {
   const router = useRouter();
   const isEdit = Boolean(item);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const activeCategories = categories.filter((c) => c.isActive || c.id === item?.categoryId);
 
   const [name, setName] = useState(item?.name ?? "");
@@ -122,15 +127,58 @@ export default function ItemFormSheet({ open, onOpenChange, categories, item }: 
     errors.variants ||
     Object.entries(errors).find(([k]) => k.startsWith("variants["))?.[1];
 
+  const handleDelete = () => {
+    if (!item) return;
+    startTransition(async () => {
+      const result = await callAction(deleteMenuItemAction(item.id));
+      if (!result.ok) {
+        toast.error(result.error);
+        setConfirmDelete(false);
+        return;
+      }
+      toast.success(`${item.name} deleted`);
+      onOpenChange(false);
+      router.push(routes.ui.menu);
+    });
+  };
+
+  const blockedReason = !deleteBlock
+    ? null
+    : deleteBlock.orderLines > 0
+      ? `Sold in ${deleteBlock.orderLines} order line${deleteBlock.orderLines === 1 ? "" : "s"}, so it stays for the records. Switch “On the menu” off to hide it instead.`
+      : deleteBlock.dealUses > 0
+        ? "Offered inside a deal. Remove it from the deal first, or switch “On the menu” off to hide it."
+        : null;
+
   return (
+    <>
+    {item && (
+      <ConfirmSheet
+        open={confirmDelete}
+        onOpenChange={(next) => !next && setConfirmDelete(false)}
+        title={`Delete ${item.name}?`}
+        description={blockedReason ?? "Its sizes, prices, recipes and deal contents are deleted with it. This cannot be undone."}
+        confirmLabel="Delete"
+        destructive
+        isLoading={isPending}
+        onConfirm={blockedReason ? () => setConfirmDelete(false) : handleDelete}
+      />
+    )}
     <BottomSheet
-      open={open}
+      open={open && !confirmDelete}
       onOpenChange={onOpenChange}
       title={isEdit ? "Edit item" : kind === "deal" ? "New deal" : "New menu item"}
       footer={
-        <Button size="lg" className="w-full" isLoading={isPending} onClick={handleSubmit}>
-          {isEdit ? "Save" : "Add to menu"}
-        </Button>
+        <div className="flex gap-2">
+          {isEdit && (
+            <Button variant="outline" size="lg" aria-label="Delete item" className="px-4 text-danger" onClick={() => setConfirmDelete(true)}>
+              <Trash2 className="h-5 w-5" />
+            </Button>
+          )}
+          <Button size="lg" className="flex-1" isLoading={isPending} onClick={handleSubmit}>
+            {isEdit ? "Save" : "Add to menu"}
+          </Button>
+        </div>
       }
     >
       <div className="space-y-4">
@@ -280,5 +328,6 @@ export default function ItemFormSheet({ open, onOpenChange, categories, item }: 
         )}
       </div>
     </BottomSheet>
+    </>
   );
 }

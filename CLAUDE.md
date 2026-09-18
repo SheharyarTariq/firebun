@@ -63,10 +63,18 @@ There is no test runner. Verification = typecheck + lint + build + walking throu
   `app/.../actions.ts` → `server/<feature>/service.ts`, wrapped with `validatedAction`/`runAction`
   from `server/run-action.ts`. See the `web-api-patterns` skill.
 - **Inventory ledger**: `server/inventory/service.ts#applyMovement` is the only way stock changes
-  (orders will call it too). `recomputeItem` replays the ledger after a voided purchase.
+  (orders will call it too). `recomputeItem` replays the ledger after anything is deleted
+  (`deletePurchase`, `deleteMovement` for opening/count/wastage rows, `deleteOrder`).
   Quantities can be typed in display units or in the item's optional pack (`pack_size` in base
   units + `pack_label`); helpers `entryUnitOptions` / `entryQtyToBase` in `utils/helper`. There is
   no "opening stock" form: starting stock is entered with Count (no cost) or Purchase.
+- **Deleting records** (admin only, every rule lives in the service): purchases and manual
+  ledger rows always; inventory items unless a recipe uses them or orders consumed them
+  (→ archive); menu items unless sold or offered in a deal (→ hide); categories only when
+  empty; orders only once cancelled; staff accounts only when nothing references them
+  (→ deactivate). UI: trash icon in the edit sheet footer + `ConfirmSheet`; blocked reasons
+  are computed in the details query (`recipeUses`, `usedInOrders`, `orderLines`, `dealUses`)
+  so the sheet explains before the tap.
 - **Menu**: `server/menu/service.ts` owns categories (reorder renumbers 0..n-1), items (slug
   auto-unique), variants (≥1 active size; delete blocked when used in orders/deals), recipes
   (upsert per variant+ingredient, `copyRecipe` between sizes) and deal slots/options (single-kind

@@ -2,13 +2,16 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
 import {
   createInventoryItemAction,
+  deleteInventoryItemAction,
   updateInventoryItemAction,
 } from "@/app/(app)/(admin)/inventory/actions";
 import BottomSheet from "@/components/common/BottomSheet";
 import Button from "@/components/common/Button";
+import ConfirmSheet from "@/components/common/ConfirmSheet";
 import Input from "@/components/common/Input";
 import Select from "@/components/common/Select";
 import Toggle from "@/components/common/Toggle";
@@ -33,6 +36,8 @@ interface ItemFormSheetProps {
   item?: InventoryItem;
   /** Editing only: false once the item has movements (unit is then locked). */
   canChangeBaseUnit?: boolean;
+  /** Editing only: why a delete would be refused, so the sheet can say so up front. */
+  deleteBlock?: { recipeUses: number; usedInOrders: boolean; purchases: number; movements: number };
 }
 
 const BASE_UNIT_OPTIONS = [
@@ -53,9 +58,11 @@ export default function ItemFormSheet({
   onOpenChange,
   item,
   canChangeBaseUnit = true,
+  deleteBlock,
 }: ItemFormSheetProps) {
   const router = useRouter();
   const isEdit = Boolean(item);
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   const [name, setName] = useState(item?.name ?? "");
   const [baseUnit, setBaseUnit] = useState<BaseUnit>(item?.baseUnit ?? "pcs");
@@ -116,9 +123,56 @@ export default function ItemFormSheet({
     });
   };
 
+  const handleDelete = () => {
+    if (!item) return;
+    startTransition(async () => {
+      const result = await callAction(deleteInventoryItemAction(item.id));
+      if (!result.ok) {
+        toast.error(result.error);
+        setConfirmDelete(false);
+        return;
+      }
+      toast.success(`${item.name} deleted`);
+      onOpenChange(false);
+      router.push(routes.ui.inventory);
+    });
+  };
+
+  const blockedReason = !deleteBlock
+    ? null
+    : deleteBlock.recipeUses > 0
+      ? `Used in ${deleteBlock.recipeUses} recipe${deleteBlock.recipeUses === 1 ? "" : "s"} — remove it from those first, or switch "In use" off to archive it.`
+      : deleteBlock.usedInOrders
+        ? "Orders have used this item, so its history stays. Switch “In use” off to archive it instead."
+        : null;
+  const deleteConsequence = deleteBlock
+    ? [
+        deleteBlock.purchases > 0 ? `${deleteBlock.purchases} purchase${deleteBlock.purchases === 1 ? "" : "s"}` : null,
+        deleteBlock.movements > 0 ? `${deleteBlock.movements} ledger entr${deleteBlock.movements === 1 ? "y" : "ies"}` : null,
+      ]
+        .filter(Boolean)
+        .join(" and ")
+    : "";
+
   return (
+    <>
+    {item && (
+      <ConfirmSheet
+        open={confirmDelete}
+        onOpenChange={(next) => !next && setConfirmDelete(false)}
+        title={`Delete ${item.name}?`}
+        description={
+          blockedReason ??
+          (deleteConsequence ? `Its ${deleteConsequence} are deleted with it. This cannot be undone.` : "This cannot be undone.")
+        }
+        confirmLabel="Delete"
+        destructive
+        isLoading={isPending}
+        onConfirm={blockedReason ? () => setConfirmDelete(false) : handleDelete}
+      />
+    )}
     <BottomSheet
-      open={open}
+      open={open && !confirmDelete}
       onOpenChange={onOpenChange}
       title={isEdit ? "Edit item" : "New inventory item"}
       description={
@@ -127,9 +181,16 @@ export default function ItemFormSheet({
           : "After adding it, use Count to enter what you have now, or Purchase when you buy more."
       }
       footer={
-        <Button size="lg" className="w-full" isLoading={isPending} onClick={handleSubmit}>
-          {isEdit ? "Save" : "Add item"}
-        </Button>
+        <div className="flex gap-2">
+          {isEdit && (
+            <Button variant="outline" size="lg" aria-label="Delete item" className="px-4 text-danger" onClick={() => setConfirmDelete(true)}>
+              <Trash2 className="h-5 w-5" />
+            </Button>
+          )}
+          <Button size="lg" className="flex-1" isLoading={isPending} onClick={handleSubmit}>
+            {isEdit ? "Save" : "Add item"}
+          </Button>
+        </div>
       }
     >
       <div className="space-y-4">
@@ -227,5 +288,6 @@ export default function ItemFormSheet({
         )}
       </div>
     </BottomSheet>
+    </>
   );
 }

@@ -1,12 +1,14 @@
 import "server-only";
 import { cache } from "react";
-import { and, asc, count, eq, sql } from "drizzle-orm";
+import { and, asc, count, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
+  dealSlotOptions,
   inventoryItems,
   menuCategories,
   menuItems,
   menuItemVariants,
+  orderItems,
   recipes,
 } from "@/db/schema";
 
@@ -179,14 +181,20 @@ export const getMenuItemDetails = cache(async (id: number) => {
   });
   if (!item) return null;
 
-  const [categories, inventory, variantChoices, recipeSources] = await Promise.all([
+  const variantIds = item.variants.map((v) => v.id);
+  const [categories, inventory, variantChoices, recipeSources, [soldRow], [dealRow]] = await Promise.all([
     listCategories(),
     listInventoryForRecipes(),
     item.kind === "deal" ? listVariantChoices() : Promise.resolve([] as VariantChoice[]),
     item.kind === "single" ? listRecipeSources() : Promise.resolve([] as RecipeSource[]),
+    db.select({ n: count() }).from(orderItems).where(eq(orderItems.menuItemId, id)),
+    variantIds.length > 0
+      ? db.select({ n: count() }).from(dealSlotOptions).where(inArray(dealSlotOptions.variantId, variantIds))
+      : Promise.resolve([{ n: 0 }]),
   ]);
 
-  return { item, categories, inventory, variantChoices, recipeSources };
+  // What blocks a delete (sold lines, offered inside a deal), so the sheet can explain.
+  return { item, categories, inventory, variantChoices, recipeSources, orderLines: soldRow?.n ?? 0, dealUses: dealRow?.n ?? 0 };
 });
 
 export type MenuItemDetails = NonNullable<Awaited<ReturnType<typeof getMenuItemDetails>>>;

@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { KeyRound, ShieldCheck, UserRoundCheck, UserRoundX } from "lucide-react";
+import { KeyRound, ShieldCheck, Trash2, UserRoundCheck, UserRoundX } from "lucide-react";
 import toast from "react-hot-toast";
 import {
+  deleteUserAction,
   resetUserPasswordAction,
   updateUserAction,
 } from "@/app/(app)/(admin)/users/actions";
@@ -22,7 +23,7 @@ interface UserActionsSheetProps {
   onOpenChange: (open: boolean) => void;
 }
 
-type Step = "menu" | "reset" | "confirm-active" | "confirm-role";
+type Step = "menu" | "reset" | "confirm-active" | "confirm-role" | "confirm-delete";
 
 /** One sheet per step, all mounted, so moving between them slides instead of jumping. */
 export default function UserActionsSheet({ user, isSelf, onOpenChange }: UserActionsSheetProps) {
@@ -57,6 +58,19 @@ export default function UserActionsSheet({ user, isSelf, onOpenChange }: UserAct
         return;
       }
       toast.success(success);
+      close();
+    });
+  };
+
+  const handleDelete = () => {
+    startTransition(async () => {
+      const result = await callAction(deleteUserAction(user.id));
+      if (!result.ok) {
+        toast.error(result.error);
+        setStep("menu");
+        return;
+      }
+      toast.success(`${user.name} deleted`);
       close();
     });
   };
@@ -108,9 +122,30 @@ export default function UserActionsSheet({ user, isSelf, onOpenChange }: UserAct
           >
             {user.isActive ? "Deactivate account" : "Reactivate account"}
           </Button>
-          {isSelf && <p className="pt-1 text-xs text-muted">You cannot change your own role or deactivate yourself.</p>}
+          <Button
+            variant="outline"
+            size="lg"
+            className="w-full justify-start text-danger"
+            startIcon={<Trash2 className="h-5 w-5" />}
+            disabled={isSelf}
+            onClick={() => setStep("confirm-delete")}
+          >
+            Delete account
+          </Button>
+          {isSelf && <p className="pt-1 text-xs text-muted">You cannot change your own role, deactivate or delete yourself.</p>}
         </div>
       </BottomSheet>
+
+      <ConfirmSheet
+        open={step === "confirm-delete"}
+        onOpenChange={backOrClose}
+        title={`Delete ${user.name}?`}
+        description="Only accounts that never placed an order, recorded stock or added an expense can be deleted — otherwise deactivate them. This cannot be undone."
+        confirmLabel="Delete"
+        destructive
+        isLoading={isPending}
+        onConfirm={handleDelete}
+      />
 
       <BottomSheet
         open={step === "reset"}

@@ -1,7 +1,7 @@
 import "server-only";
 import { and, count, eq, sql } from "drizzle-orm";
 import { getDb } from "@/db";
-import { users, type User, type UserRole } from "@/db/schema";
+import { expenses, inventoryPurchases, orders, settings, stockMovements, users, type User, type UserRole } from "@/db/schema";
 import { hashPassword, verifyPassword } from "@/server/auth/password";
 import { ServiceError } from "@/server/errors";
 
@@ -88,6 +88,44 @@ export async function updateUser(
         updatedAt: new Date(),
       })
       .where(eq(users.id, id));
+  });
+}
+
+/**
+ * Deletes an account that never did anything. As soon as a user has placed an order,
+ * recorded a purchase, counted stock or added an expense, that history points at them and
+ * the account is deactivated instead.
+ */
+export async function deleteUser(id: number, actorId: number): Promise<void> {
+  if (id === actorId) throw new ServiceError("You cannot delete your own account.");
+  await getDb().transaction(async (tx) => {
+    const [target] = await tx.select().from(users).where(eq(users.id, id)).for("update");
+    if (!target) throw new ServiceError("User not found.");
+
+    const [row] = await tx
+      .select({
+        orders: sql<number>`(select count(*) from ${orders} where ${orders.createdBy} = ${id} or ${orders.cancelledBy} = ${id})`,
+        purchases: sql<number>`(select count(*) from ${inventoryPurchases} where ${inventoryPurchases.createdBy} = ${id} or ${inventoryPurchases.voidedBy} = ${id})`,
+        movements: sql<number>`(select count(*) from ${stockMovements} where ${stockMovements.createdBy} = ${id})`,
+        expenses: sql<number>`(select count(*) from ${expenses} where ${expenses.createdBy} = ${id} or ${expenses.updatedBy} = ${id})`,
+        settings: sql<number>`(select count(*) from ${settings} where ${settings.updatedBy} = ${id})`,
+      })
+      .from(users)
+      .where(eq(users.id, id));
+    const used = Object.values(row).reduce((n, v) => n + Number(v), 0);
+    if (used > 0) {
+      throw new ServiceError(`${target.name} has records in the app (orders, stock or expenses), so the account cannot be deleted. Deactivate it instead.`);
+    }
+
+    if (target.role === "admin" && target.isActive) {
+      const [{ n }] = await tx
+        .select({ n: count() })
+        .from(users)
+        .where(and(eq(users.role, "admin"), eq(users.isActive, true)));
+      if (n <= 1) throw new ServiceError("There must be at least one active admin.");
+    }
+
+    await tx.delete(users).where(eq(users.id, id));
   });
 }
 

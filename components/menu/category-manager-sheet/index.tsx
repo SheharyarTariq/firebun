@@ -1,16 +1,18 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { ArrowDown, ArrowLeft, ArrowUp, ChevronRight, Eye, EyeOff, Plus } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, ChevronRight, Eye, EyeOff, Plus, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
 import {
   createCategoryAction,
+  deleteCategoryAction,
   moveCategoryAction,
   updateCategoryAction,
 } from "@/app/(app)/(admin)/menu/actions";
 import Badge from "@/components/common/Badge";
 import BottomSheet from "@/components/common/BottomSheet";
 import Button from "@/components/common/Button";
+import ConfirmSheet from "@/components/common/ConfirmSheet";
 import Input from "@/components/common/Input";
 import type { MenuCategory } from "@/db/schema";
 import { callAction } from "@/utils/call-action";
@@ -25,7 +27,7 @@ interface CategoryManagerSheetProps {
   categories: Category[];
 }
 
-type Action = "create" | "rename" | "up" | "down" | "toggle";
+type Action = "create" | "rename" | "up" | "down" | "toggle" | "delete";
 
 /** List of categories; tapping one opens its actions in a second sheet (rename, move, hide). */
 export default function CategoryManagerSheet({ open, onOpenChange, categories }: CategoryManagerSheetProps) {
@@ -34,6 +36,7 @@ export default function CategoryManagerSheet({ open, onOpenChange, categories }:
   const [editName, setEditName] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [pendingAction, setPendingAction] = useState<Action | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const [, startTransition] = useTransition();
 
   const selected = categories.find((c) => c.id === selectedId) ?? null;
@@ -84,6 +87,23 @@ export default function CategoryManagerSheet({ open, onOpenChange, categories }:
   const handleMove = (direction: "up" | "down") => {
     if (!selected) return;
     run(direction, () => callAction(moveCategoryAction(selected.id, direction)));
+  };
+
+  const handleDelete = () => {
+    if (!selected) return;
+    const name = selected.name;
+    setPendingAction("delete");
+    startTransition(async () => {
+      const result = await callAction(deleteCategoryAction(selected.id));
+      setPendingAction(null);
+      setConfirmDelete(false);
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success(`${name} deleted`);
+      setSelectedId(null);
+    });
   };
 
   return (
@@ -142,8 +162,21 @@ export default function CategoryManagerSheet({ open, onOpenChange, categories }:
         </div>
       </BottomSheet>
 
+      {selected && (
+        <ConfirmSheet
+          open={confirmDelete}
+          onOpenChange={(next) => !next && setConfirmDelete(false)}
+          title={`Delete ${selected.name}?`}
+          description="The category disappears from the menu and the counter. Only empty categories can be deleted."
+          confirmLabel="Delete"
+          destructive
+          isLoading={pendingAction === "delete"}
+          onConfirm={handleDelete}
+        />
+      )}
+
       <BottomSheet
-        open={open && selected !== null}
+        open={open && selected !== null && !confirmDelete}
         onOpenChange={(next) => !next && setSelectedId(null)}
         title={selected?.name ?? ""}
         description={`Position ${selectedIndex + 1} of ${categories.length}`}
@@ -218,6 +251,19 @@ export default function CategoryManagerSheet({ open, onOpenChange, categories }:
             <p className="text-xs text-muted">
               Hidden categories keep their items; nothing is deleted. Items themselves can be hidden or marked sold out from their own page.
             </p>
+
+            <Button
+              variant="outline"
+              size="lg"
+              className="w-full justify-start text-danger"
+              startIcon={<Trash2 className="h-5 w-5" />}
+              disabled={selected.items.length > 0 || pendingAction !== null}
+              onClick={() => setConfirmDelete(true)}
+            >
+              {selected.items.length > 0
+                ? `Delete category (has ${selected.items.length} item${selected.items.length === 1 ? "" : "s"})`
+                : "Delete category"}
+            </Button>
           </div>
         )}
       </BottomSheet>

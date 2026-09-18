@@ -61,6 +61,27 @@ export async function moveCategory(id: number, direction: "up" | "down") {
   });
 }
 
+/** Only an empty category can go; items must be moved or deleted first. */
+export async function deleteCategory(id: number) {
+  await getDb().transaction(async (tx) => {
+    const [category] = await tx.select().from(menuCategories).where(eq(menuCategories.id, id)).for("update");
+    if (!category) throw new ServiceError("Category not found.");
+    const [{ n }] = await tx.select({ n: count() }).from(menuItems).where(eq(menuItems.categoryId, id));
+    if (n > 0) {
+      throw new ServiceError(`${category.name} still has ${n} item${n === 1 ? "" : "s"}. Move or delete them first.`);
+    }
+    await tx.delete(menuCategories).where(eq(menuCategories.id, id));
+
+    const rest = await tx
+      .select({ id: menuCategories.id })
+      .from(menuCategories)
+      .orderBy(asc(menuCategories.sortOrder), asc(menuCategories.name));
+    for (let i = 0; i < rest.length; i++) {
+      await tx.update(menuCategories).set({ sortOrder: i }).where(eq(menuCategories.id, rest[i].id));
+    }
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Items
 // ---------------------------------------------------------------------------
@@ -280,6 +301,37 @@ export async function updateVariant(
       .where(eq(menuItemVariants.id, id))
       .returning();
     return row;
+  });
+}
+
+/**
+ * Removes an item with its sizes, recipes and deal slots. Refused once any size has been
+ * sold or is offered inside a deal — those keep their history and are hidden instead.
+ */
+export async function deleteMenuItem(id: number) {
+  await getDb().transaction(async (tx) => {
+    const [item] = await tx.select().from(menuItems).where(eq(menuItems.id, id)).for("update");
+    if (!item) throw new ServiceError("Menu item not found.");
+    const variantIds = (
+      await tx.select({ id: menuItemVariants.id }).from(menuItemVariants).where(eq(menuItemVariants.menuItemId, id))
+    ).map((v) => v.id);
+
+    const [[{ n: sold }], [{ n: inDeals }]] = await Promise.all([
+      tx.select({ n: count() }).from(orderItems).where(eq(orderItems.menuItemId, id)),
+      variantIds.length > 0
+        ? tx.select({ n: count() }).from(dealSlotOptions).where(inArray(dealSlotOptions.variantId, variantIds))
+        : Promise.resolve([{ n: 0 }]),
+    ]);
+    if (sold > 0) {
+      throw new ServiceError(`${item.name} appears in ${sold} order line${sold === 1 ? "" : "s"}, so it cannot be deleted. Hide it from the menu instead.`);
+    }
+    if (inDeals > 0) {
+      throw new ServiceError(`${item.name} is offered inside a deal. Remove it from the deal first, or hide it.`);
+    }
+
+    // Recipes and deal slots (with their options) cascade from the sizes.
+    if (variantIds.length > 0) await tx.delete(menuItemVariants).where(inArray(menuItemVariants.id, variantIds));
+    await tx.delete(menuItems).where(eq(menuItems.id, id));
   });
 }
 
