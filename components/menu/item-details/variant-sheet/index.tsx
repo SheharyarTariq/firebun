@@ -79,10 +79,11 @@ export default function VariantSheet({
     });
   };
 
-  if (confirmDelete && variant) {
-    return (
+  return (
+    <>
+    {variant && (
       <ConfirmSheet
-        open
+        open={confirmDelete}
         onOpenChange={(next) => !next && setConfirmDelete(false)}
         title={`Delete size “${variant.name}”?`}
         description="Its recipe is deleted too. Sizes used in past orders or deals cannot be deleted — deactivate them instead."
@@ -91,12 +92,9 @@ export default function VariantSheet({
         isLoading={isPending}
         onConfirm={handleDelete}
       />
-    );
-  }
-
-  return (
+    )}
     <BottomSheet
-      open={open}
+      open={open && !confirmDelete}
       onOpenChange={onOpenChange}
       title={isDealPrice ? "Deal price" : variant ? `Edit ${variant.name}` : "New size"}
       footer={
@@ -111,7 +109,7 @@ export default function VariantSheet({
             label="Size name"
             placeholder="e.g. M, Large, 1.5 Litre"
             autoComplete="off"
-            autoFocus={!variant}
+            data-autofocus={variant ? undefined : "true"}
             value={name}
             onChange={(e) => {
               setName(e.target.value);
@@ -124,7 +122,7 @@ export default function VariantSheet({
           label="Price (Rs)"
           inputMode="decimal"
           placeholder="0"
-          autoFocus={isDealPrice || Boolean(variant)}
+          data-autofocus={isDealPrice || variant ? "true" : undefined}
           value={price}
           onChange={(e) => {
             setPrice(e.target.value);
@@ -136,7 +134,7 @@ export default function VariantSheet({
           <>
             <Toggle
               label="Active"
-              description="Inactive sizes stay in history but cannot be ordered."
+              description="Hidden sizes stay in history but cannot be ordered."
               checked={isActive}
               onChange={setIsActive}
             />
@@ -152,5 +150,6 @@ export default function VariantSheet({
         )}
       </div>
     </BottomSheet>
+    </>
   );
 }

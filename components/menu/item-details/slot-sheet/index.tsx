@@ -125,10 +125,11 @@ export default function SlotSheet({ open, onOpenChange, dealVariantId, slot, cho
     });
   };
 
-  if (confirmDelete && slot) {
-    return (
+  return (
+    <>
+    {slot && (
       <ConfirmSheet
-        open
+        open={confirmDelete}
         onOpenChange={(next) => !next && setConfirmDelete(false)}
         title={`Remove “${slot.label}” from this deal?`}
         confirmLabel="Remove"
@@ -136,12 +137,9 @@ export default function SlotSheet({ open, onOpenChange, dealVariantId, slot, cho
         isLoading={isPending}
         onConfirm={handleDelete}
       />
-    );
-  }
-
-  return (
+    )}
     <BottomSheet
-      open={open}
+      open={open && !confirmDelete}
       onOpenChange={onOpenChange}
       title={slot ? `Edit slot — ${slot.label}` : "New slot"}
       description="What the customer gets, and what they may choose from."
@@ -159,7 +157,7 @@ export default function SlotSheet({ open, onOpenChange, dealVariantId, slot, cho
             </Button>
           )}
           <Button size="lg" className="flex-1" isLoading={isPending} onClick={handleSubmit}>
-            {slot ? "Save slot" : "Add slot"} · {selectedIds.size} option{selectedIds.size === 1 ? "" : "s"}
+            {slot ? "Save" : "Add slot"} · {selectedIds.size} option{selectedIds.size === 1 ? "" : "s"}
           </Button>
         </div>
       }
@@ -259,5 +257,6 @@ export default function SlotSheet({ open, onOpenChange, dealVariantId, slot, cho
         </div>
       </div>
     </BottomSheet>
+    </>
   );
 }

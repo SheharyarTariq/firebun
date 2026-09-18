@@ -3,7 +3,7 @@ import PosScreen from "@/components/pos";
 import { getCurrentUser } from "@/server/auth/dal";
 import { getPosCatalog } from "@/server/orders/queries";
 import { getSettings, getTodayBusinessDate } from "@/server/settings/queries";
-import { formatDate } from "@/utils/helper";
+import { formatBusinessDate } from "@/utils/helper";
 
 export const metadata: Metadata = { title: "Counter" };
 
@@ -25,7 +25,7 @@ export default async function PosPage() {
         printKitchenCopy: settings.printKitchenCopy,
       }}
       user={{ name: user.name, role: user.role }}
-      businessDateLabel={formatDate(`${businessDate}T12:00:00+05:00`)}
+      businessDateLabel={formatBusinessDate(businessDate)}
     />
   );
 }

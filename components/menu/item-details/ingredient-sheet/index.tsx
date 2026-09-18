@@ -137,7 +137,7 @@ export default function IngredientSheet({
           <Input
             type="search"
             placeholder="Search inventory"
-            autoFocus
+            data-autofocus="true"
             startIcon={<Search className="h-5 w-5" />}
             value={query}
             onChange={(e) => setQuery(e.target.value)}

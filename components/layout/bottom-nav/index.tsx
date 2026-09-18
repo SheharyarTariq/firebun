@@ -21,30 +21,46 @@ interface NavItem {
   icon: LucideIcon;
 }
 
-const STAFF_ITEMS: NavItem[] = [
-  { href: routes.ui.pos, label: "Counter", icon: ShoppingBag },
-  { href: routes.ui.orders, label: "Orders", icon: ReceiptText },
-  { href: routes.ui.expenses, label: "Expenses", icon: Wallet },
-  { href: routes.ui.more, label: "More", icon: Ellipsis },
-];
+export interface NavBadge {
+  count: number;
+  tone: "brand" | "warning" | "danger";
+}
 
-const ADMIN_ITEMS: NavItem[] = [
-  { href: routes.ui.pos, label: "Counter", icon: ShoppingBag },
-  { href: routes.ui.orders, label: "Orders", icon: ReceiptText },
-  { href: routes.ui.inventory, label: "Inventory", icon: Boxes },
-  { href: routes.ui.menu, label: "Menu", icon: UtensilsCrossed },
-  { href: routes.ui.more, label: "More", icon: Ellipsis },
-];
+const COUNTER: NavItem = { href: routes.ui.pos, label: "Counter", icon: ShoppingBag };
+const ORDERS: NavItem = { href: routes.ui.orders, label: "Orders", icon: ReceiptText };
+const EXPENSES: NavItem = { href: routes.ui.expenses, label: "Expenses", icon: Wallet };
+const INVENTORY: NavItem = { href: routes.ui.inventory, label: "Inventory", icon: Boxes };
+const MENU: NavItem = { href: routes.ui.menu, label: "Menu", icon: UtensilsCrossed };
+const MORE: NavItem = { href: routes.ui.more, label: "More", icon: Ellipsis };
+
+/** Screens reached from More light up the More tab. */
+const MORE_CHILDREN = [routes.ui.printer, routes.ui.finance, routes.ui.users, routes.ui.settings, routes.ui.expenses];
+
+const BADGE_TONE: Record<NavBadge["tone"], string> = {
+  brand: "bg-brand text-brand-ink",
+  warning: "bg-warning text-white",
+  danger: "bg-danger text-white",
+};
 
 interface BottomNavProps {
   role: UserRole;
-  /** Small counters shown on a tab, keyed by href (e.g. items needing restock). */
-  badges?: Partial<Record<string, number>>;
+  /** Staff only see the Expenses tab when the admin lets them add expenses. */
+  showExpenses: boolean;
+  /** Small counters shown on a tab, keyed by href. */
+  badges?: Partial<Record<string, NavBadge>>;
 }
 
-export default function BottomNav({ role, badges = {} }: BottomNavProps) {
+export default function BottomNav({ role, showExpenses, badges = {} }: BottomNavProps) {
   const pathname = usePathname();
-  const items = role === "admin" ? ADMIN_ITEMS : STAFF_ITEMS;
+  const items =
+    role === "admin" ? [COUNTER, ORDERS, INVENTORY, MENU, MORE] : [COUNTER, ORDERS, ...(showExpenses ? [EXPENSES] : []), MORE];
+  const hrefs = new Set(items.map((i) => i.href));
+
+  const isActive = (item: NavItem) => {
+    if (pathname === item.href || pathname.startsWith(`${item.href}/`)) return true;
+    // Anything not on the bar (finance, printer, expenses for admins…) belongs to More.
+    return item.href === routes.ui.more && MORE_CHILDREN.some((h) => !hrefs.has(h) && (pathname === h || pathname.startsWith(`${h}/`)));
+  };
 
   return (
     <nav
@@ -53,8 +69,8 @@ export default function BottomNav({ role, badges = {} }: BottomNavProps) {
     >
       <ul className="mx-auto flex max-w-lg">
         {items.map((item) => {
-          const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
-          const badge = badges[item.href] ?? 0;
+          const active = isActive(item);
+          const badge = badges[item.href];
           return (
             <li key={item.href} className="flex-1">
               <Link
@@ -72,12 +88,15 @@ export default function BottomNav({ role, badges = {} }: BottomNavProps) {
                   )}
                 >
                   <item.icon className="h-5 w-5" strokeWidth={active ? 2.4 : 2} />
-                  {badge > 0 && (
+                  {badge && badge.count > 0 && (
                     <span
-                      aria-label={`${badge} needing attention`}
-                      className="absolute -right-0.5 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-[10px] font-bold leading-none text-white"
+                      className={cn(
+                        "absolute -right-0.5 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none",
+                        BADGE_TONE[badge.tone]
+                      )}
                     >
-                      {badge > 99 ? "99+" : badge}
+                      {badge.count > 99 ? "99+" : badge.count}
+                      <span className="sr-only"> needing attention</span>
                     </span>
                   )}
                 </span>

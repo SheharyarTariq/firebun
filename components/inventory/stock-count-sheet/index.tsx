@@ -68,7 +68,7 @@ export default function StockCountSheet({ open, onOpenChange, item }: StockCount
       description={`${item.name} · currently ${formatQty(item.currentQty, item.baseUnit)}`}
       footer={
         <Button size="lg" className="w-full" isLoading={isPending} onClick={handleSubmit}>
-          Save count
+          Save
         </Button>
       }
     >
@@ -78,7 +78,7 @@ export default function StockCountSheet({ open, onOpenChange, item }: StockCount
             label="Counted quantity"
             inputMode="decimal"
             placeholder="0"
-            autoFocus
+            data-autofocus="true"
             value={counted}
             onChange={(e) => {
               setCounted(e.target.value);

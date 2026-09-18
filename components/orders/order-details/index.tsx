@@ -281,7 +281,7 @@ export default function OrderDetails({ order, viewer, canCancel, printKitchenCop
             label="Reason"
             placeholder="e.g. customer changed their mind"
             autoComplete="off"
-            autoFocus
+            data-autofocus="true"
             value={reason}
             onChange={(e) => {
               setReason(e.target.value);

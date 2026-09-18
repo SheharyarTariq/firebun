@@ -11,6 +11,7 @@ import BottomSheet from "@/components/common/BottomSheet";
 import Button from "@/components/common/Button";
 import Input from "@/components/common/Input";
 import Select from "@/components/common/Select";
+import Toggle from "@/components/common/Toggle";
 import type { InventoryItem } from "@/db/schema";
 import { callAction } from "@/utils/call-action";
 import {
@@ -127,7 +128,7 @@ export default function ItemFormSheet({
       }
       footer={
         <Button size="lg" className="w-full" isLoading={isPending} onClick={handleSubmit}>
-          {isEdit ? "Save changes" : "Add item"}
+          {isEdit ? "Save" : "Add item"}
         </Button>
       }
     >
@@ -217,15 +218,12 @@ export default function ItemFormSheet({
         </fieldset>
 
         {isEdit && (
-          <label className="flex items-center justify-between rounded-field border border-border px-4 py-3">
-            <span className="text-sm font-medium">Active</span>
-            <input
-              type="checkbox"
-              className="h-5 w-5 accent-brand-strong"
-              checked={isActive}
-              onChange={(e) => setIsActive(e.target.checked)}
-            />
-          </label>
+          <Toggle
+            label="In use"
+            description="Switch off to archive: hidden from lists and recipes, history kept."
+            checked={isActive}
+            onChange={setIsActive}
+          />
         )}
       </div>
     </BottomSheet>

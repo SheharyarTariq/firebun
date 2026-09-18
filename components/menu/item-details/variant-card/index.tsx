@@ -94,7 +94,7 @@ export default function VariantCard({
                   {line.inventoryItem.name}
                   {!line.inventoryItem.isActive && (
                     <Badge variant="danger" className="ml-2">
-                      Inactive item
+                      Hidden item
                     </Badge>
                   )}
                 </span>

@@ -1,7 +1,7 @@
 import Loader from "@/components/common/Loader";
 import { cn } from "@/utils/cn";
 
-export type ButtonVariant = "primary" | "secondary" | "outline" | "ghost" | "danger";
+export type ButtonVariant = "primary" | "secondary" | "outline" | "ghost" | "danger" | "header";
 export type ButtonSize = "sm" | "md" | "lg";
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -17,6 +17,8 @@ const VARIANT_STYLES: Record<ButtonVariant, string> = {
   outline: "border border-border bg-surface text-foreground hover:bg-surface-2 active:bg-surface-2",
   ghost: "text-foreground hover:bg-surface-2 active:bg-surface-2",
   danger: "bg-danger text-white hover:bg-danger/90 active:bg-danger/80",
+  /** Ghost button for the dark page header. */
+  header: "text-ink-foreground hover:bg-white/10 active:bg-white/10",
 };
 
 const SIZE_STYLES: Record<ButtonSize, string> = {

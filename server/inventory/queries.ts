@@ -1,6 +1,6 @@
 import "server-only";
 import { cache } from "react";
-import { and, asc, count, desc, eq, getTableColumns, sql } from "drizzle-orm";
+import { asc, count, desc, eq, getTableColumns, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { inventoryItems, inventoryPurchases, stockMovements } from "@/db/schema";
 
@@ -16,12 +16,22 @@ export async function listInventoryItems() {
 
 export type InventoryListItem = Awaited<ReturnType<typeof listInventoryItems>>[number];
 
-export async function countNeededItems(): Promise<number> {
+export interface InventoryAttention {
+  /** Active items at or below their low-stock limit (tab badge). */
+  needed: number;
+  /** Active items whose ledger went below zero — a count is overdue (badge turns red). */
+  negative: number;
+}
+
+export async function countInventoryAttention(): Promise<InventoryAttention> {
   const [row] = await getDb()
-    .select({ n: count() })
+    .select({
+      needed: count(sql`case when ${neededExpr} then 1 end`),
+      negative: count(sql`case when ${inventoryItems.currentQty} < 0 then 1 end`),
+    })
     .from(inventoryItems)
-    .where(and(eq(inventoryItems.isActive, true), neededExpr));
-  return row?.n ?? 0;
+    .where(eq(inventoryItems.isActive, true));
+  return { needed: row?.needed ?? 0, negative: row?.negative ?? 0 };
 }
 
 /** Memoised per request: generateMetadata and the page both call it. */

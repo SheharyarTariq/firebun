@@ -24,6 +24,7 @@ interface UserActionsSheetProps {
 
 type Step = "menu" | "reset" | "confirm-active" | "confirm-role";
 
+/** One sheet per step, all mounted, so moving between them slides instead of jumping. */
 export default function UserActionsSheet({ user, isSelf, onOpenChange }: UserActionsSheetProps) {
   const [step, setStep] = useState<Step>("menu");
   const [password, setPassword] = useState("");
@@ -36,10 +37,17 @@ export default function UserActionsSheet({ user, isSelf, onOpenChange }: UserAct
     setErrors({});
     onOpenChange(false);
   };
+  /** Dismissing a sub-step returns to the menu; dismissing the menu closes everything. */
+  const backOrClose = (open: boolean) => {
+    if (open) return;
+    if (step === "menu") close();
+    else setStep("menu");
+  };
 
   if (!user) return null;
 
   const otherRole = user.role === "admin" ? "staff" : "admin";
+  const deactivating = user.isActive;
 
   const runUpdate = (input: Parameters<typeof updateUserAction>[1], success: string) => {
     startTransition(async () => {
@@ -67,16 +75,51 @@ export default function UserActionsSheet({ user, isSelf, onOpenChange }: UserAct
     });
   };
 
-  if (step === "reset") {
-    return (
+  return (
+    <>
+      <BottomSheet open={step === "menu"} onOpenChange={backOrClose} title={user.name} description={user.email}>
+        <div className="space-y-2">
+          <Button
+            variant="outline"
+            size="lg"
+            className="w-full justify-start"
+            startIcon={<KeyRound className="h-5 w-5 text-muted" />}
+            onClick={() => setStep("reset")}
+          >
+            Reset password
+          </Button>
+          <Button
+            variant="outline"
+            size="lg"
+            className="w-full justify-start"
+            startIcon={<ShieldCheck className="h-5 w-5 text-muted" />}
+            disabled={isSelf}
+            onClick={() => setStep("confirm-role")}
+          >
+            {otherRole === "admin" ? "Make admin" : "Make staff"}
+          </Button>
+          <Button
+            variant={user.isActive ? "outline" : "primary"}
+            size="lg"
+            className="w-full justify-start"
+            startIcon={user.isActive ? <UserRoundX className="h-5 w-5 text-danger" /> : <UserRoundCheck className="h-5 w-5" />}
+            disabled={isSelf}
+            onClick={() => setStep("confirm-active")}
+          >
+            {user.isActive ? "Deactivate account" : "Reactivate account"}
+          </Button>
+          {isSelf && <p className="pt-1 text-xs text-muted">You cannot change your own role or deactivate yourself.</p>}
+        </div>
+      </BottomSheet>
+
       <BottomSheet
-        open
-        onOpenChange={(open) => !open && close()}
+        open={step === "reset"}
+        onOpenChange={backOrClose}
         title={`Reset password — ${user.name}`}
         description="They will be signed out on other devices."
         footer={
           <Button size="lg" className="w-full" isLoading={isPending} onClick={handleReset}>
-            Save new password
+            Save
           </Button>
         }
       >
@@ -94,15 +137,10 @@ export default function UserActionsSheet({ user, isSelf, onOpenChange }: UserAct
           error={errors.password}
         />
       </BottomSheet>
-    );
-  }
 
-  if (step === "confirm-active") {
-    const deactivating = user.isActive;
-    return (
       <ConfirmSheet
-        open
-        onOpenChange={(open) => !open && close()}
+        open={step === "confirm-active"}
+        onOpenChange={backOrClose}
         title={deactivating ? `Deactivate ${user.name}?` : `Reactivate ${user.name}?`}
         description={
           deactivating
@@ -112,21 +150,12 @@ export default function UserActionsSheet({ user, isSelf, onOpenChange }: UserAct
         confirmLabel={deactivating ? "Deactivate" : "Reactivate"}
         destructive={deactivating}
         isLoading={isPending}
-        onConfirm={() =>
-          runUpdate(
-            { isActive: !deactivating },
-            deactivating ? `${user.name} deactivated` : `${user.name} reactivated`
-          )
-        }
+        onConfirm={() => runUpdate({ isActive: !deactivating }, deactivating ? `${user.name} deactivated` : `${user.name} reactivated`)}
       />
-    );
-  }
 
-  if (step === "confirm-role") {
-    return (
       <ConfirmSheet
-        open
-        onOpenChange={(open) => !open && close()}
+        open={step === "confirm-role"}
+        onOpenChange={backOrClose}
         title={`Make ${user.name} ${otherRole === "admin" ? "an admin" : "staff"}?`}
         description={
           otherRole === "admin"
@@ -137,58 +166,6 @@ export default function UserActionsSheet({ user, isSelf, onOpenChange }: UserAct
         isLoading={isPending}
         onConfirm={() => runUpdate({ role: otherRole }, `${user.name} is now ${otherRole}`)}
       />
-    );
-  }
-
-  return (
-    <BottomSheet
-      open
-      onOpenChange={(open) => !open && close()}
-      title={user.name}
-      description={user.email}
-    >
-      <div className="space-y-2">
-        <Button
-          variant="outline"
-          size="lg"
-          className="w-full justify-start"
-          startIcon={<KeyRound className="h-5 w-5 text-muted" />}
-          onClick={() => setStep("reset")}
-        >
-          Reset password
-        </Button>
-        <Button
-          variant="outline"
-          size="lg"
-          className="w-full justify-start"
-          startIcon={<ShieldCheck className="h-5 w-5 text-muted" />}
-          disabled={isSelf}
-          onClick={() => setStep("confirm-role")}
-        >
-          {otherRole === "admin" ? "Make admin" : "Make staff"}
-        </Button>
-        <Button
-          variant={user.isActive ? "outline" : "primary"}
-          size="lg"
-          className="w-full justify-start"
-          startIcon={
-            user.isActive ? (
-              <UserRoundX className="h-5 w-5 text-danger" />
-            ) : (
-              <UserRoundCheck className="h-5 w-5" />
-            )
-          }
-          disabled={isSelf}
-          onClick={() => setStep("confirm-active")}
-        >
-          {user.isActive ? "Deactivate account" : "Reactivate account"}
-        </Button>
-        {isSelf && (
-          <p className="pt-1 text-xs text-muted">
-            You cannot change your own role or deactivate yourself.
-          </p>
-        )}
-      </div>
-    </BottomSheet>
+    </>
   );
 }

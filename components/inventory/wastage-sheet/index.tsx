@@ -72,7 +72,7 @@ export default function WastageSheet({ open, onOpenChange, item }: WastageSheetP
             label="Quantity wasted"
             inputMode="decimal"
             placeholder="0"
-            autoFocus
+            data-autofocus="true"
             value={qty}
             onChange={(e) => {
               setQty(e.target.value);

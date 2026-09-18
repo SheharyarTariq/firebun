@@ -1,5 +1,6 @@
 "use client";
 
+import { useRef } from "react";
 import { Drawer } from "vaul";
 import { cn } from "@/utils/cn";
 
@@ -14,7 +15,11 @@ interface BottomSheetProps {
   className?: string;
 }
 
-/** Native-feeling bottom sheet (vaul). Used for pickers, forms and confirmations. */
+/**
+ * Native-feeling bottom sheet (vaul). Used for pickers, forms and confirmations.
+ * Mark the field to focus with `data-autofocus="true"`: it is focused once the sheet has
+ * finished sliding in, so the keyboard does not fight the animation.
+ */
 export default function BottomSheet({
   open,
   onOpenChange,
@@ -24,11 +29,20 @@ export default function BottomSheet({
   footer,
   className,
 }: BottomSheetProps) {
+  const contentRef = useRef<HTMLDivElement>(null);
+
   return (
-    <Drawer.Root open={open} onOpenChange={onOpenChange}>
+    <Drawer.Root
+      open={open}
+      onOpenChange={onOpenChange}
+      onAnimationEnd={(isOpen) => {
+        if (isOpen) contentRef.current?.querySelector<HTMLElement>('[data-autofocus="true"]')?.focus();
+      }}
+    >
       <Drawer.Portal>
         <Drawer.Overlay className="fixed inset-0 z-50 bg-black/50" />
         <Drawer.Content
+          ref={contentRef}
           className={cn(
             "fixed inset-x-0 bottom-0 z-50 mx-auto flex max-h-[92dvh] w-full max-w-lg flex-col rounded-t-[24px] bg-surface shadow-sheet outline-none",
             className

@@ -78,10 +78,11 @@ export default function ExpenseSheet({ open, onOpenChange, expense, categories, 
     });
   };
 
-  if (confirmDelete && expense) {
-    return (
+  return (
+    <>
+    {expense && (
       <ConfirmSheet
-        open
+        open={confirmDelete}
         onOpenChange={(next) => !next && setConfirmDelete(false)}
         title="Delete this expense?"
         description={`${expense.category} · ${formatMoney(expense.amount)} · ${expense.description}`}
@@ -90,12 +91,9 @@ export default function ExpenseSheet({ open, onOpenChange, expense, categories, 
         isLoading={isPending}
         onConfirm={handleDelete}
       />
-    );
-  }
-
-  return (
+    )}
     <BottomSheet
-      open={open}
+      open={open && !confirmDelete}
       onOpenChange={onOpenChange}
       title={isEdit ? "Edit expense" : "New expense"}
       footer={
@@ -142,7 +140,7 @@ export default function ExpenseSheet({ open, onOpenChange, expense, categories, 
           label="Amount (Rs)"
           inputMode="decimal"
           placeholder="0"
-          autoFocus={!isEdit}
+          data-autofocus={isEdit ? undefined : "true"}
           value={amount}
           onChange={(e) => {
             setAmount(e.target.value);
@@ -174,5 +172,6 @@ export default function ExpenseSheet({ open, onOpenChange, expense, categories, 
         />
       </div>
     </BottomSheet>
+    </>
   );
 }

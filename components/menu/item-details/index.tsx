@@ -70,8 +70,7 @@ export default function MenuItemDetails({ details }: MenuItemDetailsProps) {
         actions={
           <Button
             size="sm"
-            variant="ghost"
-            className="text-ink-foreground"
+            variant="header"
             startIcon={<Pencil className="h-4 w-4" />}
             onClick={() => openSheet({ type: "edit" })}
           >

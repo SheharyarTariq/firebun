@@ -100,7 +100,7 @@ export default function PurchaseSheet({ open, onOpenChange, item }: PurchaseShee
             label="Quantity"
             inputMode="decimal"
             placeholder="0"
-            autoFocus
+            data-autofocus="true"
             value={qty}
             onChange={(e) => {
               setQty(e.target.value);

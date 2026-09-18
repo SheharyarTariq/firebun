@@ -67,6 +67,18 @@ export function toIsoDate(date: Date | string | number = new Date()): string {
   return format(toShopTime(date), "yyyy-MM-dd");
 }
 
+/** A yyyy-mm-dd business date as "16 Sep 2026" (or another date-fns pattern), no TZ maths. */
+export function formatBusinessDate(isoDate: string, pattern = "d MMM yyyy"): string {
+  const [y, m, d] = isoDate.split("-").map(Number);
+  return format(new TZDate(y, m - 1, d, 12, config.timeZone), pattern);
+}
+
+/** yyyy-mm-dd ± whole days, in shop time. */
+export function shiftIsoDate(isoDate: string, days: number): string {
+  const [y, m, d] = isoDate.split("-").map(Number);
+  return format(new TZDate(y, m - 1, d + days, 12, config.timeZone), "yyyy-MM-dd");
+}
+
 /**
  * The business date an event belongs to. With a cutoff of 4, anything before 4 am
  * counts towards the previous day (late-night orders belong to "yesterday").
@@ -101,13 +113,9 @@ export interface DateRange {
   to: string;
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-function shiftDays(isoDate: string, days: number): string {
-  // Dates are whole days in shop time; noon keeps us clear of DST/cutoff edges.
-  const noon = new Date(`${isoDate}T12:00:00+05:00`);
-  return format(new TZDate(noon.getTime() + days * DAY_MS, config.timeZone), "yyyy-MM-dd");
-}
+/** Period chips offered on each report screen, in order. */
+export const FINANCE_PRESETS: PeriodPreset[] = ["today", "yesterday", "last7", "last30", "thisMonth", "lastMonth", "custom"];
+export const EXPENSE_PRESETS: PeriodPreset[] = ["today", "last7", "thisMonth", "lastMonth", "custom"];
 
 function monthRange(isoDate: string, monthOffset: number): DateRange {
   const [y, m] = isoDate.split("-").map(Number);
@@ -122,18 +130,43 @@ export function rangeForPreset(preset: Exclude<PeriodPreset, "custom">, today: s
     case "today":
       return { from: today, to: today };
     case "yesterday": {
-      const d = shiftDays(today, -1);
+      const d = shiftIsoDate(today, -1);
       return { from: d, to: d };
     }
     case "last7":
-      return { from: shiftDays(today, -6), to: today };
+      return { from: shiftIsoDate(today, -6), to: today };
     case "last30":
-      return { from: shiftDays(today, -29), to: today };
+      return { from: shiftIsoDate(today, -29), to: today };
     case "thisMonth":
       return { from: monthRange(today, 0).from, to: today };
     case "lastMonth":
       return monthRange(today, -1);
   }
+}
+
+export interface PeriodQuery {
+  period?: string | null;
+  from?: string | null;
+  to?: string | null;
+}
+
+/**
+ * Turns `?period=last7` / `?period=custom&from=…&to=…` into a preset + inclusive range.
+ * Shared by a page and its client shell so both agree on what the URL means.
+ */
+export function resolvePeriod(
+  query: PeriodQuery,
+  today: string,
+  allowed: PeriodPreset[],
+  fallback: Exclude<PeriodPreset, "custom">
+): { preset: PeriodPreset; range: DateRange } {
+  const preset: PeriodPreset = allowed.includes(query.period as PeriodPreset) ? (query.period as PeriodPreset) : fallback;
+  const { from, to } = query;
+  if (preset === "custom") {
+    if (isIsoDate(from) && isIsoDate(to) && from <= to) return { preset, range: { from, to } };
+    return { preset, range: rangeForPreset(fallback, today) };
+  }
+  return { preset, range: rangeForPreset(preset, today) };
 }
 
 export function isIsoDate(value: string | undefined | null): value is string {
@@ -144,7 +177,7 @@ export function isIsoDate(value: string | undefined | null): value is string {
 export function rangeDays(range: DateRange): number {
   const a = new Date(`${range.from}T12:00:00Z`).getTime();
   const b = new Date(`${range.to}T12:00:00Z`).getTime();
-  return Math.round((b - a) / DAY_MS) + 1;
+  return Math.round((b - a) / (24 * 60 * 60 * 1000)) + 1;
 }
 
 // ---------------------------------------------------------------------------

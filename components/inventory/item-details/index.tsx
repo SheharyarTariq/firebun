@@ -55,13 +55,12 @@ export default function ItemDetails({ details }: ItemDetailsProps) {
     <>
       <PageHeader
         title={item.name}
-        subtitle={[item.isActive ? null : "Inactive", pack].filter(Boolean).join(" · ") || undefined}
+        subtitle={[item.isActive ? null : "Archived", pack].filter(Boolean).join(" · ") || undefined}
         backHref={routes.ui.inventory}
         actions={
           <Button
             size="sm"
-            variant="ghost"
-            className="text-ink-foreground"
+            variant="header"
             startIcon={<Pencil className="h-4 w-4" />}
             onClick={() => openSheet("edit")}
           >

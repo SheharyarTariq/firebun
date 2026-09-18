@@ -129,7 +129,7 @@ export default function ItemFormSheet({ open, onOpenChange, categories, item }: 
       title={isEdit ? "Edit item" : kind === "deal" ? "New deal" : "New menu item"}
       footer={
         <Button size="lg" className="w-full" isLoading={isPending} onClick={handleSubmit}>
-          {isEdit ? "Save changes" : "Add to menu"}
+          {isEdit ? "Save" : "Add to menu"}
         </Button>
       }
     >

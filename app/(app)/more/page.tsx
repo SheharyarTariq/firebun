@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import {
   ChevronRight,
-  LogOut,
   Printer,
   Settings,
   TrendingUp,
@@ -12,10 +11,10 @@ import {
 } from "lucide-react";
 import { signOutAction } from "@/app/actions";
 import Badge from "@/components/common/Badge";
-import Button from "@/components/common/Button";
 import Card from "@/components/common/Card";
 import PageHeader from "@/components/layout/page-header";
 import ChangePasswordSheet from "@/components/more/change-password-sheet";
+import SignOutButton from "@/components/more/sign-out-button";
 import { config } from "@/config";
 import { getCurrentUser } from "@/server/auth/dal";
 import { routes } from "@/utils/routes";
@@ -67,7 +66,7 @@ const COMMON_LINKS: MoreLink[] = [
 
 export default async function MorePage() {
   const user = await getCurrentUser();
-  const links = [...COMMON_LINKS, ...(user.role === "admin" ? ADMIN_LINKS : [])];
+  const links = user.role === "admin" ? [...ADMIN_LINKS, ...COMMON_LINKS] : COMMON_LINKS;
   const initials = user.name
     .split(" ")
     .filter(Boolean)
@@ -115,14 +114,7 @@ export default async function MorePage() {
         <div className="space-y-2">
           <ChangePasswordSheet />
           <form action={signOutAction}>
-            <Button
-              type="submit"
-              variant="outline"
-              className="w-full"
-              startIcon={<LogOut className="h-4 w-4" />}
-            >
-              Sign out
-            </Button>
+            <SignOutButton />
           </form>
         </div>
 

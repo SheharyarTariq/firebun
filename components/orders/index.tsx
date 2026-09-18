@@ -1,60 +1,84 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ReceiptText } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, ReceiptText } from "lucide-react";
 import Badge from "@/components/common/Badge";
 import Card from "@/components/common/Card";
 import Chips from "@/components/common/Chips";
 import EmptyState from "@/components/common/EmptyState";
-import Input from "@/components/common/Input";
 import PageHeader from "@/components/layout/page-header";
 import type { OrderStatus } from "@/db/schema/orders";
 import type { DaySummary, OrderListRow } from "@/server/orders/queries";
 import { cn } from "@/utils/cn";
-import { formatDate, formatMoney, formatOrderNumber, formatTime, toIsoDate } from "@/utils/helper";
+import { formatBusinessDate, formatMoney, formatOrderNumber, formatTime, shiftIsoDate } from "@/utils/helper";
 import { routes } from "@/utils/routes";
 import { ORDER_TYPE_LABELS, STATUS_BADGE, STATUS_LABELS, lineLabel } from "./format";
 
 type Filter = OrderStatus | "all";
 
 interface OrdersScreenProps {
+  /** Every order of the day; the status chips filter locally. */
   orders: OrderListRow[];
   summary: DaySummary;
   businessDate: string;
   todayBusinessDate: string;
-  status: Filter;
+  initialStatus: Filter;
 }
 
-export default function OrdersScreen({ orders, summary, businessDate, todayBusinessDate, status }: OrdersScreenProps) {
+export default function OrdersScreen({ orders, summary, businessDate, todayBusinessDate, initialStatus }: OrdersScreenProps) {
   const router = useRouter();
+  const [status, setStatus] = useState<Filter>(initialStatus);
   const isToday = businessDate === todayBusinessDate;
+  const isYesterday = businessDate === shiftIsoDate(todayBusinessDate, -1);
+  const dayLabel = isToday ? "Today" : isYesterday ? "Yesterday" : formatBusinessDate(businessDate, "EEE d MMM");
 
-  const navigate = (next: { date?: string; status?: Filter }) => {
-    const params = new URLSearchParams();
-    const date = next.date ?? businessDate;
-    const s = next.status ?? status;
-    if (date !== todayBusinessDate) params.set("date", date);
-    if (s !== "all") params.set("status", s);
-    const qs = params.toString();
-    router.push(qs ? `${routes.ui.orders}?${qs}` : routes.ui.orders);
+  const goTo = (date: string) => {
+    if (!date || date > todayBusinessDate) return;
+    router.push(date === todayBusinessDate ? routes.ui.orders : `${routes.ui.orders}?date=${date}`);
   };
+
+  const visible = status === "all" ? orders : orders.filter((o) => o.status === status);
+  const dayCount = summary.completed + summary.pending;
 
   return (
     <>
       <PageHeader
         title="Orders"
-        subtitle={`${isToday ? "Today" : formatDate(`${businessDate}T12:00:00+05:00`)} · ${summary.completed + summary.pending} orders · ${formatMoney(summary.revenue)}`}
+        subtitle={`${dayCount} order${dayCount === 1 ? "" : "s"} · ${formatMoney(summary.revenue)}`}
         actions={
-          <Input
-            type="date"
-            aria-label="Business date"
-            value={businessDate}
-            max={toIsoDate()}
-            onChange={(e) => e.target.value && navigate({ date: e.target.value })}
-            className="h-9 w-36 px-2 text-sm"
-            containerClassName="w-36"
-          />
+          <div className="flex items-center gap-0.5">
+            <button
+              type="button"
+              aria-label="Previous day"
+              onClick={() => goTo(shiftIsoDate(businessDate, -1))}
+              className="flex h-10 w-10 items-center justify-center rounded-full transition-colors active:bg-white/10"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+            <label className="relative flex h-10 min-w-24 cursor-pointer items-center justify-center gap-1.5 rounded-full px-2 text-sm font-medium transition-colors active:bg-white/10">
+              <CalendarDays className="h-4 w-4 text-ink-muted" />
+              {dayLabel}
+              <input
+                type="date"
+                aria-label="Business date"
+                value={businessDate}
+                max={todayBusinessDate}
+                onChange={(e) => goTo(e.target.value)}
+                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+              />
+            </label>
+            <button
+              type="button"
+              aria-label="Next day"
+              disabled={isToday}
+              onClick={() => goTo(shiftIsoDate(businessDate, 1))}
+              className="flex h-10 w-10 items-center justify-center rounded-full transition-colors active:bg-white/10 disabled:opacity-30"
+            >
+              <ChevronRight className="h-5 w-5" />
+            </button>
+          </div>
         }
       />
 
@@ -62,7 +86,7 @@ export default function OrdersScreen({ orders, summary, businessDate, todayBusin
         <Chips<Filter>
           aria-label="Status"
           value={status}
-          onChange={(s) => navigate({ status: s })}
+          onChange={setStatus}
           options={[
             { value: "all", label: "All" },
             { value: "pending", label: "Unpaid", count: summary.pending },
@@ -72,21 +96,31 @@ export default function OrdersScreen({ orders, summary, businessDate, todayBusin
         />
 
         {summary.pending > 0 && status === "all" && (
-          <p className="rounded-field bg-warning-bg px-4 py-2.5 text-sm text-warning">
+          <button
+            type="button"
+            onClick={() => setStatus("pending")}
+            className="w-full rounded-field bg-warning-bg px-4 py-2.5 text-left text-sm text-warning"
+          >
             {summary.pending} delivery order{summary.pending === 1 ? "" : "s"} waiting for payment ·{" "}
             {formatMoney(summary.pendingAmount)}
-          </p>
+          </button>
         )}
 
-        {orders.length === 0 ? (
+        {visible.length === 0 ? (
           <EmptyState
             icon={ReceiptText}
-            title={isToday ? "No orders yet today" : "No orders on this day"}
-            description={isToday ? "Orders placed at the counter will appear here." : undefined}
+            title={
+              orders.length === 0
+                ? isToday
+                  ? "No orders yet today"
+                  : "No orders on this day"
+                : `No ${STATUS_LABELS[status as OrderStatus].toLowerCase()} orders`
+            }
+            description={orders.length === 0 && isToday ? "Orders placed at the counter will appear here." : undefined}
           />
         ) : (
           <Card className="divide-y divide-border p-0">
-            {orders.map((order) => (
+            {visible.map((order) => (
               <Link
                 key={order.id}
                 href={routes.ui.orderDetails(order.id)}

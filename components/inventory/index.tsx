@@ -79,7 +79,7 @@ export default function InventoryScreen({ items }: InventoryScreenProps) {
           options={[
             { value: "all", label: "All", count: activeCount },
             { value: "needed", label: "Needed", count: neededCount },
-            { value: "inactive", label: "Inactive", count: inactiveCount },
+            { value: "inactive", label: "Archived", count: inactiveCount },
           ]}
         />
 
@@ -144,7 +144,7 @@ function InventoryRow({ item }: { item: InventoryListItem }) {
           {formatQty(item.currentQty, item.baseUnit)}
         </p>
         {!item.isActive ? (
-          <Badge>Inactive</Badge>
+          <Badge>Archived</Badge>
         ) : item.currentQty < 0 ? (
           <Badge variant="danger">Negative</Badge>
         ) : item.needed ? (

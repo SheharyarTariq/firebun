@@ -5,21 +5,18 @@ import { ArrowLeft } from "lucide-react";
 import { cn } from "@/utils/cn";
 
 interface BackArrowProps {
-  /** Where to go when there is no history to go back to (e.g. opened from the home screen). */
+  /** The screen one level up (orders list for an order, More for settings…). */
   href: string;
   className?: string;
 }
 
+/**
+ * Goes "up", not "back": a detail page opened from the counter's confirmation strip or a
+ * home-screen shortcut still lands on its list, which is what the header arrow promises.
+ */
 export default function BackArrow({ href, className }: BackArrowProps) {
   const router = useRouter();
-
-  const handleClick = () => {
-    if (typeof window !== "undefined" && window.history.length > 1) {
-      router.back();
-    } else {
-      router.push(href);
-    }
-  };
+  const handleClick = () => router.push(href);
 
   return (
     <button

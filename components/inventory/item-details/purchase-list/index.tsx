@@ -137,7 +137,7 @@ export default function PurchaseList({ purchases, item }: PurchaseListProps) {
           label="Reason"
           placeholder="e.g. Entered twice"
           autoComplete="off"
-          autoFocus
+          data-autofocus="true"
           value={reason}
           onChange={(e) => {
             setReason(e.target.value);
