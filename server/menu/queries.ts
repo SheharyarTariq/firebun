@@ -1,12 +1,13 @@
 import "server-only";
 import { cache } from "react";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, count, eq, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
   inventoryItems,
   menuCategories,
   menuItems,
   menuItemVariants,
+  recipes,
 } from "@/db/schema";
 
 /** Whole menu for the admin list: categories → items → variants (+ recipe/slot counts). */
@@ -52,10 +53,49 @@ export async function listInventoryForRecipes() {
       packLabel: inventoryItems.packLabel,
       avgCost: inventoryItems.avgCost,
       currentQty: inventoryItems.currentQty,
+      /** How many recipe lines use it — the ingredient picker shows popular ones first. */
+      usedIn: count(recipes.id),
     })
     .from(inventoryItems)
+    .leftJoin(recipes, eq(recipes.inventoryItemId, inventoryItems.id))
     .where(eq(inventoryItems.isActive, true))
+    .groupBy(inventoryItems.id)
     .orderBy(asc(inventoryItems.name));
+}
+
+/** Sizes that already have a recipe, for "copy from another item" (single items only). */
+export async function listRecipeSources() {
+  return getDb()
+    .select({
+      variantId: menuItemVariants.id,
+      variantName: menuItemVariants.name,
+      itemId: menuItems.id,
+      itemName: menuItems.name,
+      lines: count(recipes.id),
+    })
+    .from(recipes)
+    .innerJoin(menuItemVariants, eq(menuItemVariants.id, recipes.variantId))
+    .innerJoin(menuItems, eq(menuItems.id, menuItemVariants.menuItemId))
+    .where(eq(menuItems.kind, "single"))
+    .groupBy(menuItemVariants.id, menuItemVariants.name, menuItems.id, menuItems.name)
+    .orderBy(asc(menuItems.name), asc(menuItemVariants.sortOrder));
+}
+
+export type RecipeSource = Awaited<ReturnType<typeof listRecipeSources>>[number];
+
+/** Active single items with no recipe on any active size — the Menu tab badge. */
+export async function countItemsWithoutRecipe(): Promise<number> {
+  const [row] = await getDb()
+    .select({ n: count() })
+    .from(menuItems)
+    .where(
+      and(
+        eq(menuItems.isActive, true),
+        eq(menuItems.kind, "single"),
+        sql`not exists (select 1 from ${recipes} r join ${menuItemVariants} v on v.id = r.variant_id where v.menu_item_id = ${menuItems.id} and v.is_active = true)`
+      )
+    );
+  return row?.n ?? 0;
 }
 
 export type InventoryChoice = Awaited<ReturnType<typeof listInventoryForRecipes>>[number];
@@ -139,13 +179,14 @@ export const getMenuItemDetails = cache(async (id: number) => {
   });
   if (!item) return null;
 
-  const [categories, inventory, variantChoices] = await Promise.all([
+  const [categories, inventory, variantChoices, recipeSources] = await Promise.all([
     listCategories(),
     listInventoryForRecipes(),
     item.kind === "deal" ? listVariantChoices() : Promise.resolve([] as VariantChoice[]),
+    item.kind === "single" ? listRecipeSources() : Promise.resolve([] as RecipeSource[]),
   ]);
 
-  return { item, categories, inventory, variantChoices };
+  return { item, categories, inventory, variantChoices, recipeSources };
 });
 
 export type MenuItemDetails = NonNullable<Awaited<ReturnType<typeof getMenuItemDetails>>>;

@@ -1,4 +1,4 @@
-import { Download } from "lucide-react";
+import { Download, TrendingDown, TrendingUp } from "lucide-react";
 import Badge from "@/components/common/Badge";
 import Card from "@/components/common/Card";
 import type { FinanceReport } from "@/server/finance/queries";
@@ -12,19 +12,42 @@ interface FinanceReportViewProps {
 
 /** The numbers for one period. Rendered on the server; no interactivity needed. */
 export default function FinanceReportView({ report }: FinanceReportViewProps) {
-  const { range, sales, purchases, expenses, pending } = report;
+  const { range, sales, purchases, expenses, pending, previous } = report;
   const days = rangeDays(range);
-  const spend = purchases.total + expenses.total;
   const grossMargin = sales.income > 0 ? Math.round(((sales.income - report.ingredientCost) / sales.income) * 100) : null;
+  const profitMargin = sales.income > 0 ? Math.round((report.profit / sales.income) * 100) : null;
+  const previousLabel = days === 1 ? "yesterday" : days === 7 ? "the week before" : `the ${days} days before`;
 
   return (
     <>
       <div className="grid grid-cols-2 gap-3">
-        <Tile label="Income" value={formatMoney(sales.income)} hint={`${sales.orders} paid order${sales.orders === 1 ? "" : "s"}`} tone="success" />
-        <Tile label="Spend" value={formatMoney(spend)} hint={`${formatMoney(purchases.total)} stock · ${formatMoney(expenses.total)} expenses`} tone="warning" />
-        <Tile label="Net" value={formatMoney(report.net)} hint="Income − spend (cash basis)" tone={report.net >= 0 ? "success" : "danger"} />
-        <Tile label="Avg. order" value={formatMoney(sales.average)} hint={report.cancelled ? `${report.cancelled} cancelled` : "per paid order"} />
+        <Tile
+          label="Income"
+          value={formatMoney(sales.income)}
+          hint={`${sales.orders} paid order${sales.orders === 1 ? "" : "s"}`}
+          tone="success"
+          delta={<Delta now={sales.income} before={previous.income} label={previousLabel} />}
+        />
+        <Tile
+          label="Profit (est.)"
+          value={formatMoney(report.profit)}
+          hint={profitMargin === null ? "Income − ingredients − expenses" : `${profitMargin}% of income`}
+          tone={report.profit >= 0 ? "success" : "danger"}
+          delta={<Delta now={report.profit} before={previous.profit} label={previousLabel} />}
+        />
+        <Tile label="Ingredient cost (est.)" value={formatMoney(report.ingredientCost)} hint={grossMargin === null ? "From recipes" : `${grossMargin}% gross margin`} />
+        <Tile label="Expenses" value={formatMoney(expenses.total)} hint={`${expenses.count} entr${expenses.count === 1 ? "y" : "ies"}`} tone="warning" />
       </div>
+
+      <Card className="space-y-2">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">Cash</h2>
+        <Row label="Money in (paid orders)" value={formatMoney(sales.income)} />
+        <Row label={`Cash out for stock (${purchases.count})`} value={`− ${formatMoney(purchases.total)}`} />
+        <Row label={`Expenses (${expenses.count})`} value={`− ${formatMoney(expenses.total)}`} />
+        <div className="border-t border-border" />
+        <Row label="Net cash" value={formatMoney(report.net)} hint="What the till gained or lost, counting stock when it was bought" strong />
+        {days === 1 && <Row label="Cash sales today" value={formatMoney(sales.cash)} muted hint={`plus ${formatMoney(sales.online)} online / transfer`} />}
+      </Card>
 
       {pending.orders > 0 && (
         <p className="rounded-field bg-warning-bg px-4 py-2.5 text-sm text-warning">
@@ -39,25 +62,18 @@ export default function FinanceReportView({ report }: FinanceReportViewProps) {
         {sales.delivery > 0 && <Row label="Delivery charges" value={formatMoney(sales.delivery)} />}
         <Row label="Cash" value={formatMoney(sales.cash)} muted />
         <Row label="Online / transfer" value={formatMoney(sales.online)} muted />
-        {sales.income > 0 && (
-          <>
-            <div className="border-t border-border" />
-            <Row label="Ingredient cost (est.)" value={formatMoney(report.ingredientCost)} muted />
-            {grossMargin !== null && (
-              <Row label="Gross margin (est.)" value={`${grossMargin}%`} muted hint="Income minus ingredients used, from recipes" />
-            )}
-          </>
-        )}
+        {report.cancelled > 0 && <Row label="Cancelled orders" value={String(report.cancelled)} muted />}
+        <Row label="Average order" value={formatMoney(sales.average)} muted />
       </Card>
 
-      <Card className="space-y-2">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">Spend</h2>
-        <Row label={`Stock purchases (${purchases.count})`} value={formatMoney(purchases.total)} />
-        <Row label={`Expenses (${expenses.count})`} value={formatMoney(expenses.total)} />
-        {expenses.byCategory.map((c) => (
-          <Row key={c.category} label={c.category} value={formatMoney(c.total)} muted indent />
-        ))}
-      </Card>
+      {expenses.byCategory.length > 0 && (
+        <Card className="space-y-2">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">Expenses by category</h2>
+          {expenses.byCategory.map((c) => (
+            <Row key={c.category} label={c.category} value={formatMoney(c.total)} />
+          ))}
+        </Card>
+      )}
 
       {report.topItems.length > 0 && (
         <Card className="space-y-2">
@@ -131,22 +147,50 @@ export default function FinanceReportView({ report }: FinanceReportViewProps) {
   );
 }
 
-function Tile({ label, value, hint, tone }: { label: string; value: string; hint?: string; tone?: "success" | "warning" | "danger" }) {
+function Tile({
+  label,
+  value,
+  hint,
+  tone,
+  delta,
+}: {
+  label: string;
+  value: string;
+  hint?: string;
+  tone?: "success" | "warning" | "danger";
+  delta?: React.ReactNode;
+}) {
   return (
     <Card className="space-y-1 p-3">
       <p className="text-xs font-medium uppercase tracking-wide text-muted">{label}</p>
       <p className={cn("text-xl font-bold tabular-nums", tone === "success" && "text-success", tone === "warning" && "text-warning", tone === "danger" && "text-danger")}>{value}</p>
       {hint && <p className="truncate text-xs text-muted">{hint}</p>}
+      {delta}
     </Card>
   );
 }
 
-function Row({ label, value, muted, indent, hint }: { label: string; value: string; muted?: boolean; indent?: boolean; hint?: string }) {
+/** "+12% vs yesterday" in green / red; hidden when there is nothing to compare with. */
+function Delta({ now, before, label }: { now: number; before: number; label: string }) {
+  if (before === 0 && now === 0) return null;
+  if (before === 0) return <p className="text-xs text-muted">Nothing {label}</p>;
+  const pct = Math.round(((now - before) / Math.abs(before)) * 100);
+  const up = pct >= 0;
   return (
-    <div className={cn("flex items-baseline justify-between gap-3 text-sm", muted && "text-muted", indent && "pl-4")}>
+    <p className={cn("flex items-center gap-1 text-xs font-medium", up ? "text-success" : "text-danger")}>
+      {up ? <TrendingUp className="h-3.5 w-3.5" /> : <TrendingDown className="h-3.5 w-3.5" />}
+      {up ? "+" : ""}
+      {pct}% vs {label}
+    </p>
+  );
+}
+
+function Row({ label, value, muted, indent, hint, strong }: { label: string; value: string; muted?: boolean; indent?: boolean; hint?: string; strong?: boolean }) {
+  return (
+    <div className={cn("flex items-baseline justify-between gap-3 text-sm", muted && "text-muted", indent && "pl-4", strong && "text-base font-semibold")}>
       <span className="min-w-0">
         {label}
-        {hint && <span className="block text-xs text-muted">{hint}</span>}
+        {hint && <span className="block text-xs font-normal text-muted">{hint}</span>}
       </span>
       <span className="shrink-0 font-medium tabular-nums">{value}</span>
     </div>

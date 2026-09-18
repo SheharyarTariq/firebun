@@ -18,6 +18,7 @@ import type {
 import { callAction } from "@/utils/call-action";
 import { routes } from "@/utils/routes";
 import ItemFormSheet from "../item-form-sheet";
+import CopyRecipeSheet from "./copy-recipe-sheet";
 import IngredientSheet from "./ingredient-sheet";
 import SlotList from "./slot-list";
 import SlotSheet from "./slot-sheet";
@@ -28,6 +29,7 @@ type Sheet =
   | { type: "edit" }
   | { type: "variant"; variant?: VariantFull }
   | { type: "ingredient"; variant: VariantFull; line?: RecipeLine }
+  | { type: "copy"; variant: VariantFull }
   | { type: "slot"; dealVariantId: number; slot?: DealSlotFull }
   | null;
 
@@ -36,7 +38,7 @@ interface MenuItemDetailsProps {
 }
 
 export default function MenuItemDetails({ details }: MenuItemDetailsProps) {
-  const { item, categories, inventory, variantChoices } = details;
+  const { item, categories, inventory, variantChoices, recipeSources } = details;
   const isDeal = item.kind === "deal";
   const [sheet, setSheet] = useState<Sheet>(null);
   const [sheetKey, setSheetKey] = useState(0);
@@ -144,7 +146,7 @@ export default function MenuItemDetails({ details }: MenuItemDetailsProps) {
           <section className="space-y-2">
             <div className="flex items-center justify-between px-1">
               <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">
-                Sizes, prices & recipes
+                {item.variants.length === 1 ? "Price & recipe" : "Sizes, prices & recipes"}
               </h2>
               <Button
                 size="sm"
@@ -160,12 +162,15 @@ export default function MenuItemDetails({ details }: MenuItemDetailsProps) {
                 key={variant.id}
                 variant={variant}
                 isDeal={false}
+                sole={item.variants.length === 1}
                 otherVariants={item.variants.filter(
                   (v) => v.id !== variant.id && v.recipes.length > 0
                 )}
+                canCopyFromOtherItem={recipeSources.some((s) => s.itemId !== item.id)}
                 onEdit={() => openSheet({ type: "variant", variant })}
                 onAddIngredient={() => openSheet({ type: "ingredient", variant })}
                 onEditIngredient={(line) => openSheet({ type: "ingredient", variant, line })}
+                onCopyFromOtherItem={() => openSheet({ type: "copy", variant })}
               />
             ))}
           </section>
@@ -200,9 +205,19 @@ export default function MenuItemDetails({ details }: MenuItemDetailsProps) {
         key={`ingredient-${sheetKey}`}
         open={sheet?.type === "ingredient"}
         onOpenChange={(open) => !open && closeSheet()}
+        itemName={item.name}
         variant={sheet?.type === "ingredient" ? sheet.variant : undefined}
+        siblingVariants={sheet?.type === "ingredient" && !isDeal ? item.variants.filter((v) => v.id !== sheet.variant.id && v.isActive) : []}
         line={sheet?.type === "ingredient" ? sheet.line : undefined}
         inventory={inventory}
+      />
+      <CopyRecipeSheet
+        key={`copy-${sheetKey}`}
+        open={sheet?.type === "copy"}
+        onOpenChange={(open) => !open && closeSheet()}
+        target={sheet?.type === "copy" ? sheet.variant : undefined}
+        targetItemId={item.id}
+        sources={recipeSources}
       />
       <SlotSheet
         key={`slot-${sheetKey}`}

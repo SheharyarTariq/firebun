@@ -21,45 +21,90 @@ interface SettingsScreenProps {
   settings: Settings;
 }
 
+/** The form holds strings for typed fields; this is what the server gets. */
+function toInput(f: FormState): SettingsFormInput {
+  return {
+    shopName: f.shopName,
+    phone: f.phone || null,
+    phone2: f.phone2 || null,
+    address: f.address || null,
+    receiptHeaderLines: f.headerLines.split("\n").map((l) => l.trim()).filter(Boolean),
+    receiptFooter: f.footer,
+    charsPerLine: Number(f.charsPerLine),
+    defaultDeliveryCharge: Number(f.deliveryCharge),
+    staffMaxDiscountPct: Number(f.staffDiscount),
+    staffCanAddExpenses: f.staffExpenses,
+    staffCancelWindowMinutes: Number(f.cancelWindow),
+    businessDayCutoffHour: Number(f.cutoffHour),
+    autoPrintOnPlace: f.autoPrint,
+    printKitchenCopy: f.kitchenCopy,
+  };
+}
+
+function fromSettings(s: Settings): FormState {
+  return {
+    shopName: s.shopName,
+    phone: s.phone ?? "",
+    phone2: s.phone2 ?? "",
+    address: s.address ?? "",
+    headerLines: s.receiptHeaderLines.join("\n"),
+    footer: s.receiptFooter,
+    charsPerLine: String(s.charsPerLine),
+    deliveryCharge: String(s.defaultDeliveryCharge),
+    staffDiscount: String(s.staffMaxDiscountPct),
+    staffExpenses: s.staffCanAddExpenses,
+    cancelWindow: String(s.staffCancelWindowMinutes),
+    cutoffHour: String(s.businessDayCutoffHour),
+    autoPrint: s.autoPrintOnPlace,
+    kitchenCopy: s.printKitchenCopy,
+  };
+}
+
+interface FormState {
+  shopName: string;
+  phone: string;
+  phone2: string;
+  address: string;
+  headerLines: string;
+  footer: string;
+  charsPerLine: string;
+  deliveryCharge: string;
+  staffDiscount: string;
+  staffExpenses: boolean;
+  cancelWindow: string;
+  cutoffHour: string;
+  autoPrint: boolean;
+  kitchenCopy: boolean;
+}
+
+const PAPER_OPTIONS = [
+  { value: "32", label: "58 mm paper (32 characters) — the shop's printer" },
+  { value: "42", label: "80 mm paper, small font (42 characters)" },
+  { value: "48", label: "80 mm paper (48 characters)" },
+];
+
+/** 12 am … 12 pm: a late-night order before this hour belongs to the previous day. */
+const CUTOFF_OPTIONS = Array.from({ length: 13 }, (_, h) => ({
+  value: String(h),
+  label: h === 0 ? "Midnight (no late-night shift)" : `${h === 12 ? 12 : h} ${h < 12 ? "am" : "pm"}`,
+}));
+
 export default function SettingsScreen({ settings }: SettingsScreenProps) {
-  const [shopName, setShopName] = useState(settings.shopName);
-  const [phone, setPhone] = useState(settings.phone ?? "");
-  const [phone2, setPhone2] = useState(settings.phone2 ?? "");
-  const [address, setAddress] = useState(settings.address ?? "");
-  const [headerLines, setHeaderLines] = useState(settings.receiptHeaderLines.join("\n"));
-  const [footer, setFooter] = useState(settings.receiptFooter);
-  const [charsPerLine, setCharsPerLine] = useState(String(settings.charsPerLine));
-  const [deliveryCharge, setDeliveryCharge] = useState(String(settings.defaultDeliveryCharge));
-  const [staffDiscount, setStaffDiscount] = useState(String(settings.staffMaxDiscountPct));
-  const [staffExpenses, setStaffExpenses] = useState(settings.staffCanAddExpenses);
-  const [cancelWindow, setCancelWindow] = useState(String(settings.staffCancelWindowMinutes));
-  const [cutoffHour, setCutoffHour] = useState(String(settings.businessDayCutoffHour));
-  const [autoPrint, setAutoPrint] = useState(settings.autoPrintOnPlace);
-  const [kitchenCopy, setKitchenCopy] = useState(settings.printKitchenCopy);
+  const [saved, setSaved] = useState(() => fromSettings(settings));
+  const [form, setForm] = useState(saved);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isPending, startTransition] = useTransition();
 
-  const clearError = (field: string) => {
+  const dirty = JSON.stringify(form) !== JSON.stringify(saved);
+
+  const set = <K extends keyof FormState>(key: K, value: FormState[K], errorKey?: string) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+    const field = errorKey ?? key;
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: "" }));
   };
 
   const handleSave = async () => {
-    const values: SettingsFormInput = {
-      shopName,
-      phone: phone || null,
-      phone2: phone2 || null,
-      address: address || null,
-      receiptHeaderLines: headerLines.split("\n").map((l) => l.trim()).filter(Boolean),
-      receiptFooter: footer,
-      charsPerLine: Number(charsPerLine),
-      defaultDeliveryCharge: Number(deliveryCharge),
-      staffMaxDiscountPct: Number(staffDiscount),
-      staffCanAddExpenses: staffExpenses,
-      staffCancelWindowMinutes: Number(cancelWindow),
-      businessDayCutoffHour: Number(cutoffHour),
-      autoPrintOnPlace: autoPrint,
-      printKitchenCopy: kitchenCopy,
-    };
+    const values = toInput(form);
     if (!(await validateAndSetErrors(settingsSchema, values, setErrors))) {
       toast.error("Check the highlighted fields");
       return;
@@ -71,31 +116,24 @@ export default function SettingsScreen({ settings }: SettingsScreenProps) {
         toast.error(result.error);
         return;
       }
+      setSaved(form);
       toast.success("Settings saved");
     });
   };
 
   return (
     <>
-      <PageHeader
-        title="Shop settings"
-        backHref={routes.ui.more}
-        actions={
-          <Button size="sm" isLoading={isPending} startIcon={<Save className="h-4 w-4" />} onClick={handleSave}>
-            Save
-          </Button>
-        }
-      />
+      <PageHeader title="Shop settings" subtitle={dirty ? "Unsaved changes" : undefined} backHref={routes.ui.more} />
 
-      <div className="space-y-4 p-4">
+      <div className="space-y-4 p-4 pb-28">
         <Card className="space-y-4">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">Shop</h2>
-          <Input label="Shop name" value={shopName} onChange={(e) => { setShopName(e.target.value); clearError("shopName"); }} error={errors.shopName} />
+          <Input label="Shop name" value={form.shopName} onChange={(e) => set("shopName", e.target.value)} error={errors.shopName} />
           <div className="grid grid-cols-2 gap-3">
-            <Input label="Phone" type="tel" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} error={errors.phone} />
-            <Input label="Phone 2" type="tel" inputMode="tel" value={phone2} onChange={(e) => setPhone2(e.target.value)} error={errors.phone2} />
+            <Input label="Phone" type="tel" inputMode="tel" value={form.phone} onChange={(e) => set("phone", e.target.value)} error={errors.phone} />
+            <Input label="Phone 2" type="tel" inputMode="tel" value={form.phone2} onChange={(e) => set("phone2", e.target.value)} error={errors.phone2} />
           </div>
-          <Input label="Address" value={address} onChange={(e) => setAddress(e.target.value)} error={errors.address} hint="Printed under the shop name." />
+          <Input label="Address" value={form.address} onChange={(e) => set("address", e.target.value)} error={errors.address} hint="Printed under the shop name." />
         </Card>
 
         <Card className="space-y-4">
@@ -104,33 +142,73 @@ export default function SettingsScreen({ settings }: SettingsScreenProps) {
             label="Header lines (one per line, up to 4)"
             placeholder={"Taste that sets you on fire\nFast delivery"}
             rows={3}
-            value={headerLines}
-            onChange={(e) => { setHeaderLines(e.target.value); clearError("receiptHeaderLines"); }}
+            value={form.headerLines}
+            onChange={(e) => set("headerLines", e.target.value, "receiptHeaderLines")}
             error={errors.receiptHeaderLines}
           />
-          <Input label="Footer" value={footer} onChange={(e) => { setFooter(e.target.value); clearError("receiptFooter"); }} error={errors.receiptFooter} />
+          <Input label="Footer" value={form.footer} onChange={(e) => set("footer", e.target.value, "receiptFooter")} error={errors.receiptFooter} />
           <Select
-            label="Characters per line"
-            options={[{ value: "32", label: "32 — 58 mm paper (Fire Bun printer)" }, { value: "42", label: "42 — 80 mm paper, small font" }, { value: "48", label: "48 — 80 mm paper" }]}
-            value={charsPerLine}
-            onChange={(e) => setCharsPerLine(e.target.value)}
+            label="Paper width"
+            options={PAPER_OPTIONS}
+            value={form.charsPerLine}
+            onChange={(e) => set("charsPerLine", e.target.value)}
             error={errors.charsPerLine}
           />
-          <Toggle label="Print automatically after placing an order" checked={autoPrint} onChange={setAutoPrint} />
-          <Toggle label="Also print a kitchen copy" description="A second ticket without prices, with notes and deal contents." checked={kitchenCopy} onChange={setKitchenCopy} />
+          <Toggle label="Print automatically after placing an order" checked={form.autoPrint} onChange={(v) => set("autoPrint", v)} />
+          <Toggle
+            label="Also print a kitchen copy"
+            description="A second ticket without prices, with notes and deal contents."
+            checked={form.kitchenCopy}
+            onChange={(v) => set("kitchenCopy", v)}
+          />
         </Card>
 
         <Card className="space-y-4">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">Counter rules</h2>
-          <Input label="Default delivery charge (Rs)" inputMode="decimal" value={deliveryCharge} onChange={(e) => { setDeliveryCharge(e.target.value); clearError("defaultDeliveryCharge"); }} error={errors.defaultDeliveryCharge} />
-          <Input label="Max discount staff can give (%)" inputMode="numeric" value={staffDiscount} onChange={(e) => { setStaffDiscount(e.target.value); clearError("staffMaxDiscountPct"); }} error={errors.staffMaxDiscountPct} hint="0 = only admins can give discounts." />
-          <Input label="Staff can cancel their own orders within (minutes)" inputMode="numeric" value={cancelWindow} onChange={(e) => { setCancelWindow(e.target.value); clearError("staffCancelWindowMinutes"); }} error={errors.staffCancelWindowMinutes} />
-          <Toggle label="Staff can add expenses" checked={staffExpenses} onChange={setStaffExpenses} />
-          <Input label="Business day starts at (hour, 0–12)" inputMode="numeric" value={cutoffHour} onChange={(e) => { setCutoffHour(e.target.value); clearError("businessDayCutoffHour"); }} error={errors.businessDayCutoffHour} hint="Orders before this hour count towards the previous day. 4 = 4 am." />
+          <Input
+            label="Default delivery charge (Rs)"
+            inputMode="decimal"
+            value={form.deliveryCharge}
+            onChange={(e) => set("deliveryCharge", e.target.value, "defaultDeliveryCharge")}
+            error={errors.defaultDeliveryCharge}
+          />
+          <Input
+            label="Max discount staff can give (%)"
+            inputMode="numeric"
+            value={form.staffDiscount}
+            onChange={(e) => set("staffDiscount", e.target.value, "staffMaxDiscountPct")}
+            error={errors.staffMaxDiscountPct}
+            hint="0 = only admins can give discounts."
+          />
+          <Input
+            label="Staff can cancel their own orders within (minutes)"
+            inputMode="numeric"
+            value={form.cancelWindow}
+            onChange={(e) => set("cancelWindow", e.target.value, "staffCancelWindowMinutes")}
+            error={errors.staffCancelWindowMinutes}
+          />
+          <Toggle label="Staff can add expenses" description="They only see what they added themselves." checked={form.staffExpenses} onChange={(v) => set("staffExpenses", v)} />
+          <Select
+            label="Business day starts at"
+            options={CUTOFF_OPTIONS}
+            value={form.cutoffHour}
+            onChange={(e) => set("cutoffHour", e.target.value, "businessDayCutoffHour")}
+            error={errors.businessDayCutoffHour}
+            hint="Orders before this time count towards the previous day's numbers."
+          />
         </Card>
+      </div>
 
-        <Button size="lg" className="w-full" isLoading={isPending} startIcon={<Save className="h-5 w-5" />} onClick={handleSave}>
-          Save settings
+      <div className="fixed inset-x-0 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-30 px-4 pb-2">
+        <Button
+          size="lg"
+          className="mx-auto flex w-full max-w-lg shadow-md"
+          isLoading={isPending}
+          disabled={!dirty}
+          startIcon={<Save className="h-5 w-5" />}
+          onClick={handleSave}
+        >
+          {dirty ? "Save changes" : "Saved"}
         </Button>
       </div>
     </>

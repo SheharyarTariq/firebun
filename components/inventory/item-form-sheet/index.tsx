@@ -36,8 +36,8 @@ interface ItemFormSheetProps {
 }
 
 const BASE_UNIT_OPTIONS = [
-  { value: "g", label: "Weight (grams / kg)" },
-  { value: "ml", label: "Volume (ml / litres)" },
+  { value: "g", label: "Weight — grams / kg (cheese, flour)" },
+  { value: "ml", label: "Volume — ml / litres (milk, oil)" },
   { value: "pcs", label: "Pieces (buns, bottles, wings)" },
 ];
 
@@ -146,7 +146,7 @@ export default function ItemFormSheet({
         />
 
         <Select
-          label="Measured in"
+          label="Counted by"
           options={BASE_UNIT_OPTIONS}
           value={baseUnit}
           disabled={isEdit && !canChangeBaseUnit}
@@ -161,7 +161,7 @@ export default function ItemFormSheet({
 
         {displayOptions.length > 1 && (
           <Select
-            label="Show quantities in"
+            label="Stock and prices shown per"
             options={displayOptions}
             value={displayUnit}
             onChange={(e) => {

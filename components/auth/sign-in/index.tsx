@@ -1,7 +1,7 @@
 "use client";
 
 import { startTransition, useActionState, useState } from "react";
-import { LockKeyhole, Mail } from "lucide-react";
+import { Eye, EyeOff, LockKeyhole, Mail } from "lucide-react";
 import { signInAction, type SignInState } from "@/app/auth/sign-in/actions";
 import Button from "@/components/common/Button";
 import Input from "@/components/common/Input";
@@ -20,6 +20,7 @@ export default function SignIn({ next }: SignInProps) {
   );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const emailError = errors.email || state.fieldErrors?.email;
@@ -49,6 +50,7 @@ export default function SignIn({ next }: SignInProps) {
         autoCapitalize="none"
         autoCorrect="off"
         placeholder="you@example.com"
+        autoFocus
         startIcon={<Mail className="h-5 w-5" />}
         value={email}
         onChange={(event) => {
@@ -60,10 +62,21 @@ export default function SignIn({ next }: SignInProps) {
       <Input
         label="Password"
         name="password"
-        type="password"
+        type={showPassword ? "text" : "password"}
         autoComplete="current-password"
         placeholder="••••••••"
         startIcon={<LockKeyhole className="h-5 w-5" />}
+        endIcon={
+          <button
+            type="button"
+            aria-label={showPassword ? "Hide password" : "Show password"}
+            aria-pressed={showPassword}
+            onClick={() => setShowPassword((v) => !v)}
+            className="-m-2 flex h-9 w-9 items-center justify-center rounded-full text-muted active:bg-surface-2"
+          >
+            {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+          </button>
+        }
         value={password}
         onChange={(event) => {
           setPassword(event.target.value);

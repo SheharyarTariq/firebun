@@ -9,7 +9,7 @@ import Input from "@/components/common/Input";
 import Select from "@/components/common/Select";
 import type { InventoryItem } from "@/db/schema";
 import { callAction } from "@/utils/call-action";
-import { entryUnitOptions, formatQty, type EntryUnit } from "@/utils/helper";
+import { entryQtyToBase, entryUnitOptions, formatQty, type EntryUnit } from "@/utils/helper";
 import { validateAndSetErrors } from "@/utils/validation";
 import { wastageSchema, type WastageFormInput } from "../schema";
 
@@ -23,7 +23,7 @@ interface WastageSheetProps {
 export default function WastageSheet({ open, onOpenChange, item }: WastageSheetProps) {
   const unitOptions = entryUnitOptions(item);
   const [qty, setQty] = useState("");
-  const [unit, setUnit] = useState<EntryUnit>(unitOptions[0].value);
+  const [unit, setUnit] = useState<EntryUnit>(item.displayUnit);
   const [reason, setReason] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isPending, startTransition] = useTransition();
@@ -92,6 +92,9 @@ export default function WastageSheet({ open, onOpenChange, item }: WastageSheetP
             error={errors.unit}
           />
         </div>
+        {Number(qty) > 0 && unit !== item.baseUnit && (
+          <p className="-mt-2 text-xs text-muted">= {formatQty(entryQtyToBase(item, Number(qty), unit), item.baseUnit)}</p>
+        )}
         <Input
           label="Reason"
           placeholder="e.g. Expired, dropped, burnt"

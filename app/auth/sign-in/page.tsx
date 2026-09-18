@@ -16,18 +16,21 @@ export default async function SignInPage({
 
   return (
     <main className="flex min-h-dvh flex-col bg-ink text-ink-foreground">
-      <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 pt-safe">
+      <div className="relative flex flex-1 flex-col items-center justify-center gap-4 overflow-hidden px-6 pt-safe">
+        {/* Brand glow behind the icon, echoing the yellow-on-black menu board. */}
+        <div aria-hidden className="pointer-events-none absolute left-1/2 top-1/2 h-72 w-72 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(closest-side,rgb(255_180_0/0.28),transparent)]" />
         <Image
           src="/assets/icon-192.png"
           alt=""
           width={88}
           height={88}
           priority
-          className="rounded-[22px] shadow-lg"
+          className="relative rounded-[22px] shadow-lg"
         />
-        <div className="text-center">
+        <div className="relative text-center">
           <h1 className="text-3xl font-bold tracking-tight">{config.appName}</h1>
-          <p className="mt-1 text-sm text-ink-muted">Counter · Inventory · Finance</p>
+          <div aria-hidden className="mx-auto mt-2 h-0.5 w-10 rounded-full bg-gradient-to-r from-brand to-brand-strong" />
+          <p className="mt-2 text-sm text-ink-muted">Counter · Inventory · Finance</p>
         </div>
       </div>
 

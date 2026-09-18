@@ -32,6 +32,11 @@ interface ItemDetailsProps {
   details: InventoryItemDetails;
 }
 
+/** "3", "2.5" or "0.4" — enough precision to picture the shelf without false accuracy. */
+function formatPackCount(n: number): string {
+  return n >= 10 ? String(Math.round(n)) : String(Math.round(n * 10) / 10);
+}
+
 export default function ItemDetails({ details }: ItemDetailsProps) {
   const { item, movements, purchases } = details;
   const [sheet, setSheet] = useState<Sheet>(null);
@@ -83,6 +88,12 @@ export default function ItemDetails({ details }: ItemDetailsProps) {
               >
                 {formatQty(item.currentQty, item.baseUnit)}
               </p>
+              {item.packSize && item.packSize > 0 && item.currentQty > 0 && (
+                <p className="text-xs text-muted">
+                  ≈ {formatPackCount(item.currentQty / item.packSize)} {packLabelOf(item)}
+                  {item.currentQty / item.packSize >= 1.95 ? "s" : ""}
+                </p>
+              )}
             </div>
             {item.currentQty < 0 ? (
               <Badge variant="danger">Negative — do a count</Badge>
@@ -159,7 +170,7 @@ export default function ItemDetails({ details }: ItemDetailsProps) {
         />
 
         {tab === "ledger" ? (
-          <MovementList movements={movements} baseUnit={item.baseUnit} />
+          <MovementList movements={movements} baseUnit={item.baseUnit} currentQty={item.currentQty} />
         ) : (
           <PurchaseList purchases={purchases} item={item} />
         )}
@@ -177,6 +188,7 @@ export default function ItemDetails({ details }: ItemDetailsProps) {
         open={sheet === "purchase"}
         onOpenChange={(open) => setSheet(open ? "purchase" : null)}
         item={item}
+        suppliers={[...new Set(purchases.map((p) => p.supplier).filter((n): n is string => Boolean(n)))]}
       />
       <StockCountSheet
         key={`count-${sheetKey}`}

@@ -108,7 +108,7 @@ export default function PurchaseList({ purchases, item }: PurchaseListProps) {
                   {voided ? (
                     <Badge variant="danger">Voided</Badge>
                   ) : (
-                    <Button size="sm" variant="ghost" onClick={() => setTarget(p)}>
+                    <Button size="sm" variant="ghost" className="text-danger" onClick={() => setTarget(p)}>
                       Void
                     </Button>
                   )}

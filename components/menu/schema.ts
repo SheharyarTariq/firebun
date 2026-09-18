@@ -82,12 +82,15 @@ export interface RecipeLineFormInput {
   inventoryItemId: number;
   qty: number;
   unit: EntryUnit;
+  /** Other sizes of the same item that get the same line (same quantity; adjust after). */
+  alsoVariantIds?: number[];
 }
 
 export const recipeLineSchema = yup.object({
   inventoryItemId: yup.number().typeError("Pick an ingredient").required("Pick an ingredient"),
   qty: requiredNumber("Quantity").positive("Must be more than 0"),
   unit: yup.string().oneOf(["kg", "g", "L", "ml", "pcs", "pack"], "Pick a unit").required("Pick a unit"),
+  alsoVariantIds: yup.array().of(yup.number().integer().positive().required()).max(20).notRequired(),
 });
 
 // ---------------------------------------------------------------------------

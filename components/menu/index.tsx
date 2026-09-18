@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Plus, Search, Settings2, UtensilsCrossed } from "lucide-react";
+import { ChefHat, Plus, Search, Settings2, UtensilsCrossed } from "lucide-react";
 import Badge from "@/components/common/Badge";
 import Button from "@/components/common/Button";
 import Card from "@/components/common/Card";
@@ -22,6 +22,11 @@ interface MenuScreenProps {
 }
 
 const ALL = "all";
+const NO_RECIPE = "no-recipe";
+
+/** Single items whose active sizes all lack a recipe (deals are composed of other items). */
+const needsRecipe = (item: MenuListItem) =>
+  item.kind === "single" && item.isActive && !item.variants.some((v) => v.isActive && v.recipes.length > 0);
 
 export default function MenuScreen({ categories }: MenuScreenProps) {
   const [query, setQuery] = useState("");
@@ -35,14 +40,16 @@ export default function MenuScreen({ categories }: MenuScreenProps) {
     setCreateOpen(true);
   };
 
-  const totalItems = categories.reduce((n, c) => n + c.items.filter((i) => i.isActive).length, 0);
-  const soldOut = categories.reduce(
-    (n, c) => n + c.items.filter((i) => i.isActive && !i.isAvailable).length,
-    0
-  );
+  const allItems = categories.flatMap((c) => c.items);
+  const totalItems = allItems.filter((i) => i.isActive).length;
+  const soldOut = allItems.filter((i) => i.isActive && !i.isAvailable).length;
+  const singles = allItems.filter((i) => i.kind === "single" && i.isActive);
+  const missingRecipe = singles.filter(needsRecipe).length;
+  const withRecipe = singles.length - missingRecipe;
 
   const chipOptions: ChipOption[] = [
     { value: ALL, label: "All", count: totalItems },
+    ...(missingRecipe > 0 ? [{ value: NO_RECIPE, label: "No recipe", count: missingRecipe }] : []),
     ...categories
       .filter((c) => c.isActive || c.items.length > 0)
       .map((c) => ({ value: String(c.id), label: c.name, count: c.items.length })),
@@ -51,10 +58,12 @@ export default function MenuScreen({ categories }: MenuScreenProps) {
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
     return categories
-      .filter((c) => categoryFilter === ALL || String(c.id) === categoryFilter)
+      .filter((c) => categoryFilter === ALL || categoryFilter === NO_RECIPE || String(c.id) === categoryFilter)
       .map((c) => ({
         ...c,
-        items: c.items.filter((i) => q === "" || i.name.toLowerCase().includes(q)),
+        items: c.items
+          .filter((i) => categoryFilter !== NO_RECIPE || needsRecipe(i))
+          .filter((i) => q === "" || i.name.toLowerCase().includes(q)),
       }))
       .filter((c) => c.items.length > 0);
   }, [categories, categoryFilter, query]);
@@ -63,7 +72,7 @@ export default function MenuScreen({ categories }: MenuScreenProps) {
     <>
       <PageHeader
         title="Menu"
-        subtitle={`${totalItems} items${soldOut ? ` · ${soldOut} sold out` : ""}`}
+        subtitle={`${totalItems} items · ${withRecipe} of ${singles.length} have a recipe${soldOut ? ` · ${soldOut} sold out` : ""}`}
         actions={
           <Button size="sm" startIcon={<Plus className="h-4 w-4" />} onClick={openCreate}>
             Add
@@ -97,6 +106,26 @@ export default function MenuScreen({ categories }: MenuScreenProps) {
             <Settings2 className="h-4 w-4" />
           </Button>
         </div>
+
+        {missingRecipe > 0 && categoryFilter !== NO_RECIPE && query === "" && (
+          <button
+            type="button"
+            onClick={() => setCategoryFilter(NO_RECIPE)}
+            className="flex w-full items-center gap-3 rounded-card border border-brand/50 bg-brand/10 px-4 py-3 text-left transition-colors active:bg-brand/20"
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand text-brand-ink">
+              <ChefHat className="h-5 w-5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold">
+                {missingRecipe === singles.length ? "Recipes are the next step" : `${missingRecipe} item${missingRecipe === 1 ? "" : "s"} still without a recipe`}
+              </span>
+              <span className="block text-xs text-muted">
+                Sales only deduct stock for items with a recipe. Tap to see which ones are missing.
+              </span>
+            </span>
+          </button>
+        )}
 
         {visible.length === 0 ? (
           <EmptyState

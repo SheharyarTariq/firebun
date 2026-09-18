@@ -17,6 +17,9 @@ import ChangePasswordSheet from "@/components/more/change-password-sheet";
 import SignOutButton from "@/components/more/sign-out-button";
 import { config } from "@/config";
 import { getCurrentUser } from "@/server/auth/dal";
+import { getTodaySnapshot } from "@/server/finance/queries";
+import { getTodayBusinessDate } from "@/server/settings/queries";
+import { formatMoney } from "@/utils/helper";
 import { routes } from "@/utils/routes";
 
 export const metadata: Metadata = { title: "More" };
@@ -66,6 +69,7 @@ const COMMON_LINKS: MoreLink[] = [
 
 export default async function MorePage() {
   const user = await getCurrentUser();
+  const today = user.role === "admin" ? await getTodaySnapshot(await getTodayBusinessDate()) : null;
   const links = user.role === "admin" ? [...ADMIN_LINKS, ...COMMON_LINKS] : COMMON_LINKS;
   const initials = user.name
     .split(" ")
@@ -91,6 +95,34 @@ export default async function MorePage() {
             {user.role === "admin" ? "Admin" : "Staff"}
           </Badge>
         </Card>
+
+        {today && (
+          <Link href={routes.ui.finance} className="block rounded-card bg-ink p-4 text-ink-foreground shadow-md transition-transform active:scale-[0.99]">
+            <span className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wide text-ink-muted">Today</span>
+              <span className="flex items-center gap-1 text-xs text-ink-muted">
+                Finance <ChevronRight className="h-3.5 w-3.5" />
+              </span>
+            </span>
+            <span className="mt-2 grid grid-cols-2 gap-3">
+              <span>
+                <span className="block text-2xl font-bold tabular-nums text-brand">{formatMoney(today.income)}</span>
+                <span className="block text-xs text-ink-muted">
+                  {today.orders} paid order{today.orders === 1 ? "" : "s"}
+                </span>
+              </span>
+              <span>
+                <span className="block text-2xl font-bold tabular-nums">{formatMoney(today.profit)}</span>
+                <span className="block text-xs text-ink-muted">profit (est.)</span>
+              </span>
+            </span>
+            {today.pendingOrders > 0 && (
+              <span className="mt-2 block text-xs text-warning-bg">
+                {today.pendingOrders} delivery order{today.pendingOrders === 1 ? "" : "s"} unpaid · {formatMoney(today.pendingAmount)}
+              </span>
+            )}
+          </Link>
+        )}
 
         {links.length > 0 && (
           <Card className="divide-y divide-border p-0">

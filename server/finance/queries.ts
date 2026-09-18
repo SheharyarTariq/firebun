@@ -9,7 +9,7 @@ import {
   orders,
   stockMovements,
 } from "@/db/schema";
-import type { DateRange } from "@/utils/helper";
+import { rangeDays, shiftIsoDate, type DateRange } from "@/utils/helper";
 
 const n = (v: string | number | null | undefined) => Number(v ?? 0);
 
@@ -32,16 +32,63 @@ export interface FinanceReport {
   expenses: { count: number; total: number; byCategory: { category: string; total: number }[] };
   /** Ingredient cost of completed orders, from the sale movements' cost snapshots. */
   ingredientCost: number;
+  /** Income − purchases − expenses: what actually left and entered the till. */
   net: number;
+  /** Income − ingredient cost − expenses: an estimate that ignores when stock was bought. */
+  profit: number;
+  /** The same-length period just before this one, for "vs yesterday / last week". */
+  previous: { range: DateRange; income: number; orders: number; profit: number };
   byDay: { date: string; orders: number; income: number }[];
   topItems: { name: string; variant: string; quantity: number; revenue: number }[];
   recentPurchases: { id: number; date: string; item: string; qty: number; unit: string; total: number; supplier: string | null; voided: boolean }[];
 }
 
+/** Income, ingredient cost and expenses for a range — enough for a headline comparison. */
+async function getPeriodTotals(range: DateRange): Promise<{ income: number; orders: number; profit: number }> {
+  const db = getDb();
+  const completed = and(gte(orders.businessDate, range.from), lte(orders.businessDate, range.to), eq(orders.status, "completed"));
+  const [[sales], [cogs], [spend]] = await Promise.all([
+    db.select({ orders: count(), income: sum(orders.total) }).from(orders).where(completed),
+    db
+      .select({ cost: sql<string>`coalesce(sum(-${stockMovements.quantityDelta} * coalesce(${stockMovements.unitCost}, 0)), 0)` })
+      .from(stockMovements)
+      .innerJoin(orders, and(eq(stockMovements.referenceType, "order"), eq(stockMovements.referenceId, orders.id)))
+      .where(and(completed, eq(stockMovements.type, "sale"))),
+    db
+      .select({ total: sum(expenses.amount) })
+      .from(expenses)
+      .where(and(gte(expenses.expenseDate, range.from), lte(expenses.expenseDate, range.to))),
+  ]);
+  const income = n(sales?.income);
+  return { income, orders: sales?.orders ?? 0, profit: income - n(cogs?.cost) - n(spend?.total) };
+}
+
+/** The same number of days ending the day before `range` starts. */
+export function previousRange(range: DateRange): DateRange {
+  const days = rangeDays(range);
+  return { from: shiftIsoDate(range.from, -days), to: shiftIsoDate(range.from, -1) };
+}
+
+/** What the More tab shows admins at a glance for today. */
+export async function getTodaySnapshot(today: string) {
+  const range = { from: today, to: today };
+  const [totals, [pending]] = await Promise.all([
+    getPeriodTotals(range),
+    getDb()
+      .select({ orders: count(), amount: sum(orders.total) })
+      .from(orders)
+      .where(and(eq(orders.businessDate, today), eq(orders.status, "pending"))),
+  ]);
+  return { ...totals, pendingOrders: pending?.orders ?? 0, pendingAmount: n(pending?.amount) };
+}
+
+export type TodaySnapshot = Awaited<ReturnType<typeof getTodaySnapshot>>;
+
 export async function getFinanceReport(range: DateRange): Promise<FinanceReport> {
   const db = getDb();
   const inRange = and(gte(orders.businessDate, range.from), lte(orders.businessDate, range.to));
   const completed = and(inRange, eq(orders.status, "completed"));
+  const prior = previousRange(range);
 
   const [
     [salesRow],
@@ -53,6 +100,7 @@ export async function getFinanceReport(range: DateRange): Promise<FinanceReport>
     byDayRows,
     topItemRows,
     purchaseRows,
+    previous,
   ] = await Promise.all([
     db
       .select({
@@ -130,6 +178,7 @@ export async function getFinanceReport(range: DateRange): Promise<FinanceReport>
       .where(and(gte(inventoryPurchases.purchaseDate, range.from), lte(inventoryPurchases.purchaseDate, range.to)))
       .orderBy(desc(inventoryPurchases.purchasedAt), desc(inventoryPurchases.id))
       .limit(50),
+    getPeriodTotals(prior),
   ]);
 
   const income = n(salesRow?.income);
@@ -159,6 +208,8 @@ export async function getFinanceReport(range: DateRange): Promise<FinanceReport>
     },
     ingredientCost: n(cogsRow?.cost),
     net: income - purchasesTotal - expensesTotal,
+    profit: income - n(cogsRow?.cost) - expensesTotal,
+    previous: { range: prior, ...previous },
     byDay: byDayRows.map((r) => ({ date: r.date, orders: r.orders, income: n(r.income) })),
     topItems: topItemRows.map((r) => ({ name: r.name, variant: r.variant, quantity: n(r.quantity), revenue: n(r.revenue) })),
     recentPurchases: purchaseRows.map((r) => ({

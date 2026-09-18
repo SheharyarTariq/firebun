@@ -109,3 +109,24 @@ export interface VoidPurchaseFormInput {
 export const voidPurchaseSchema = yup.object({
   reason: yup.string().trim().required("Give a reason").max(200),
 });
+
+// ---------------------------------------------------------------------------
+
+export interface LowStockLimitsFormInput {
+  /** Threshold in base units per item; null clears the limit. */
+  limits: { id: number; lowStockThreshold: number | null }[];
+}
+
+export const lowStockLimitsSchema = yup.object({
+  limits: yup
+    .array()
+    .of(
+      yup.object({
+        id: yup.number().integer().positive().required(),
+        lowStockThreshold: optionalNumber().min(0, "Cannot be negative").nullable().notRequired(),
+      })
+    )
+    .min(1, "Nothing to save")
+    .max(500)
+    .required(),
+});

@@ -212,6 +212,18 @@ function normaliseItem(input: ItemInput) {
   };
 }
 
+/** Bulk edit of low-stock limits (base units); items not listed are left alone. */
+export async function setLowStockLimits(limits: { id: number; lowStockThreshold: number | null }[]): Promise<void> {
+  await getDb().transaction(async (tx) => {
+    for (const { id, lowStockThreshold } of limits) {
+      await tx
+        .update(inventoryItems)
+        .set({ lowStockThreshold: lowStockThreshold === null ? null : round3(lowStockThreshold), updatedAt: new Date() })
+        .where(eq(inventoryItems.id, id));
+    }
+  });
+}
+
 export async function createItem(input: ItemInput): Promise<InventoryItem> {
   const [item] = await getDb().insert(inventoryItems).values(normaliseItem(input)).returning();
   return item;

@@ -173,7 +173,9 @@ export async function setRecipeLineAction(
     } catch {
       throw new ServiceError("That unit does not match the ingredient.", { unit: "Wrong unit" });
     }
-    await setRecipeLine(variantId, input.inventoryItemId, quantityBase);
+    // The picked size first, then any sibling sizes ticked under "Also add to".
+    const targets = [variantId, ...(input.alsoVariantIds ?? []).filter((id) => id !== variantId)];
+    for (const target of targets) await setRecipeLine(target, input.inventoryItemId, quantityBase);
     revalidateMenu();
   });
 }
@@ -188,11 +190,12 @@ export async function removeRecipeLineAction(id: number): Promise<ActionResult<v
 
 export async function copyRecipeAction(
   fromVariantId: number,
-  toVariantId: number
+  toVariantId: number,
+  options: { crossItem?: boolean } = {}
 ): Promise<ActionResult<void>> {
   await requireAdmin();
   return runAction(async () => {
-    await copyRecipe(fromVariantId, toVariantId);
+    await copyRecipe(fromVariantId, toVariantId, options);
     revalidateMenu();
   });
 }

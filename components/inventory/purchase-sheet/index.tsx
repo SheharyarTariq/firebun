@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import toast from "react-hot-toast";
 import { recordPurchaseAction } from "@/app/(app)/(admin)/inventory/actions";
 import BottomSheet from "@/components/common/BottomSheet";
@@ -27,12 +27,15 @@ interface PurchaseSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   item: InventoryItem;
+  /** Suppliers used before for this item, offered as suggestions. */
+  suppliers?: string[];
 }
 
 type PriceMode = "unit" | "total";
 
 /** Parents remount this with a new `key` on each open so the form starts empty. */
-export default function PurchaseSheet({ open, onOpenChange, item }: PurchaseSheetProps) {
+export default function PurchaseSheet({ open, onOpenChange, item, suppliers = [] }: PurchaseSheetProps) {
+  const supplierListId = useId();
   const unitOptions = entryUnitOptions(item);
   const [qty, setQty] = useState("");
   const [unit, setUnit] = useState<EntryUnit>(unitOptions[0].value);
@@ -166,6 +169,7 @@ export default function PurchaseSheet({ open, onOpenChange, item }: PurchaseShee
           label="Supplier (optional)"
           placeholder="e.g. Metro"
           autoComplete="off"
+          list={suppliers.length > 0 ? supplierListId : undefined}
           value={supplier}
           onChange={(e) => {
             setSupplier(e.target.value);
@@ -173,6 +177,13 @@ export default function PurchaseSheet({ open, onOpenChange, item }: PurchaseShee
           }}
           error={errors.supplier}
         />
+        {suppliers.length > 0 && (
+          <datalist id={supplierListId}>
+            {suppliers.map((name) => (
+              <option key={name} value={name} />
+            ))}
+          </datalist>
+        )}
 
         <Input
           label="Date"

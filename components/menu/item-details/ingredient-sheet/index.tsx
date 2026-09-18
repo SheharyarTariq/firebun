@@ -29,17 +29,28 @@ import { recipeLineSchema } from "../../schema";
 interface IngredientSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  itemName: string;
   variant?: VariantFull;
+  /** Other sizes of the same item, offered under "Also add to". */
+  siblingVariants: VariantFull[];
   /** Present when editing an existing line. */
   line?: RecipeLine;
   inventory: InventoryChoice[];
 }
 
-/** Parents remount this with a new `key` on each open so the form starts fresh. */
+const POPULAR_LIMIT = 6;
+
+/**
+ * Pick an ingredient, type how much of it goes into one serving. After adding, the sheet
+ * stays open on the search so a whole recipe can be entered in one go; "Done" closes it.
+ * Parents remount this with a new `key` on each open so the form starts fresh.
+ */
 export default function IngredientSheet({
   open,
   onOpenChange,
+  itemName,
   variant,
+  siblingVariants,
   line,
   inventory,
 }: IngredientSheetProps) {
@@ -50,18 +61,26 @@ export default function IngredientSheet({
     line && initial ? String(fromBaseQty(line.quantity, initial.displayUnit)) : ""
   );
   const [unit, setUnit] = useState<EntryUnit>(initial?.displayUnit ?? "pcs");
+  const [alsoIds, setAlsoIds] = useState<Set<number>>(new Set());
+  const [added, setAdded] = useState<string[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isPending, startTransition] = useTransition();
 
-  const alreadyUsed = new Set(variant?.recipes.map((r) => r.inventoryItemId) ?? []);
+  // Lines added in this session count as used too, even before the server refresh lands.
+  const usedIds = useMemo(() => new Set(variant?.recipes.map((r) => r.inventoryItemId) ?? []), [variant]);
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return inventory.filter((i) => q === "" || i.name.toLowerCase().includes(q));
   }, [inventory, query]);
+  const popular = useMemo(
+    () => (query.trim() === "" ? inventory.filter((i) => i.usedIn > 0 && !usedIds.has(i.id)).sort((a, b) => b.usedIn - a.usedIn).slice(0, POPULAR_LIMIT) : []),
+    [inventory, query, usedIds]
+  );
 
   const choose = (item: InventoryChoice) => {
     setSelected(item);
     setUnit(item.displayUnit);
+    setQty("");
     setErrors({});
   };
 
@@ -70,9 +89,10 @@ export default function IngredientSheet({
   const lineCost = selected?.avgCost !== null && selected?.avgCost !== undefined ? qtyBase * selected.avgCost : null;
 
   const handleSubmit = async () => {
-    if (!variant) return;
-    const values = { inventoryItemId: selected?.id ?? Number.NaN, qty: Number(qty), unit };
+    if (!variant || !selected) return;
+    const values = { inventoryItemId: selected.id, qty: Number(qty), unit, alsoVariantIds: [...alsoIds] };
     if (!(await validateAndSetErrors(recipeLineSchema, values, setErrors))) return;
+    const name = selected.name;
     startTransition(async () => {
       const result = await callAction(setRecipeLineAction(variant.id, values));
       if (!result.ok) {
@@ -80,8 +100,16 @@ export default function IngredientSheet({
         toast.error(result.error);
         return;
       }
-      toast.success(line ? "Quantity updated" : `${selected?.name} added to ${variant.name}`);
-      onOpenChange(false);
+      if (line) {
+        toast.success("Quantity updated");
+        onOpenChange(false);
+        return;
+      }
+      // Back to the search for the next ingredient; the running list shows what went in.
+      setAdded((prev) => [...prev, name]);
+      setSelected(null);
+      setQuery("");
+      setQty("");
     });
   };
 
@@ -98,42 +126,35 @@ export default function IngredientSheet({
     });
   };
 
-  const title = line
-    ? `Edit ${line.inventoryItem.name}`
-    : selected
-      ? `How much ${selected.name}?`
-      : "Add ingredient";
+  const sizeLabel = variant ? (variant.name === "Regular" ? itemName : `${itemName} · ${variant.name}`) : itemName;
+  const title = line ? `Edit ${line.inventoryItem.name}` : selected ? `How much ${selected.name}?` : "Add ingredient";
+
+  const footer = selected ? (
+    <div className="flex gap-2">
+      {line && (
+        <Button variant="outline" size="lg" aria-label="Remove ingredient" className="px-4 text-danger" isLoading={isPending} onClick={handleRemove}>
+          <Trash2 className="h-5 w-5" />
+        </Button>
+      )}
+      <Button size="lg" className="flex-1" isLoading={isPending} onClick={handleSubmit}>
+        {line ? "Save" : "Add to recipe"}
+      </Button>
+    </div>
+  ) : added.length > 0 ? (
+    <Button size="lg" variant="secondary" className="w-full" startIcon={<Check className="h-5 w-5" />} onClick={() => onOpenChange(false)}>
+      Done · {added.length} added
+    </Button>
+  ) : undefined;
 
   return (
-    <BottomSheet
-      open={open}
-      onOpenChange={onOpenChange}
-      title={title}
-      description={variant ? `Per one ${variant.name === "Regular" ? "serving" : variant.name}` : undefined}
-      footer={
-        selected ? (
-          <div className="flex gap-2">
-            {line && (
-              <Button
-                variant="outline"
-                size="lg"
-                aria-label="Remove ingredient"
-                className="px-4 text-danger"
-                isLoading={isPending}
-                onClick={handleRemove}
-              >
-                <Trash2 className="h-5 w-5" />
-              </Button>
-            )}
-            <Button size="lg" className="flex-1" isLoading={isPending} onClick={handleSubmit}>
-              {line ? "Save" : "Add to recipe"}
-            </Button>
-          </div>
-        ) : undefined
-      }
-    >
+    <BottomSheet open={open} onOpenChange={onOpenChange} title={title} description={`For one ${sizeLabel}`} footer={footer}>
       {!selected ? (
         <div className="space-y-3">
+          {added.length > 0 && (
+            <p className="rounded-field bg-success-bg px-4 py-2.5 text-sm text-success">
+              Added: {added.join(", ")}
+            </p>
+          )}
           <Input
             type="search"
             placeholder="Search inventory"
@@ -142,9 +163,26 @@ export default function IngredientSheet({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
-          {errors.inventoryItemId && (
-            <p className="text-xs text-danger">{errors.inventoryItemId}</p>
+          {errors.inventoryItemId && <p className="text-xs text-danger">{errors.inventoryItemId}</p>}
+
+          {popular.length > 0 && (
+            <div className="space-y-1">
+              <span className="block px-1 text-xs font-semibold uppercase tracking-wide text-muted">Often used</span>
+              <div className="flex flex-wrap gap-2">
+                {popular.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => choose(item)}
+                    className="h-9 rounded-full border border-border bg-surface px-3.5 text-sm font-medium transition-colors active:bg-surface-2"
+                  >
+                    {item.name}
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
+
           <ul className="divide-y divide-border rounded-field border border-border">
             {filtered.length === 0 && (
               <li className="px-3 py-6 text-center text-sm text-muted">
@@ -152,7 +190,7 @@ export default function IngredientSheet({
               </li>
             )}
             {filtered.map((item) => {
-              const used = alreadyUsed.has(item.id);
+              const used = usedIds.has(item.id) || added.includes(item.name);
               return (
                 <li key={item.id}>
                   <button
@@ -167,8 +205,7 @@ export default function IngredientSheet({
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-medium">{item.name}</span>
                       <span className="block text-xs text-muted">
-                        {formatQty(item.currentQty, item.baseUnit)} in stock ·{" "}
-                        {formatCostPerUnit(item.avgCost, item.displayUnit)}
+                        {formatQty(item.currentQty, item.baseUnit)} in stock · {formatCostPerUnit(item.avgCost, item.displayUnit)}
                       </span>
                     </span>
                     {used && <Check className="h-4 w-4 text-success" />}
@@ -181,11 +218,7 @@ export default function IngredientSheet({
       ) : (
         <div className="space-y-4">
           {!line && (
-            <button
-              type="button"
-              className="text-sm text-muted underline"
-              onClick={() => setSelected(null)}
-            >
+            <button type="button" className="text-sm text-muted underline" onClick={() => setSelected(null)}>
               Choose a different ingredient
             </button>
           )}
@@ -216,6 +249,45 @@ export default function IngredientSheet({
               = {formatQty(qtyBase, selected.baseUnit)} per serving
               {lineCost !== null && ` · about ${formatMoney(lineCost)}`}
             </p>
+          )}
+
+          {!line && siblingVariants.length > 0 && (
+            <div className="space-y-1">
+              <span className="block text-sm font-medium">Also add to</span>
+              <div className="flex flex-wrap gap-2">
+                {siblingVariants.map((v) => {
+                  const on = alsoIds.has(v.id);
+                  const already = v.recipes.some((r) => r.inventoryItemId === selected.id);
+                  return (
+                    <button
+                      key={v.id}
+                      type="button"
+                      role="checkbox"
+                      aria-checked={on}
+                      disabled={already}
+                      onClick={() =>
+                        setAlsoIds((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(v.id)) next.delete(v.id);
+                          else next.add(v.id);
+                          return next;
+                        })
+                      }
+                      className={cn(
+                        "flex h-9 items-center gap-1.5 rounded-full border px-3.5 text-sm font-medium transition-colors",
+                        on ? "border-ink bg-ink text-ink-foreground" : "border-border bg-surface active:bg-surface-2",
+                        already && "opacity-45"
+                      )}
+                    >
+                      {on && <Check className="h-3.5 w-3.5" />}
+                      {v.name}
+                      {already && <span className="text-xs font-normal">has it</span>}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-muted">Same quantity for each; change any size’s amount later from its card.</p>
+            </div>
           )}
         </div>
       )}

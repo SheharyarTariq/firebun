@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { Boxes, Plus, Search } from "lucide-react";
+import { BellRing, Boxes, Plus, Search } from "lucide-react";
 import Badge from "@/components/common/Badge";
 import Button from "@/components/common/Button";
 import Card from "@/components/common/Card";
@@ -15,6 +15,7 @@ import { cn } from "@/utils/cn";
 import { describePack, formatQty } from "@/utils/helper";
 import { routes } from "@/utils/routes";
 import ItemFormSheet from "./item-form-sheet";
+import LimitsSheet from "./limits-sheet";
 
 type Filter = "all" | "needed" | "inactive";
 
@@ -26,17 +27,26 @@ export default function InventoryScreen({ items }: InventoryScreenProps) {
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
   const [createOpen, setCreateOpen] = useState(false);
+  const [limitsOpen, setLimitsOpen] = useState(false);
   // Incremented on every open so the create form remounts empty.
   const [createKey, setCreateKey] = useState(0);
+  const [limitsKey, setLimitsKey] = useState(0);
+
+  const openLimits = () => {
+    setLimitsKey((k) => k + 1);
+    setLimitsOpen(true);
+  };
 
   const openCreate = () => {
     setCreateKey((k) => k + 1);
     setCreateOpen(true);
   };
 
-  const activeCount = items.filter((i) => i.isActive).length;
-  const neededCount = items.filter((i) => i.isActive && i.needed).length;
+  const activeItems = items.filter((i) => i.isActive);
+  const activeCount = activeItems.length;
+  const neededCount = activeItems.filter((i) => i.needed).length;
   const inactiveCount = items.length - activeCount;
+  const withLimit = activeItems.filter((i) => i.lowStockThreshold !== null).length;
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -54,13 +64,16 @@ export default function InventoryScreen({ items }: InventoryScreenProps) {
         title="Inventory"
         subtitle={`${activeCount} items · ${neededCount} needed`}
         actions={
-          <Button
-            size="sm"
-            startIcon={<Plus className="h-4 w-4" />}
-            onClick={openCreate}
-          >
-            Add
-          </Button>
+          <>
+            {activeCount > 0 && (
+              <Button size="sm" variant="header" aria-label="Low-stock limits" className="px-2.5" onClick={openLimits}>
+                <BellRing className="h-4 w-4" />
+              </Button>
+            )}
+            <Button size="sm" startIcon={<Plus className="h-4 w-4" />} onClick={openCreate}>
+              Add
+            </Button>
+          </>
         }
       />
 
@@ -82,6 +95,24 @@ export default function InventoryScreen({ items }: InventoryScreenProps) {
             { value: "inactive", label: "Archived", count: inactiveCount },
           ]}
         />
+
+        {activeCount > 0 && withLimit === 0 && filter === "all" && query === "" && (
+          <button
+            type="button"
+            onClick={openLimits}
+            className="flex w-full items-center gap-3 rounded-card border border-brand/50 bg-brand/10 px-4 py-3 text-left transition-colors active:bg-brand/20"
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand text-brand-ink">
+              <BellRing className="h-5 w-5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold">Set low-stock limits</span>
+              <span className="block text-xs text-muted">
+                Nothing is flagged as “Needed” yet. Give each item a level and the tab badge tells you what to buy.
+              </span>
+            </span>
+          </button>
+        )}
 
         {visible.length === 0 ? (
           <EmptyState
@@ -110,6 +141,7 @@ export default function InventoryScreen({ items }: InventoryScreenProps) {
       </div>
 
       <ItemFormSheet key={createKey} open={createOpen} onOpenChange={setCreateOpen} />
+      <LimitsSheet key={limitsKey} open={limitsOpen} onOpenChange={setLimitsOpen} items={activeItems} />
     </>
   );
 }

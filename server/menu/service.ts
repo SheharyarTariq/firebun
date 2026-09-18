@@ -342,15 +342,19 @@ export async function removeRecipeLine(id: number) {
   if (!row) throw new ServiceError("Recipe line not found.");
 }
 
-/** Replaces the target size's recipe with a copy of another size's recipe (same item). */
-export async function copyRecipe(fromVariantId: number, toVariantId: number) {
+/**
+ * Replaces the target size's recipe with a copy of another size's. Sizes of the same item
+ * by default; `crossItem` allows any single item (e.g. all pizzas share a base recipe).
+ */
+export async function copyRecipe(fromVariantId: number, toVariantId: number, options: { crossItem?: boolean } = {}) {
   if (fromVariantId === toVariantId) throw new ServiceError("Pick a different size to copy from.");
   await getDb().transaction(async (tx) => {
     const rows = await tx
       .select({ id: menuItemVariants.id, menuItemId: menuItemVariants.menuItemId })
       .from(menuItemVariants)
       .where(inArray(menuItemVariants.id, [fromVariantId, toVariantId]));
-    if (rows.length !== 2 || rows[0].menuItemId !== rows[1].menuItemId) {
+    if (rows.length !== 2) throw new ServiceError("Size not found.");
+    if (!options.crossItem && rows[0].menuItemId !== rows[1].menuItemId) {
       throw new ServiceError("Recipes can only be copied between sizes of the same item.");
     }
     const source = await tx.select().from(recipes).where(eq(recipes.variantId, fromVariantId));

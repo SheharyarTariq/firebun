@@ -3,11 +3,13 @@
 import { revalidatePath } from "next/cache";
 import {
   inventoryItemSchema,
+  lowStockLimitsSchema,
   purchaseSchema,
   stockCountSchema,
   voidPurchaseSchema,
   wastageSchema,
   type InventoryItemFormInput,
+  type LowStockLimitsFormInput,
   type PurchaseFormInput,
   type StockCountFormInput,
   type VoidPurchaseFormInput,
@@ -18,6 +20,7 @@ import {
   createItem,
   recordPurchase,
   recordWastage,
+  setLowStockLimits,
   setStockCount,
   updateItem,
   voidPurchase,
@@ -96,5 +99,13 @@ export async function recordWastageAction(
     const item = await recordWastage(itemId, input, user.id);
     revalidateInventory();
     return { currentQty: item.currentQty };
+  });
+}
+
+export async function setLowStockLimitsAction(input: LowStockLimitsFormInput): Promise<ActionResult<void>> {
+  await requireAdmin();
+  return validatedAction(lowStockLimitsSchema, input, async () => {
+    await setLowStockLimits(input.limits);
+    revalidateInventory();
   });
 }

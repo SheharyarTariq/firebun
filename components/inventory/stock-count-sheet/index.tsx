@@ -29,7 +29,8 @@ interface StockCountSheetProps {
 export default function StockCountSheet({ open, onOpenChange, item }: StockCountSheetProps) {
   const unitOptions = entryUnitOptions(item);
   const [counted, setCounted] = useState("");
-  const [unit, setUnit] = useState<EntryUnit>(unitOptions[0].value);
+  // Counting happens in the unit on the shelf label (kg, pcs), not in packs.
+  const [unit, setUnit] = useState<EntryUnit>(item.displayUnit);
   const [reason, setReason] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isPending, startTransition] = useTransition();
@@ -98,6 +99,10 @@ export default function StockCountSheet({ open, onOpenChange, item }: StockCount
             error={errors.unit}
           />
         </div>
+
+        {countedNumber !== null && Number.isFinite(countedNumber) && unit !== item.baseUnit && (
+          <p className="-mt-2 text-xs text-muted">= {formatQty(entryQtyToBase(item, countedNumber, unit), item.baseUnit)}</p>
+        )}
 
         {delta !== null && (
           <p

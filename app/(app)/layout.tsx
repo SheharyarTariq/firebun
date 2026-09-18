@@ -1,6 +1,7 @@
 import BottomNav, { type NavBadge } from "@/components/layout/bottom-nav";
 import { getCurrentUser } from "@/server/auth/dal";
 import { countInventoryAttention } from "@/server/inventory/queries";
+import { countItemsWithoutRecipe } from "@/server/menu/queries";
 import { countPendingOrders } from "@/server/orders/queries";
 import { getSettings } from "@/server/settings/queries";
 import { routes } from "@/utils/routes";
@@ -11,11 +12,12 @@ export default async function AppLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   // One round trip for everything the shell needs; the inventory count is cheap enough to
   // run for staff too rather than waiting on the role first.
-  const [user, settings, pendingCount, attention] = await Promise.all([
+  const [user, settings, pendingCount, attention, missingRecipes] = await Promise.all([
     getCurrentUser(),
     getSettings(),
     countPendingOrders(),
     countInventoryAttention(),
+    countItemsWithoutRecipe(),
   ]);
 
   const badges: Partial<Record<string, NavBadge>> = {
@@ -28,6 +30,8 @@ export default async function AppLayout({
       // Red only when a ledger went negative (a count is overdue); low stock is a warning.
       tone: attention.negative > 0 ? "danger" : "warning",
     };
+    // Items without a recipe sell without deducting stock — worth a nudge until done.
+    badges[routes.ui.menu] = { count: missingRecipes, tone: "warning" };
   }
 
   return (
