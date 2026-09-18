@@ -44,7 +44,7 @@ export default function BottomSheet({
         <Drawer.Content
           ref={contentRef}
           className={cn(
-            "fixed inset-x-0 bottom-0 z-50 mx-auto flex max-h-[92dvh] w-full max-w-lg flex-col rounded-t-[24px] bg-surface shadow-sheet outline-none",
+            "fixed inset-x-0 bottom-0 z-50 mx-auto flex max-h-[92dvh] w-full max-w-lg flex-col rounded-t-sheet bg-surface shadow-sheet outline-none",
             className
           )}
         >

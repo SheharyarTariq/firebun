@@ -92,8 +92,25 @@ There is no test runner. Verification = typecheck + lint + build + walking throu
   purchases + expenses, pending COD shown separately, ingredient cost from `sale` movement cost
   snapshots, top sellers from parent lines only). Period presets live in `utils/helper`
   (`rangeForPreset`, `PeriodPicker` component). CSV export: `GET /api/finance/export` (admin).
-- **Cart**: `components/pos/cart-store.ts` (zustand, persisted to `sessionStorage`, one
-  `clientId` per cart). Render cart-dependent UI only after `useHydrated()` is true.
+- **Cart**: `components/pos/cart-store.ts` (zustand, persisted to `localStorage` with a 3-hour
+  expiry, one `clientId` per cart). Render cart-dependent UI only after `useHydrated()` is true.
+  Placing an order keeps the cashier on the counter (`PlacedBar` with Print / Open); single-price
+  items add on tap, sized items and deals open sheets.
+- **Client → action calls**: always `await callAction(someAction(...))` (`utils/call-action.ts`)
+  inside `startTransition`; it turns offline/network failures into `{ ok: false }` toasts.
+  `runAction` on the server does the same for unexpected errors (logged, generic message).
+- **Loading & shells**: every route has a `loading.tsx` built from `PageSkeleton`
+  (`components/layout/page-skeleton`) so the dark header never blanks. Finance and Expenses put
+  their header + period picker in a route `layout.tsx` (client shell reads `useSearchParams`,
+  `resolvePeriod` in `utils/helper`) so only the data area swaps per period.
+- **Sheets**: mark the field to focus with `data-autofocus="true"` (focused after vaul's
+  slide-in). Confirm steps render beside the form sheet (`open={open && !confirm}`), never by
+  swapping the tree. `Button variant="header"` for buttons inside the dark header.
+- **PWA**: `public/sw.js` (app shell + `/offline` fallback, registered by
+  `components/pwa/register-sw` in production), `InstallCard` on More via `beforeinstallprompt`.
+  `/offline` and `/sw.js` bypass the auth proxy.
+- **Colour**: brand yellow/orange are fills only; brand-coloured text on light surfaces uses
+  `text-brand-text`. Tokens are tuned for WCAG AA (`--muted`, `--danger`, `--success`).
 - **Lint rules to respect**: no `setState` inside effects; no `Date.now()`/impure calls during
   render (compute on the server or in handlers).
 - **Sheets with forms**: initialise state once; the parent remounts the sheet with a new `key` on

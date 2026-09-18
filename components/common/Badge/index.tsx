@@ -8,7 +8,7 @@ interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
 
 const VARIANT_STYLES: Record<BadgeVariant, string> = {
   neutral: "bg-muted-bg text-muted",
-  brand: "bg-brand/25 text-brand-strong",
+  brand: "bg-brand text-brand-ink",
   success: "bg-success-bg text-success",
   warning: "bg-warning-bg text-warning",
   danger: "bg-danger-bg text-danger",

@@ -8,7 +8,8 @@ import { routes } from "@/utils/routes";
  * signed-out users to sign-in, signed-in users away from sign-in. The real checks live
  * in server/auth/dal.ts and run inside every page and Server Action.
  */
-const PUBLIC_PREFIXES = ["/auth"];
+// /offline is the service worker's fallback page and must load without a session.
+const PUBLIC_PREFIXES = ["/auth", "/offline"];
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -34,6 +35,6 @@ export const config = {
   matcher: [
     // Everything except Route Handlers (they verify the session themselves), Next
     // internals, the PWA manifest and static assets.
-    "/((?!api|_next/static|_next/image|manifest.webmanifest|assets|icon.svg|favicon.ico|.*\\.png$|.*\\.svg$|.*\\.ico$|.*\\.webp$|.*\\.jpg$).*)",
+    "/((?!api|_next/static|_next/image|manifest.webmanifest|sw.js|assets|icon.svg|favicon.ico|.*\\.png$|.*\\.svg$|.*\\.ico$|.*\\.webp$|.*\\.jpg$).*)",
   ],
 };

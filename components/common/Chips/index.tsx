@@ -58,20 +58,20 @@ export default function Chips<T extends string>({
             className={cn(
               "flex h-9 shrink-0 items-center gap-1.5 rounded-full border px-3.5 text-sm font-medium transition-[background-color,transform,border-color] active:scale-95 motion-reduce:transition-none motion-reduce:active:scale-100",
               active
-                ? "border-ink bg-ink text-ink-foreground"
+                ? "border-brand bg-brand text-brand-ink"
                 : "border-border bg-surface text-foreground active:bg-surface-2",
               option.disabled && "cursor-not-allowed opacity-45 active:scale-100"
             )}
           >
             {option.label}
             {option.hint && (
-              <span className={cn("text-xs font-normal", active ? "text-ink-foreground/70" : "text-muted")}>{option.hint}</span>
+              <span className={cn("text-xs font-normal", active ? "text-brand-ink/70" : "text-muted")}>{option.hint}</span>
             )}
             {option.count !== undefined && (
               <span
                 className={cn(
                   "rounded-full px-1.5 text-xs tabular-nums",
-                  active ? "bg-white/15" : "bg-muted-bg text-muted"
+                  active ? "bg-brand-ink/15" : "bg-muted-bg text-muted"
                 )}
               >
                 {option.count}

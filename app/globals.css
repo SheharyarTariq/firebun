@@ -13,20 +13,22 @@
   --surface: #ffffff;
   --surface-2: #f0eee8;
   --border: #e3e0d8;
-  --muted: #7d7870;
+  --muted: #6b665e; /* 5.7:1 on white — readable hints, not decoration */
   --muted-bg: #efede7;
 
   --brand: #ffb400;
   --brand-strong: #f28c0f;
   --brand-ink: #1b1305;
+  /* Brand-coloured *text* on light surfaces; the yellow/orange themselves are fills only. */
+  --brand-text: #9a4d00;
 
   --ink: #141210;
   --ink-foreground: #fbfaf7;
   --ink-muted: #a39e94;
 
-  --danger: #d92d20;
+  --danger: #b42318;
   --danger-bg: #fee4e2;
-  --success: #12923f;
+  --success: #067647;
   --success-bg: #dcfae6;
   --warning: #b54708;
   --warning-bg: #fef0c7;
@@ -46,6 +48,7 @@
   --color-brand: var(--brand);
   --color-brand-strong: var(--brand-strong);
   --color-brand-ink: var(--brand-ink);
+  --color-brand-text: var(--brand-text);
 
   --color-ink: var(--ink);
   --color-ink-foreground: var(--ink-foreground);
@@ -65,6 +68,7 @@
 
   --radius-card: 1rem;
   --radius-field: 0.75rem;
+  --radius-sheet: 1.5rem;
   --shadow-sheet: 0 -8px 30px rgb(0 0 0 / 0.12);
 
   /* Small "something changed" motion for badges and counters. */

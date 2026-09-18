@@ -61,6 +61,9 @@ export interface CartState {
   clear: () => void;
 }
 
+/** A cart left untouched this long is thrown away on the next visit. */
+const CART_TTL_MS = 3 * 60 * 60 * 1000;
+
 const newId = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
@@ -141,8 +144,18 @@ export const useCart = create<CartState>()(
     }),
     {
       name: "firebun-cart",
-      storage: createJSONStorage(() => sessionStorage),
+      // localStorage survives Chrome being swiped away mid-order; a stale cart from a
+      // previous shift is dropped instead of surprising the next cashier.
+      storage: createJSONStorage(() => localStorage),
+      merge: (persisted, current) => {
+        const saved = persisted as Partial<CartState & { savedAt?: number }> | undefined;
+        if (!saved || typeof saved.savedAt !== "number" || Date.now() - saved.savedAt > CART_TTL_MS) {
+          return { ...current, ...emptyOrder() };
+        }
+        return { ...current, ...saved };
+      },
       partialize: (state) => ({
+        savedAt: Date.now(),
         clientId: state.clientId,
         lines: state.lines,
         orderType: state.orderType,

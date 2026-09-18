@@ -71,16 +71,16 @@ export default function PrinterPanel({ onReady, hideTestPrint = false }: Printer
               onClick={() => choose(option.value)}
               className={cn(
                 "flex w-full items-start gap-3 rounded-card border p-3 text-left transition-colors active:bg-surface-2 disabled:cursor-not-allowed disabled:opacity-50",
-                active ? "border-brand-strong bg-brand/10" : "border-border bg-surface"
+                active ? "border-brand bg-brand/10" : "border-border bg-surface"
               )}
             >
-              <span className={cn("mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full", active ? "bg-brand/30 text-brand-strong" : "bg-muted-bg text-muted")}>
+              <span className={cn("mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full", active ? "bg-brand/30 text-brand-text" : "bg-muted-bg text-muted")}>
                 <option.icon className="h-5 w-5" />
               </span>
               <span className="min-w-0 flex-1">
                 <span className="flex items-center gap-2 font-medium">
                   {option.title}
-                  {active && <Check className="h-4 w-4 text-brand-strong" />}
+                  {active && <Check className="h-4 w-4 text-brand-text" />}
                   {unsupported && <Badge variant="warning">Not in this browser</Badge>}
                 </span>
                 <span className="block text-xs text-muted">{option.description}</span>
@@ -127,7 +127,7 @@ export default function PrinterPanel({ onReady, hideTestPrint = false }: Printer
             href={RAWBT_PLAY_URL}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex items-center gap-1 text-brand-strong underline"
+            className="inline-flex items-center gap-1 text-brand-text underline"
           >
             Get RawBT on Google Play <ExternalLink className="h-3.5 w-3.5" />
           </a>

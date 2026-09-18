@@ -36,6 +36,8 @@ export default function PageHeader({
         </div>
         {actions && <div className="flex shrink-0 items-center gap-2">{actions}</div>}
       </div>
+      {/* Thin yellow→orange rule from the printed menu board. */}
+      <div aria-hidden className="-mx-4 h-0.5 bg-gradient-to-r from-brand via-brand-strong to-brand" />
     </header>
   );
 }

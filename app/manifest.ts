@@ -4,10 +4,14 @@ import { routes } from "@/utils/routes";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
+    id: "/",
     name: config.appName,
     short_name: config.appName,
     description: "Counter, inventory and finance for Fire Bun.",
+    lang: "en",
+    categories: ["business", "food"],
     start_url: routes.ui.pos,
+    scope: "/",
     display: "standalone",
     orientation: "portrait",
     background_color: "#f6f5f2",

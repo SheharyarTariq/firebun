@@ -84,7 +84,7 @@ export default function BottomNav({ role, showExpenses, badges = {} }: BottomNav
                 <span
                   className={cn(
                     "relative flex h-8 w-14 items-center justify-center rounded-full transition-colors",
-                    active && "bg-brand/25 text-brand-strong"
+                    active && "bg-brand/25 text-brand-text"
                   )}
                 >
                   <item.icon className="h-5 w-5" strokeWidth={active ? 2.4 : 2} />

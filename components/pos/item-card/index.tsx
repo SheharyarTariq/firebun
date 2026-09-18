@@ -22,12 +22,15 @@ export default function ItemCard({ item, inCart, onTap, onMore }: ItemCardProps)
   const min = Math.min(...prices);
   const hasSizes = item.variants.length > 1;
   const quickAdd = item.kind === "single" && !hasSizes;
+  const isDeal = item.kind === "deal";
 
   return (
     <div
       className={cn(
-        "relative flex min-h-24 rounded-card border border-border bg-surface shadow-xs transition-[transform,background-color] active:scale-[0.98] active:bg-surface-2 motion-reduce:transition-none motion-reduce:active:scale-100",
-        inCart > 0 && "border-brand-strong/60",
+        "relative flex min-h-24 rounded-card border shadow-xs transition-[transform,background-color] active:scale-[0.98] motion-reduce:transition-none motion-reduce:active:scale-100",
+        // Deals echo the black-and-yellow menu board so they stand out in the grid.
+        isDeal ? "border-ink bg-ink text-ink-foreground active:bg-ink/90" : "border-border bg-surface active:bg-surface-2",
+        inCart > 0 && (isDeal ? "border-brand" : "border-brand-strong/60"),
         !item.isAvailable && "opacity-60"
       )}
     >
@@ -39,10 +42,10 @@ export default function ItemCard({ item, inCart, onTap, onMore }: ItemCardProps)
       >
         <span className="flex items-start justify-between gap-2 pr-6">
           <span className="line-clamp-2 text-sm font-semibold leading-tight">{item.name}</span>
-          {item.kind === "deal" && <Badge variant="brand">Deal</Badge>}
+          {isDeal && <Badge variant="brand">Deal</Badge>}
         </span>
         <span className="mt-2 flex items-end justify-between gap-2">
-          <span className="text-sm font-bold tabular-nums">
+          <span className={cn("text-sm font-bold tabular-nums", isDeal && "text-brand")}>
             {hasSizes && <span className="font-normal text-muted">from </span>}
             {formatMoney(min)}
           </span>
@@ -53,7 +56,7 @@ export default function ItemCard({ item, inCart, onTap, onMore }: ItemCardProps)
               <Plus className="h-4 w-4" strokeWidth={2.5} />
             </span>
           ) : (
-            <span className="flex items-center text-xs text-muted">
+            <span className={cn("flex items-center text-xs", isDeal ? "text-ink-muted" : "text-muted")}>
               {hasSizes ? `${item.variants.length} sizes` : "Choose"}
               <ChevronRight className="h-4 w-4" />
             </span>

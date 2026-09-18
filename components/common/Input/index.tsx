@@ -49,7 +49,7 @@ export default function Input({
           aria-invalid={error ? true : undefined}
           className={cn(
             "h-12 w-full rounded-field border border-border bg-surface px-4 text-base text-foreground",
-            "placeholder:text-muted/70 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/30",
+            "placeholder:text-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/30",
             "disabled:bg-surface-2 disabled:text-muted",
             startIcon && "pl-11",
             endIcon && "pr-11",

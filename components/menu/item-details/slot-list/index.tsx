@@ -37,7 +37,7 @@ export default function SlotList({ slots, onEdit }: SlotListProps) {
             onClick={() => onEdit(slot)}
             className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors active:bg-surface-2"
           >
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand/25 text-sm font-bold text-brand-strong">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand/25 text-sm font-bold text-brand-text">
               {slot.quantity}×
             </span>
             <span className="min-w-0 flex-1">

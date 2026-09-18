@@ -24,7 +24,7 @@ export default function EmptyState({
         className
       )}
     >
-      <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-brand/20 text-brand-strong">
+      <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-brand/20 text-brand-text">
         <Icon className="h-8 w-8" />
       </div>
       <h2 className="text-base font-semibold">{title}</h2>

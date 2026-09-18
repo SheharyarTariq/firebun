@@ -93,7 +93,7 @@ function UserList({ users, currentUserId, onSelect }: UserListProps) {
           <div
             className={cn(
               "flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold",
-              user.isActive ? "bg-brand/25 text-brand-strong" : "bg-muted-bg text-muted"
+              user.isActive ? "bg-brand/25 text-brand-text" : "bg-muted-bg text-muted"
             )}
           >
             {initialsOf(user.name)}

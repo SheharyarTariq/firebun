@@ -15,6 +15,7 @@ import Card from "@/components/common/Card";
 import PageHeader from "@/components/layout/page-header";
 import ChangePasswordSheet from "@/components/more/change-password-sheet";
 import SignOutButton from "@/components/more/sign-out-button";
+import InstallCard from "@/components/pwa/install-card";
 import { config } from "@/config";
 import { getCurrentUser } from "@/server/auth/dal";
 import { getTodaySnapshot } from "@/server/finance/queries";
@@ -84,7 +85,7 @@ export default async function MorePage() {
       <PageHeader title="More" />
       <div className="space-y-4 p-4">
         <Card className="flex items-center gap-3">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-brand/25 text-base font-semibold text-brand-strong">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-brand/25 text-base font-semibold text-brand-text">
             {initials}
           </div>
           <div className="min-w-0 flex-1">
@@ -123,6 +124,8 @@ export default async function MorePage() {
             )}
           </Link>
         )}
+
+        <InstallCard />
 
         {links.length > 0 && (
           <Card className="divide-y divide-border p-0">

@@ -6,7 +6,7 @@ type CardProps = React.HTMLAttributes<HTMLDivElement>;
 export default function Card({ className, ...props }: CardProps) {
   return (
     <div
-      className={cn("rounded-card border border-border bg-surface p-4", className)}
+      className={cn("rounded-card border border-border bg-surface p-4 shadow-xs", className)}
       {...props}
     />
   );

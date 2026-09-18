@@ -186,7 +186,7 @@ export default function SlotSheet({ open, onOpenChange, dealVariantId, slot, cho
             <span className="text-sm font-medium">Customer can choose from</span>
             <button
               type="button"
-              className="text-xs font-medium text-brand-strong"
+              className="text-xs font-medium text-brand-text"
               onClick={selectAllShown}
             >
               Select all shown ({filtered.length})

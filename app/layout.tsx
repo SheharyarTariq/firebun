@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Toaster } from "react-hot-toast";
+import RegisterServiceWorker from "@/components/pwa/register-sw";
 import { config } from "@/config";
 import "./globals.css";
 
@@ -50,6 +51,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         {children}
+        <RegisterServiceWorker />
         <Toaster
           position="top-center"
           containerStyle={{ top: "calc(env(safe-area-inset-top) + 12px)" }}
