@@ -13,6 +13,8 @@ interface ConfirmSheetProps {
   /** Red confirm button for cancel/void/delete flows. */
   destructive?: boolean;
   isLoading?: boolean;
+  /** Blocks the confirm button, e.g. until a confirmation word has been typed. */
+  confirmDisabled?: boolean;
   onConfirm: () => void | Promise<void>;
   /** Optional extra fields (e.g. a reason input) rendered above the buttons. */
   children?: React.ReactNode;
@@ -27,6 +29,7 @@ export default function ConfirmSheet({
   cancelLabel = "Cancel",
   destructive = false,
   isLoading = false,
+  confirmDisabled = false,
   onConfirm,
   children,
 }: ConfirmSheetProps) {
@@ -50,6 +53,7 @@ export default function ConfirmSheet({
             variant={destructive ? "danger" : "primary"}
             size="lg"
             isLoading={isLoading}
+            disabled={confirmDisabled}
             onClick={() => void onConfirm()}
           >
             {confirmLabel}

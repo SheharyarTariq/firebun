@@ -14,6 +14,7 @@ import Badge from "@/components/common/Badge";
 import Card from "@/components/common/Card";
 import PageHeader from "@/components/layout/page-header";
 import ChangePasswordSheet from "@/components/more/change-password-sheet";
+import DangerZone from "@/components/more/danger-zone";
 import SignOutButton from "@/components/more/sign-out-button";
 import InstallCard from "@/components/pwa/install-card";
 import { config } from "@/config";
@@ -152,6 +153,9 @@ export default async function MorePage() {
             <SignOutButton />
           </form>
         </div>
+
+        {/* TEMPORARY — setup tool; see server/maintenance/clear-data.ts to remove it. */}
+        {user.role === "admin" && <DangerZone />}
 
         <p className="text-center text-xs text-muted">{config.appName} · v0.1</p>
       </div>
