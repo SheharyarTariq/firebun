@@ -182,9 +182,8 @@ export default function CartSheet({ open, onOpenChange, settings, role, onPlaced
         )}
 
         <div className="space-y-1">
-          <span className="block text-sm font-medium">Order type</span>
           <Chips<OrderType>
-            aria-label="Order type"
+            label="Order type"
             value={cart.orderType}
             onChange={(t) => {
               cart.setOrderType(t);
@@ -253,9 +252,8 @@ export default function CartSheet({ open, onOpenChange, settings, role, onPlaced
         )}
 
         <div className="space-y-1">
-          <span className="block text-sm font-medium">Payment</span>
           <Chips<PayChoice>
-            aria-label="Payment"
+            label="Payment"
             value={payChoice}
             onChange={(v) => {
               cart.setPaymentMethod(v === "cod" ? null : v);

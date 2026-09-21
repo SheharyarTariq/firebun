@@ -7,6 +7,7 @@ import { setItemAvailabilityAction } from "@/app/(app)/(admin)/menu/actions";
 import Badge from "@/components/common/Badge";
 import Button from "@/components/common/Button";
 import Card from "@/components/common/Card";
+import SectionHeading from "@/components/common/SectionHeading";
 import Toggle from "@/components/common/Toggle";
 import PageHeader from "@/components/layout/page-header";
 import type {
@@ -106,9 +107,9 @@ export default function MenuItemDetails({ details }: MenuItemDetailsProps) {
           <>
             <section className="space-y-2">
               <div className="flex items-center justify-between px-1">
-                <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">
+                <SectionHeading>
                   Price
-                </h2>
+                </SectionHeading>
               </div>
               <VariantCard
                 variant={dealVariant}
@@ -124,9 +125,9 @@ export default function MenuItemDetails({ details }: MenuItemDetailsProps) {
 
             <section className="space-y-2">
               <div className="flex items-center justify-between px-1">
-                <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">
+                <SectionHeading>
                   What the customer gets
-                </h2>
+                </SectionHeading>
                 <Button
                   size="sm"
                   variant="outline"
@@ -145,9 +146,9 @@ export default function MenuItemDetails({ details }: MenuItemDetailsProps) {
         ) : (
           <section className="space-y-2">
             <div className="flex items-center justify-between px-1">
-              <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">
+              <SectionHeading>
                 {item.variants.length === 1 ? "Price & recipe" : "Sizes, prices & recipes"}
-              </h2>
+              </SectionHeading>
               <Button
                 size="sm"
                 variant="outline"

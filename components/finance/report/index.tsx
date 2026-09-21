@@ -1,6 +1,8 @@
 import { Download, TrendingDown, TrendingUp } from "lucide-react";
 import Badge from "@/components/common/Badge";
+import Banner from "@/components/common/Banner";
 import Card from "@/components/common/Card";
+import SectionHeading from "@/components/common/SectionHeading";
 import type { FinanceReport } from "@/server/finance/queries";
 import { cn } from "@/utils/cn";
 import { formatBusinessDate, formatMoney, rangeDays } from "@/utils/helper";
@@ -40,7 +42,7 @@ export default function FinanceReportView({ report }: FinanceReportViewProps) {
       </div>
 
       <Card className="space-y-2">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">Cash</h2>
+        <SectionHeading>Cash</SectionHeading>
         <Row label="Money in (paid orders)" value={formatMoney(sales.income)} />
         <Row label={`Cash out for stock (${purchases.count})`} value={`− ${formatMoney(purchases.total)}`} />
         <Row label={`Expenses (${expenses.count})`} value={`− ${formatMoney(expenses.total)}`} />
@@ -50,13 +52,13 @@ export default function FinanceReportView({ report }: FinanceReportViewProps) {
       </Card>
 
       {pending.orders > 0 && (
-        <p className="rounded-field bg-warning-bg px-4 py-2.5 text-sm text-warning">
+        <Banner tone="warning" compact>
           {pending.orders} unpaid delivery order{pending.orders === 1 ? "" : "s"} worth {formatMoney(pending.amount)} not counted yet.
-        </p>
+        </Banner>
       )}
 
       <Card className="space-y-2">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">Sales</h2>
+        <SectionHeading>Sales</SectionHeading>
         <Row label="Food & drinks" value={formatMoney(sales.subtotal)} />
         {sales.discounts > 0 && <Row label="Discounts given" value={`− ${formatMoney(sales.discounts)}`} />}
         {sales.delivery > 0 && <Row label="Delivery charges" value={formatMoney(sales.delivery)} />}
@@ -68,7 +70,7 @@ export default function FinanceReportView({ report }: FinanceReportViewProps) {
 
       {expenses.byCategory.length > 0 && (
         <Card className="space-y-2">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">Expenses by category</h2>
+          <SectionHeading>Expenses by category</SectionHeading>
           {expenses.byCategory.map((c) => (
             <Row key={c.category} label={c.category} value={formatMoney(c.total)} />
           ))}
@@ -77,7 +79,7 @@ export default function FinanceReportView({ report }: FinanceReportViewProps) {
 
       {report.topItems.length > 0 && (
         <Card className="space-y-2">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">Top sellers</h2>
+          <SectionHeading>Top sellers</SectionHeading>
           <ol className="divide-y divide-border">
             {report.topItems.map((item, i) => (
               <li key={`${item.name}-${item.variant}`} className="flex items-center gap-3 py-2 text-sm">
@@ -96,7 +98,7 @@ export default function FinanceReportView({ report }: FinanceReportViewProps) {
 
       {days > 1 && report.byDay.length > 0 && (
         <Card className="space-y-2">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">By day</h2>
+          <SectionHeading>By day</SectionHeading>
           <ul className="divide-y divide-border">
             {report.byDay.map((d) => (
               <li key={d.date} className="flex items-center justify-between py-2 text-sm">
@@ -111,7 +113,7 @@ export default function FinanceReportView({ report }: FinanceReportViewProps) {
 
       {report.recentPurchases.length > 0 && (
         <Card className="space-y-2">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">Stock purchases</h2>
+          <SectionHeading>Stock purchases</SectionHeading>
           <ul className="divide-y divide-border">
             {report.recentPurchases.map((p) => (
               <li key={p.id} className={cn("flex items-center gap-3 py-2 text-sm", p.voided && "opacity-50 line-through")}>
@@ -130,7 +132,7 @@ export default function FinanceReportView({ report }: FinanceReportViewProps) {
       )}
 
       <Card className="space-y-2">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">Export (CSV)</h2>
+        <SectionHeading>Export (CSV)</SectionHeading>
         <div className="grid grid-cols-3 gap-2">
           {(["orders", "purchases", "expenses"] as const).map((type) => (
             <a

@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { PackageX, RotateCcw } from "lucide-react";
 import toast from "react-hot-toast";
 import { toggleItemAvailabilityAction } from "@/app/(app)/pos/actions";
+import Banner from "@/components/common/Banner";
 import BottomSheet from "@/components/common/BottomSheet";
 import Button from "@/components/common/Button";
 import Chips from "@/components/common/Chips";
@@ -18,16 +19,18 @@ interface ItemSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   item?: CatalogItem;
+  /** Size preselected when the sheet opens (the chip picked on the card); defaults to the first size. */
+  initialVariantId?: number;
   /** Optimistic sold-out toggle owned by the screen (keeps the grid in sync at once). */
   onAvailabilityChange: (itemId: number, isAvailable: boolean) => void;
 }
 
 /** Size + quantity + note for a single item. Parents remount it with a new `key` per open. */
-export default function ItemSheet({ open, onOpenChange, item: itemProp, onAvailabilityChange }: ItemSheetProps) {
+export default function ItemSheet({ open, onOpenChange, item: itemProp, initialVariantId, onAvailabilityChange }: ItemSheetProps) {
   const addLine = useCart((s) => s.addLine);
   // Snapshot for the life of this mount so the sheet does not flip while sliding out.
   const [item] = useState(itemProp);
-  const [variantId, setVariantId] = useState<string>(String(item?.variants[0]?.id ?? ""));
+  const [variantId, setVariantId] = useState<string>(String(initialVariantId ?? item?.variants[0]?.id ?? ""));
   const [quantity, setQuantity] = useState(1);
   const [note, setNote] = useState("");
   const [isPending, startTransition] = useTransition();
@@ -112,16 +115,15 @@ export default function ItemSheet({ open, onOpenChange, item: itemProp, onAvaila
       }
     >
       {!item.isAvailable ? (
-        <p className="rounded-field bg-danger-bg px-4 py-3 text-sm text-danger">
+        <Banner tone="danger">
           Marked sold out. It cannot be added to orders until it is back on sale.
-        </p>
+        </Banner>
       ) : (
         <div className="space-y-5">
           {item.variants.length > 1 && (
             <div className="space-y-1">
-              <span className="block text-sm font-medium">Size</span>
               <Chips
-                aria-label="Size"
+                label="Size"
                 wrap
                 value={String(variant.id)}
                 onChange={setVariantId}

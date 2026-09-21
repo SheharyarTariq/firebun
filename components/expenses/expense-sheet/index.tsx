@@ -112,9 +112,8 @@ export default function ExpenseSheet({ open, onOpenChange, expense, categories, 
     >
       <div className="space-y-4">
         <div className="space-y-2">
-          <span className="block text-sm font-medium">Category</span>
           <Chips
-            aria-label="Category"
+            label="Category"
             value={categoryChip}
             onChange={(v) => {
               setCategoryChip(v);

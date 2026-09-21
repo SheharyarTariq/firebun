@@ -1,14 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
-import { BellRing, Boxes, ChevronRight, Plus, Search } from "lucide-react";
+import { BellRing, Boxes, Plus, Search } from "lucide-react";
 import Badge from "@/components/common/Badge";
+import Banner from "@/components/common/Banner";
 import Button from "@/components/common/Button";
 import Card from "@/components/common/Card";
 import Chips from "@/components/common/Chips";
 import EmptyState from "@/components/common/EmptyState";
 import Input from "@/components/common/Input";
+import ListRow from "@/components/common/ListRow";
 import PageHeader from "@/components/layout/page-header";
 import type { InventoryListItem } from "@/server/inventory/queries";
 import { cn } from "@/utils/cn";
@@ -97,22 +98,9 @@ export default function InventoryScreen({ items }: InventoryScreenProps) {
         />
 
         {activeCount > 0 && withLimit === 0 && filter === "all" && query === "" && (
-          <button
-            type="button"
-            onClick={openLimits}
-            className="flex w-full items-center gap-3 rounded-card border border-brand/50 bg-brand/10 px-4 py-3 text-left transition-colors active:bg-brand/20"
-          >
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand text-brand-ink">
-              <BellRing className="h-5 w-5" />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-semibold">Set low-stock limits</span>
-              <span className="block text-xs text-muted">
-                Nothing is flagged as “Needed” yet. Give each item a level and the tab badge tells you what to buy.
-              </span>
-            </span>
-            <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />
-          </button>
+          <Banner tone="brand" icon={<BellRing className="h-5 w-5" />} title="Set low-stock limits" onClick={openLimits}>
+            Nothing is flagged as “Needed” yet. Give each item a level and the tab badge tells you what to buy.
+          </Banner>
         )}
 
         {visible.length === 0 ? (
@@ -141,8 +129,8 @@ export default function InventoryScreen({ items }: InventoryScreenProps) {
         )}
       </div>
 
-      <ItemFormSheet key={createKey} open={createOpen} onOpenChange={setCreateOpen} />
-      <LimitsSheet key={limitsKey} open={limitsOpen} onOpenChange={setLimitsOpen} items={activeItems} />
+      <ItemFormSheet key={`create-${createKey}`} open={createOpen} onOpenChange={setCreateOpen} />
+      <LimitsSheet key={`limits-${limitsKey}`} open={limitsOpen} onOpenChange={setLimitsOpen} items={activeItems} />
     </>
   );
 }
@@ -158,10 +146,7 @@ function InventoryRow({ item }: { item: InventoryListItem }) {
     .join(" · ");
 
   return (
-    <Link
-      href={routes.ui.inventoryItemDetails(item.id)}
-      className="flex items-center gap-3 px-4 py-3.5 transition-colors active:bg-surface-2"
-    >
+    <ListRow href={routes.ui.inventoryItemDetails(item.id)} trailing="chevron">
       <div className="min-w-0 flex-1">
         <p className={cn("truncate font-medium", !item.isActive && "text-muted")}>{item.name}</p>
         <p className="truncate text-xs text-muted">{hint}</p>
@@ -184,7 +169,6 @@ function InventoryRow({ item }: { item: InventoryListItem }) {
           <Badge variant="warning">Needed</Badge>
         ) : null}
       </div>
-      <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />
-    </Link>
+    </ListRow>
   );
 }

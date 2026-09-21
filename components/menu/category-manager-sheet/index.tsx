@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { ArrowDown, ArrowLeft, ArrowUp, ChevronRight, Eye, EyeOff, Plus, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowLeft, ArrowUp, Eye, EyeOff, Plus, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
 import {
   createCategoryAction,
@@ -14,6 +14,7 @@ import BottomSheet from "@/components/common/BottomSheet";
 import Button from "@/components/common/Button";
 import ConfirmSheet from "@/components/common/ConfirmSheet";
 import Input from "@/components/common/Input";
+import ListRow from "@/components/common/ListRow";
 import type { MenuCategory } from "@/db/schema";
 import { callAction } from "@/utils/call-action";
 import { validateAndSetErrors } from "@/utils/validation";
@@ -140,11 +141,7 @@ export default function CategoryManagerSheet({ open, onOpenChange, categories }:
           <ul className="divide-y divide-border rounded-card border border-border">
             {categories.map((category, index) => (
               <li key={category.id}>
-                <button
-                  type="button"
-                  onClick={() => openActions(category)}
-                  className="flex w-full items-center gap-3 px-3 py-3 text-left transition-colors active:bg-surface-2"
-                >
+                <ListRow dense className="px-3" onClick={() => openActions(category)} trailing="chevron">
                   <span className="w-6 text-center text-xs font-semibold tabular-nums text-muted">{index + 1}</span>
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-2">
@@ -155,8 +152,7 @@ export default function CategoryManagerSheet({ open, onOpenChange, categories }:
                       {category.items.length} item{category.items.length === 1 ? "" : "s"}
                     </span>
                   </span>
-                  <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />
-                </button>
+                </ListRow>
               </li>
             ))}
           </ul>

@@ -127,8 +127,8 @@ export default function PurchaseSheet({ open, onOpenChange, item, suppliers = []
         </div>
 
         <div className="space-y-2">
-          <span className="block text-sm font-medium">Price entered as</span>
           <Chips<PriceMode>
+            label="Price entered as"
             value={priceMode}
             onChange={setPriceMode}
             options={[

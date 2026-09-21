@@ -92,7 +92,7 @@ export default function VariantSheet({
         open={confirmDelete}
         onOpenChange={(next) => !next && setConfirmDelete(false)}
         title={`Delete size “${variant.name}”?`}
-        description="Its recipe is deleted too. Sizes used in past orders or deals cannot be deleted — deactivate them instead."
+        description="Its recipe is deleted too. Sizes used in past orders or deals cannot be deleted — hide them instead."
         confirmLabel="Delete"
         destructive
         isLoading={isPending}
@@ -141,7 +141,7 @@ export default function VariantSheet({
         {variant && !isDealPrice && (
           <>
             <Toggle
-              label="Active"
+              label="Show on the menu"
               description="Hidden sizes stay in history but cannot be ordered."
               checked={isActive}
               onChange={setIsActive}

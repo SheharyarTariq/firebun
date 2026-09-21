@@ -12,6 +12,7 @@ import {
 import { signOutAction } from "@/app/actions";
 import Badge from "@/components/common/Badge";
 import Card from "@/components/common/Card";
+import ListRow from "@/components/common/ListRow";
 import PageHeader from "@/components/layout/page-header";
 import ChangePasswordSheet from "@/components/more/change-password-sheet";
 import DangerZone from "@/components/more/danger-zone";
@@ -131,18 +132,13 @@ export default async function MorePage() {
         {links.length > 0 && (
           <Card className="divide-y divide-border p-0">
             {links.map((link) => (
-              <Link
-                key={link.href}
-                href={link.href}
-                className="flex items-center gap-3 px-4 py-3.5 transition-colors active:bg-surface-2"
-              >
+              <ListRow key={link.href} href={link.href} trailing="chevron">
                 <link.icon className="h-5 w-5 shrink-0 text-muted" />
                 <div className="min-w-0 flex-1">
                   <p className="font-medium">{link.label}</p>
                   <p className="truncate text-xs text-muted">{link.description}</p>
                 </div>
-                <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />
-              </Link>
+              </ListRow>
             ))}
           </Card>
         )}

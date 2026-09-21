@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { RotateCcw } from "lucide-react";
 import toast from "react-hot-toast";
 import { toggleItemAvailabilityAction } from "@/app/(app)/pos/actions";
+import Banner from "@/components/common/Banner";
 import BottomSheet from "@/components/common/BottomSheet";
 import Button from "@/components/common/Button";
 import Chips from "@/components/common/Chips";
@@ -124,14 +125,14 @@ export default function DealSheet({ open, onOpenChange, item: itemProp, onAvaila
     <BottomSheet open={open} onOpenChange={onOpenChange} title={item.name} description={item.description ?? undefined} footer={footer}>
       <div className="space-y-5">
         {!item.isAvailable && (
-          <p className="rounded-field bg-danger-bg px-4 py-3 text-sm text-danger">
+          <Banner tone="danger">
             Marked sold out. It cannot be added to orders until it is back on sale.
-          </p>
+          </Banner>
         )}
         {item.isAvailable && slots.length === 0 && (
-          <p className="rounded-field bg-warning-bg px-4 py-3 text-sm text-warning">
+          <Banner tone="warning">
             This deal has no items configured yet. An admin needs to add its slots under Menu.
-          </p>
+          </Banner>
         )}
 
         {item.isAvailable &&

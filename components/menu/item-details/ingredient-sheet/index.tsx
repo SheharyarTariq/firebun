@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import { Check, Search, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
 import { setRecipeLineAction } from "@/app/(app)/(admin)/menu/actions";
+import Banner from "@/components/common/Banner";
 import BottomSheet from "@/components/common/BottomSheet";
 import Button from "@/components/common/Button";
 import Input from "@/components/common/Input";
@@ -151,9 +152,9 @@ export default function IngredientSheet({
       {!selected ? (
         <div className="space-y-3">
           {added.length > 0 && (
-            <p className="rounded-field bg-success-bg px-4 py-2.5 text-sm text-success">
+            <Banner tone="success" compact>
               Added: {added.join(", ")}
-            </p>
+            </Banner>
           )}
           <Input
             type="search"

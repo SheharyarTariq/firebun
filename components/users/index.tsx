@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronRight, Plus, UserRound } from "lucide-react";
+import { Plus, UserRound } from "lucide-react";
 import Badge from "@/components/common/Badge";
 import Button from "@/components/common/Button";
 import Card from "@/components/common/Card";
 import EmptyState from "@/components/common/EmptyState";
+import ListRow from "@/components/common/ListRow";
+import SectionHeading from "@/components/common/SectionHeading";
 import PageHeader from "@/components/layout/page-header";
 import type { UserRow } from "@/server/users/queries";
 import { cn } from "@/utils/cn";
@@ -50,9 +52,9 @@ export default function UsersScreen({ users, currentUserId }: UsersScreenProps) 
             <UserList users={active} currentUserId={currentUserId} onSelect={setSelected} />
             {inactive.length > 0 && (
               <section className="space-y-2">
-                <h2 className="px-1 text-xs font-semibold uppercase tracking-wide text-muted">
+                <SectionHeading className="px-1">
                   Deactivated
-                </h2>
+                </SectionHeading>
                 <UserList
                   users={inactive}
                   currentUserId={currentUserId}
@@ -84,12 +86,7 @@ function UserList({ users, currentUserId, onSelect }: UserListProps) {
   return (
     <Card className="divide-y divide-border p-0">
       {users.map((user) => (
-        <button
-          key={user.id}
-          type="button"
-          onClick={() => onSelect(user)}
-          className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors active:bg-surface-2"
-        >
+        <ListRow key={user.id} onClick={() => onSelect(user)} trailing="chevron">
           <div
             className={cn(
               "flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold",
@@ -110,8 +107,7 @@ function UserList({ users, currentUserId, onSelect }: UserListProps) {
           <Badge variant={user.role === "admin" ? "brand" : "neutral"}>
             {user.role === "admin" ? "Admin" : "Staff"}
           </Badge>
-          <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />
-        </button>
+        </ListRow>
       ))}
     </Card>
   );

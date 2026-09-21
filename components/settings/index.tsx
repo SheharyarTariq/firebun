@@ -9,6 +9,7 @@ import Button from "@/components/common/Button";
 import Card from "@/components/common/Card";
 import ConfirmSheet from "@/components/common/ConfirmSheet";
 import Input from "@/components/common/Input";
+import SectionHeading from "@/components/common/SectionHeading";
 import Select from "@/components/common/Select";
 import Textarea from "@/components/common/Textarea";
 import Toggle from "@/components/common/Toggle";
@@ -146,7 +147,7 @@ export default function SettingsScreen({ settings }: SettingsScreenProps) {
 
       <div className="space-y-4 p-4 pb-28">
         <Card className="space-y-4">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">Shop</h2>
+          <SectionHeading>Shop</SectionHeading>
           <Input label="Shop name" value={form.shopName} onChange={(e) => set("shopName", e.target.value)} error={errors.shopName} />
           <div className="grid grid-cols-2 gap-3">
             <Input label="Phone" type="tel" inputMode="tel" value={form.phone} onChange={(e) => set("phone", e.target.value)} error={errors.phone} />
@@ -156,7 +157,7 @@ export default function SettingsScreen({ settings }: SettingsScreenProps) {
         </Card>
 
         <Card className="space-y-4">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">Receipt</h2>
+          <SectionHeading>Receipt</SectionHeading>
           <Textarea
             label="Header lines (one per line, up to 4)"
             placeholder={"Taste that sets you on fire\nFast delivery"}
@@ -183,7 +184,7 @@ export default function SettingsScreen({ settings }: SettingsScreenProps) {
         </Card>
 
         <Card className="space-y-4">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-muted">Counter rules</h2>
+          <SectionHeading>Counter rules</SectionHeading>
           <Input
             label="Default delivery charge (Rs)"
             inputMode="decimal"

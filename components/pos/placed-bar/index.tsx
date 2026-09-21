@@ -53,17 +53,20 @@ export default function PlacedBar({ placed, printing, printOutcome = null, onPri
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-success text-white">
             <Check className="h-4 w-4" strokeWidth={3} />
           </span>
-          <span className="min-w-0 flex-1 truncate text-sm">
-            <span className="font-semibold">Order {formatOrderNumber(placed.dailySeq)}</span>
-            {placed.duplicate ? " was already placed" : " placed"}
-            <span className="text-ink-muted"> · {formatMoney(placed.total)}</span>
+          {/* The order number is what the cashier reads out, so it never truncates; the rest may. */}
+          <span className="flex min-w-0 flex-1 items-baseline gap-1 text-sm">
+            <span className="shrink-0 font-semibold">Order {formatOrderNumber(placed.dailySeq)}</span>
+            <span className="truncate">
+              {placed.duplicate ? "already placed" : "placed"}
+              <span className="text-ink-muted"> · {formatMoney(placed.total)}</span>
+            </span>
           </span>
           <button
             type="button"
             onClick={onPrint}
             disabled={printing}
             className={cn(
-              "flex h-11 items-center gap-1.5 rounded-field px-2.5 text-sm font-semibold transition-colors active:bg-white/10 disabled:opacity-60",
+              "flex h-11 items-center gap-1.5 rounded-field px-2 text-sm font-semibold transition-colors active:bg-white/10 disabled:opacity-60",
               printOutcome === "failed" ? "text-warning-bg" : "text-brand"
             )}
           >
@@ -80,7 +83,7 @@ export default function PlacedBar({ placed, printing, printOutcome = null, onPri
           </button>
           <Link
             href={routes.ui.orderDetails(placed.orderId)}
-            className="ml-1 flex h-11 items-center gap-0.5 rounded-field px-2 text-sm font-semibold transition-colors active:bg-white/10"
+            className="flex h-11 items-center gap-0.5 rounded-field px-1.5 text-sm font-semibold transition-colors active:bg-white/10"
           >
             Open
             <ChevronRight className="h-4 w-4" />

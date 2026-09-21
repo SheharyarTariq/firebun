@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { RotateCcw, TriangleAlert } from "lucide-react";
 import Button from "@/components/common/Button";
 import EmptyState from "@/components/common/EmptyState";
+import { config } from "@/config";
 
 /**
  * Catches failures in `app/(app)/layout.tsx` itself (signed-in user, settings, tab badges):
@@ -26,7 +27,7 @@ export default function RootError({
     <main className="flex min-h-dvh flex-col bg-background">
       <header className="bg-ink px-4 text-ink-foreground pt-safe">
         <div className="flex h-14 items-center">
-          <h1 className="text-lg font-semibold">Fire Bun</h1>
+          <h1 className="text-lg font-semibold">{config.appName}</h1>
         </div>
         <div aria-hidden className="-mx-4 h-0.5 bg-gradient-to-r from-brand via-brand-strong to-brand" />
       </header>

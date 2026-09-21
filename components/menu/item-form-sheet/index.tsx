@@ -229,8 +229,8 @@ export default function ItemFormSheet({ open, onOpenChange, categories, item, de
       <div className="space-y-4">
         {!isEdit && (
           <div className="space-y-2">
-            <span className="block text-sm font-medium">Type</span>
             <Chips<MenuItemKind>
+              label="Type"
               value={kind}
               onChange={(next) => {
                 setKind(next);

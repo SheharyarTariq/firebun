@@ -1,6 +1,7 @@
 "use client";
 
 import "./globals.css";
+import { config } from "@/config";
 
 /**
  * Last resort when the root layout itself fails. It replaces the whole document, so it
@@ -15,8 +16,9 @@ export default function GlobalError({
 }) {
   return (
     <html lang="en">
-      <body className="flex min-h-dvh flex-col items-center justify-center bg-background px-6 text-center font-sans">
-        <title>Fire Bun</title>
+      {/* The Geist font variables live on the root layout, which is gone here: use the system font. */}
+      <body className="flex min-h-dvh flex-col items-center justify-center bg-background px-6 text-center [font-family:system-ui,-apple-system,'Segoe_UI',sans-serif]">
+        <title>{config.appName}</title>
         <h1 className="text-lg font-semibold">The app couldn&apos;t load</h1>
         <p className="mt-1 max-w-xs text-sm text-muted">Nothing was saved. Try again in a moment.</p>
         <button

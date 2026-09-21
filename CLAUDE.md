@@ -109,7 +109,8 @@ There is no test runner. Verification = typecheck + lint + build + walking throu
 - **Cart**: `components/pos/cart-store.ts` (zustand, persisted to `localStorage` with a 3-hour
   expiry, one `clientId` per cart). Render cart-dependent UI only after `useHydrated()` is true.
   Placing an order keeps the cashier on the counter (`PlacedBar` with Print / Open); single-price
-  items add on tap, sized items and deals open sheets.
+  items add on tap, sized items add the size picked on their chips (per-size stepper, "…" opens the
+  sheet on that size), deals open a sheet.
 - **Error screens**: `app/(app)/error.tsx` (a screen failed; tab bar stays), `app/error.tsx` (the
   shared `(app)` layout failed — an error.tsx never wraps its own folder's layout) and
   `app/global-error.tsx` (root layout). All retry with `unstable_retry()` (Next 16.2; `reset()`

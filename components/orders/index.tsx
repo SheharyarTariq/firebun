@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { CalendarDays, ChevronLeft, ChevronRight, ReceiptText } from "lucide-react";
 import Badge from "@/components/common/Badge";
+import Banner from "@/components/common/Banner";
 import Card from "@/components/common/Card";
 import Chips from "@/components/common/Chips";
 import EmptyState from "@/components/common/EmptyState";
+import ListRow from "@/components/common/ListRow";
 import PageHeader from "@/components/layout/page-header";
 import type { OrderStatus } from "@/db/schema/orders";
 import type { DaySummary, OrderListRow } from "@/server/orders/queries";
@@ -57,11 +58,11 @@ export default function OrdersScreen({ orders, summary, businessDate, todayBusin
               type="button"
               aria-label="Previous day"
               onClick={() => goTo(shiftIsoDate(businessDate, -1))}
-              className="flex h-10 w-10 items-center justify-center rounded-full transition-colors active:bg-white/10"
+              className="flex h-11 w-11 items-center justify-center rounded-full transition-colors active:bg-white/10"
             >
               <ChevronLeft className="h-5 w-5" />
             </button>
-            <label className="relative flex h-10 min-w-24 cursor-pointer items-center justify-center gap-1.5 rounded-full px-2 text-sm font-medium transition-colors active:bg-white/10">
+            <label className="relative flex h-11 min-w-24 cursor-pointer items-center justify-center gap-1.5 rounded-full px-2 text-sm font-medium transition-colors active:bg-white/10">
               <CalendarDays className="h-4 w-4 text-ink-muted" />
               {dayLabel}
               <input
@@ -78,7 +79,7 @@ export default function OrdersScreen({ orders, summary, businessDate, todayBusin
               aria-label="Next day"
               disabled={isToday}
               onClick={() => goTo(shiftIsoDate(businessDate, 1))}
-              className="flex h-10 w-10 items-center justify-center rounded-full transition-colors active:bg-white/10 disabled:opacity-30"
+              className="flex h-11 w-11 items-center justify-center rounded-full transition-colors active:bg-white/10 disabled:opacity-30"
             >
               <ChevronRight className="h-5 w-5" />
             </button>
@@ -100,17 +101,10 @@ export default function OrdersScreen({ orders, summary, businessDate, todayBusin
         />
 
         {summary.pending > 0 && status === "all" && (
-          <button
-            type="button"
-            onClick={() => setStatus("pending")}
-            className="flex w-full items-center gap-2 rounded-field bg-warning-bg px-4 py-2.5 text-left text-sm text-warning"
-          >
-            <span className="min-w-0 flex-1">
-              {summary.pending} delivery order{summary.pending === 1 ? "" : "s"} waiting for payment ·{" "}
-              {formatMoney(summary.pendingAmount)}
-            </span>
-            <ChevronRight aria-hidden className="h-4 w-4 shrink-0" />
-          </button>
+          <Banner tone="warning" compact onClick={() => setStatus("pending")}>
+            {summary.pending} delivery order{summary.pending === 1 ? "" : "s"} waiting for payment ·{" "}
+            {formatMoney(summary.pendingAmount)}
+          </Banner>
         )}
 
         {visible.length === 0 ? (
@@ -128,11 +122,7 @@ export default function OrdersScreen({ orders, summary, businessDate, todayBusin
         ) : (
           <Card className="divide-y divide-border p-0">
             {visible.map((order) => (
-              <Link
-                key={order.id}
-                href={routes.ui.orderDetails(order.id)}
-                className="flex items-center gap-3 px-4 py-3 transition-colors active:bg-surface-2"
-              >
+              <ListRow key={order.id} dense href={routes.ui.orderDetails(order.id)} trailing="chevron">
                 <span className="flex h-11 w-14 shrink-0 flex-col items-center justify-center rounded-field bg-surface-2 text-sm font-bold tabular-nums">
                   {formatOrderNumber(order.dailySeq)}
                 </span>
@@ -151,8 +141,7 @@ export default function OrdersScreen({ orders, summary, businessDate, todayBusin
                   </span>
                   <Badge variant={STATUS_BADGE[order.status]}>{STATUS_LABELS[order.status]}</Badge>
                 </span>
-                <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />
-              </Link>
+              </ListRow>
             ))}
           </Card>
         )}

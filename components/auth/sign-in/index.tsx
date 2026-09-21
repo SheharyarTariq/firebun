@@ -3,6 +3,7 @@
 import { startTransition, useActionState, useState } from "react";
 import { Eye, EyeOff, LockKeyhole, Mail } from "lucide-react";
 import { signInAction, type SignInState } from "@/app/auth/sign-in/actions";
+import Banner from "@/components/common/Banner";
 import Button from "@/components/common/Button";
 import Input from "@/components/common/Input";
 import { validateAndSetErrors } from "@/utils/validation";
@@ -104,9 +105,9 @@ export default function SignIn({ next }: SignInProps) {
       />
 
       {bannerError && (
-        <p role="alert" className="rounded-field bg-danger-bg px-4 py-3 text-sm text-danger">
+        <Banner tone="danger" role="alert">
           {bannerError}
-        </p>
+        </Banner>
       )}
 
       <Button type="submit" size="lg" isLoading={pending} className="w-full">

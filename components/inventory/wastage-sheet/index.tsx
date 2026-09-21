@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 import toast from "react-hot-toast";
 import { recordWastageAction } from "@/app/(app)/(admin)/inventory/actions";
+import Banner from "@/components/common/Banner";
 import BottomSheet from "@/components/common/BottomSheet";
 import Button from "@/components/common/Button";
 import Input from "@/components/common/Input";
@@ -97,9 +98,9 @@ export default function WastageSheet({ open, onOpenChange, item }: WastageSheetP
           <p className="-mt-2 text-xs text-muted">= {formatQty(entryQtyToBase(item, Number(qty), unit), item.baseUnit)}</p>
         )}
         {Number(qty) > 0 && entryQtyToBase(item, Number(qty), unit) > item.currentQty && (
-          <p className="-mt-2 rounded-field bg-warning-bg px-4 py-3 text-sm text-warning">
+          <Banner tone="warning" className="-mt-2">
             That is more than the {formatQty(item.currentQty, item.baseUnit)} in stock, so stock will go negative.
-          </p>
+          </Banner>
         )}
         <Input
           label="Reason"

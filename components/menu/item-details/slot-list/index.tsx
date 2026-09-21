@@ -1,7 +1,8 @@
-import { Layers, Pencil } from "lucide-react";
+import { Layers } from "lucide-react";
 import Badge from "@/components/common/Badge";
 import Card from "@/components/common/Card";
 import EmptyState from "@/components/common/EmptyState";
+import ListRow from "@/components/common/ListRow";
 import type { DealSlotFull } from "@/server/menu/queries";
 
 interface SlotListProps {
@@ -31,12 +32,7 @@ export default function SlotList({ slots, onEdit }: SlotListProps) {
             o.variant.name === "Regular" ? o.variant.item.name : `${o.variant.item.name} (${o.variant.name})`
           );
         return (
-          <button
-            key={slot.id}
-            type="button"
-            onClick={() => onEdit(slot)}
-            className="flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors active:bg-surface-2"
-          >
+          <ListRow key={slot.id} onClick={() => onEdit(slot)} trailing="pencil">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand/25 text-sm font-bold text-brand-text">
               {slot.quantity}×
             </span>
@@ -47,8 +43,7 @@ export default function SlotList({ slots, onEdit }: SlotListProps) {
               </span>
             </span>
             {broken.length > 0 && <Badge variant="danger">{broken.length} unavailable</Badge>}
-            <Pencil aria-hidden className="h-4 w-4 shrink-0 text-muted" />
-          </button>
+          </ListRow>
         );
       })}
     </Card>

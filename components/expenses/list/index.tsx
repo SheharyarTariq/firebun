@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { Pencil, Wallet } from "lucide-react";
+import { Wallet } from "lucide-react";
 import Badge from "@/components/common/Badge";
 import Card from "@/components/common/Card";
 import EmptyState from "@/components/common/EmptyState";
+import ListRow from "@/components/common/ListRow";
+import SectionHeading from "@/components/common/SectionHeading";
 import type { ExpenseRow } from "@/server/expenses/queries";
 import { formatBusinessDate, formatMoney } from "@/utils/helper";
 import ExpenseSheet from "../expense-sheet";
@@ -52,19 +54,13 @@ export default function ExpensesList({ rows, total, categories, today, canAdd, c
 
       {[...groups.entries()].map(([date, items]) => (
         <section key={date} className="space-y-2">
-          <h2 className="flex items-center justify-between px-1 text-xs font-semibold uppercase tracking-wide text-muted">
+          <SectionHeading className="flex items-center justify-between px-1">
             <span>{formatBusinessDate(date)}</span>
             <span className="tabular-nums">{formatMoney(items.reduce((n, e) => n + e.amount, 0))}</span>
-          </h2>
+          </SectionHeading>
           <Card className="divide-y divide-border p-0">
             {items.map((expense) => (
-              <button
-                key={expense.id}
-                type="button"
-                disabled={!canEdit}
-                onClick={() => openEdit(expense)}
-                className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors enabled:active:bg-surface-2"
-              >
+              <ListRow key={expense.id} dense disabled={!canEdit} onClick={() => openEdit(expense)} trailing={canEdit ? "pencil" : undefined}>
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-2">
                     <Badge>{expense.category}</Badge>
@@ -73,8 +69,7 @@ export default function ExpensesList({ rows, total, categories, today, canAdd, c
                   <span className="mt-1 block truncate text-sm">{expense.description}</span>
                 </span>
                 <span className="shrink-0 font-semibold tabular-nums">{formatMoney(expense.amount)}</span>
-                {canEdit && <Pencil aria-hidden className="h-4 w-4 shrink-0 text-muted" />}
-              </button>
+              </ListRow>
             ))}
           </Card>
         </section>

@@ -54,8 +54,8 @@ export interface CartState {
     details?: Partial<Pick<CartState, "orderType" | "customerName" | "customerPhone" | "deliveryAddress">>
   ) => void;
   setQuantity: (key: string, quantity: number) => void;
-  /** Takes one unit off the newest line of an item (the grid's "−"); removes the line at 0. */
-  decrementItem: (menuItemId: number) => void;
+  /** Takes one unit off the newest line of an item (the grid's "−"); removes the line at 0. With `variantId`, only that size's lines count. */
+  decrementItem: (menuItemId: number, variantId?: number) => void;
   setLineNote: (key: string, note: string | null) => void;
   removeLine: (key: string) => void;
   setOrderType: (orderType: OrderType) => void;
@@ -132,9 +132,9 @@ export const useCart = create<CartState>()(
               : state.lines.map((l) => (l.key === key ? { ...l, quantity } : l)),
         })),
 
-      decrementItem: (menuItemId) =>
+      decrementItem: (menuItemId, variantId) =>
         set((state) => {
-          const target = state.lines.findLast((l) => l.menuItemId === menuItemId);
+          const target = state.lines.findLast((l) => l.menuItemId === menuItemId && (variantId === undefined || l.variantId === variantId));
           if (!target) return state;
           return {
             lines:
@@ -209,6 +209,13 @@ export function cartTotals(state: Pick<CartState, "lines" | "discountAmount" | "
 export function quantitiesByItem(lines: CartLine[]): Map<number, number> {
   const map = new Map<number, number>();
   for (const l of lines) map.set(l.menuItemId, (map.get(l.menuItemId) ?? 0) + l.quantity);
+  return map;
+}
+
+/** Quantity of each size (variant) in the cart, for the size chips on sized cards. */
+export function quantitiesByVariant(lines: CartLine[]): Map<number, number> {
+  const map = new Map<number, number>();
+  for (const l of lines) map.set(l.variantId, (map.get(l.variantId) ?? 0) + l.quantity);
   return map;
 }
 

@@ -1,14 +1,16 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
-import { ChefHat, ChevronRight, Plus, Search, Settings2, UtensilsCrossed } from "lucide-react";
+import { ChefHat, Plus, Search, Settings2, UtensilsCrossed } from "lucide-react";
 import Badge from "@/components/common/Badge";
+import Banner from "@/components/common/Banner";
 import Button from "@/components/common/Button";
 import Card from "@/components/common/Card";
 import Chips, { type ChipOption } from "@/components/common/Chips";
 import EmptyState from "@/components/common/EmptyState";
 import Input from "@/components/common/Input";
+import ListRow from "@/components/common/ListRow";
+import SectionHeading from "@/components/common/SectionHeading";
 import PageHeader from "@/components/layout/page-header";
 import type { MenuCategoryWithItems, MenuListItem } from "@/server/menu/queries";
 import { cn } from "@/utils/cn";
@@ -108,24 +110,14 @@ export default function MenuScreen({ categories }: MenuScreenProps) {
         </div>
 
         {missingRecipe > 0 && categoryFilter !== NO_RECIPE && query === "" && (
-          <button
-            type="button"
+          <Banner
+            tone="brand"
+            icon={<ChefHat className="h-5 w-5" />}
+            title={missingRecipe === singles.length ? "Recipes are the next step" : `${missingRecipe} item${missingRecipe === 1 ? "" : "s"} still without a recipe`}
             onClick={() => setCategoryFilter(NO_RECIPE)}
-            className="flex w-full items-center gap-3 rounded-card border border-brand/50 bg-brand/10 px-4 py-3 text-left transition-colors active:bg-brand/20"
           >
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-brand text-brand-ink">
-              <ChefHat className="h-5 w-5" />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-semibold">
-                {missingRecipe === singles.length ? "Recipes are the next step" : `${missingRecipe} item${missingRecipe === 1 ? "" : "s"} still without a recipe`}
-              </span>
-              <span className="block text-xs text-muted">
-                Sales only deduct stock for items with a recipe. Tap to see which ones are missing.
-              </span>
-            </span>
-            <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />
-          </button>
+            Sales only deduct stock for items with a recipe. Tap to see which ones are missing.
+          </Banner>
         )}
 
         {visible.length === 0 ? (
@@ -162,10 +154,10 @@ export default function MenuScreen({ categories }: MenuScreenProps) {
         ) : (
           visible.map((category) => (
             <section key={category.id} className="space-y-2">
-              <h2 className="flex items-center gap-2 px-1 text-xs font-semibold uppercase tracking-wide text-muted">
+              <SectionHeading className="flex items-center gap-2 px-1">
                 {category.name}
                 {!category.isActive && <Badge>Hidden</Badge>}
-              </h2>
+              </SectionHeading>
               <Card className="divide-y divide-border p-0">
                 {category.items.map((item) => (
                   <MenuRow key={item.id} item={item} />
@@ -198,10 +190,7 @@ function MenuRow({ item }: { item: MenuListItem }) {
   const slots = item.variants.reduce((n, v) => n + v.dealSlots.length, 0);
 
   return (
-    <Link
-      href={routes.ui.menuItemDetails(item.id)}
-      className="flex items-center gap-3 px-4 py-3.5 transition-colors active:bg-surface-2"
-    >
+    <ListRow href={routes.ui.menuItemDetails(item.id)} trailing="chevron">
       <div className="min-w-0 flex-1">
         <p className={cn("truncate font-medium", !item.isActive && "text-muted line-through")}>
           {item.name}
@@ -228,7 +217,6 @@ function MenuRow({ item }: { item: MenuListItem }) {
           <Badge variant="success">Recipe ✓</Badge>
         )}
       </div>
-      <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />
-    </Link>
+    </ListRow>
   );
 }

@@ -8,6 +8,7 @@ export const routes = {
     indexRoute: "/",
     signIn: "/auth/sign-in",
     signOut: "/auth/sign-out",
+    offline: "/offline",
 
     pos: "/pos",
     orders: "/orders",

@@ -16,7 +16,7 @@ import type { PlaceOrderResult } from "@/server/orders/service";
 import { formatOrderNumber } from "@/utils/helper";
 import CartBar from "./cart-bar";
 import CartSheet from "./cart-sheet";
-import { quantitiesByItem, useCart, useHydrated } from "./cart-store";
+import { quantitiesByItem, quantitiesByVariant, useCart, useHydrated } from "./cart-store";
 import DealSheet from "./deal-sheet";
 import ItemCard from "./item-card";
 import ItemSheet from "./item-sheet";
@@ -60,6 +60,8 @@ export default function PosScreen({ catalog: serverCatalog, settings, user, busi
   // closing so vaul can play the slide-out; `sheetKey` remounts a sheet on every open.
   const [openSheet, setOpenSheet] = useState<SheetKind | null>(null);
   const [sheetItemId, setSheetItemId] = useState<number | null>(null);
+  // The size picked on the card when "…" opens the item sheet on it.
+  const [sheetVariantId, setSheetVariantId] = useState<number | null>(null);
   const [sheetKey, setSheetKey] = useState(0);
 
   const [placed, setPlaced] = useState<PlacedOrder | null>(null);
@@ -73,6 +75,7 @@ export default function PosScreen({ catalog: serverCatalog, settings, user, busi
   const printer = usePrinter();
 
   const inCart = useMemo(() => (hydrated ? quantitiesByItem(lines) : NO_QUANTITIES), [hydrated, lines]);
+  const inCartByVariant = useMemo(() => (hydrated ? quantitiesByVariant(lines) : NO_QUANTITIES), [hydrated, lines]);
 
   const items = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -87,17 +90,20 @@ export default function PosScreen({ catalog: serverCatalog, settings, user, busi
     [catalog, sheetItemId]
   );
 
-  const show = (kind: SheetKind, item?: CatalogItem) => {
+  const show = (kind: SheetKind, item?: CatalogItem, variantId?: number) => {
     setSheetKey((k) => k + 1);
-    if (item) setSheetItemId(item.id);
+    if (item) {
+      setSheetItemId(item.id);
+      setSheetVariantId(variantId ?? null);
+    }
     setOpenSheet(kind);
   };
   const closeSheet = (open: boolean) => {
     if (!open) setOpenSheet(null);
   };
 
-  const quickAdd = (item: CatalogItem) => {
-    const variant = item.variants[0];
+  const quickAdd = (item: CatalogItem, variantId?: number) => {
+    const variant = item.variants.find((v) => v.id === variantId) ?? item.variants[0];
     addLine({
       menuItemId: item.id,
       variantId: variant.id,
@@ -111,10 +117,11 @@ export default function PosScreen({ catalog: serverCatalog, settings, user, busi
     });
   };
 
-  const handleTap = (item: CatalogItem) => {
+  /** Sized cards pass the size picked on their chips; single-price cards pass nothing. */
+  const handleTap = (item: CatalogItem, variantId?: number) => {
     if (item.kind === "deal") return show("deal", item);
-    if (item.variants.length > 1 || !item.isAvailable) return show("item", item);
-    quickAdd(item);
+    if (!item.isAvailable) return show("item", item);
+    quickAdd(item, variantId);
   };
 
   /** Prints a bill, or opens printer setup first and prints as soon as it is ready. */
@@ -164,7 +171,7 @@ export default function PosScreen({ catalog: serverCatalog, settings, user, busi
             <button
               type="button"
               onClick={() => show("printer")}
-              className="flex h-9 items-center gap-1.5 rounded-full border border-white/20 px-3 text-xs font-medium text-ink-muted transition-colors active:bg-white/10"
+              className="relative flex h-9 items-center gap-1.5 rounded-full border border-white/20 px-3 text-xs font-medium text-ink-muted transition-colors after:absolute after:inset-x-0 after:-inset-y-1 after:content-[''] active:bg-white/10"
             >
               <BluetoothOff className="h-3.5 w-3.5" />
               Printer · not paired
@@ -221,9 +228,10 @@ export default function PosScreen({ catalog: serverCatalog, settings, user, busi
                 key={item.id}
                 item={item}
                 inCart={inCart.get(item.id) ?? 0}
-                onTap={() => handleTap(item)}
-                onDecrement={() => decrementItem(item.id)}
-                onMore={() => show("item", item)}
+                inCartByVariant={inCartByVariant}
+                onTap={(variantId) => handleTap(item, variantId)}
+                onDecrement={(variantId) => decrementItem(item.id, variantId)}
+                onMore={(variantId) => show("item", item, variantId)}
               />
             ))}
           </div>
@@ -241,6 +249,7 @@ export default function PosScreen({ catalog: serverCatalog, settings, user, busi
         open={openSheet === "item"}
         onOpenChange={closeSheet}
         item={sheetItem}
+        initialVariantId={sheetVariantId ?? undefined}
         onAvailabilityChange={(itemId, isAvailable) => applyAvailability({ itemId, isAvailable })}
       />
       <DealSheet
