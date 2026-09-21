@@ -36,7 +36,7 @@ export const expenses = pgTable(
     index("expenses_created_by_idx").on(t.createdBy, t.expenseDate),
     check("expenses_amount_check", sql`${t.amount} > 0`),
   ]
-);
+).enableRLS();
 
 export type Expense = typeof expenses.$inferSelect;
 export type NewExpense = typeof expenses.$inferInsert;

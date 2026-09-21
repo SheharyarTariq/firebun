@@ -23,7 +23,7 @@ let db: Db | undefined;
 function getClient(): PgClient {
   const cached = globalForDb[POOL_KEY];
   if (cached) return cached;
-  const client = createPool(env.databaseUrl, 3);
+  const client = createPool(env.databaseUrl);
   if (!env.isProduction) globalForDb[POOL_KEY] = client;
   return client;
 }

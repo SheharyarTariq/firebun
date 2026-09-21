@@ -52,8 +52,13 @@ There is no test runner. Verification = typecheck + lint + build + walking throu
   `casing: "snake_case"`). `DATABASE_URL` must be the **session pooler (port 5432)**: the
   transaction pooler (6543) stalls connections when postgres.js pipelines queries (pages hang
   with no error) and its `max_pipeline: 0` workaround breaks transactions. Pool options live in
-  `db/pool.ts` (`max: 3`); bump `POOL_VERSION` when they change. Schema in `db/schema/*`,
-  migrations in `drizzle/`.
+  `db/pool.ts`: **`max: 1` per server instance, `idle_timeout: 5`** — the session pool is tiny
+  (Supavisor `default_pool_size` 25, raised from 15) and warm Vercel instances with `max: 3`
+  filled it (`EMAXCONNSESSION`, visible only in the pooler's `supavisor_logs`). Never call
+  `getDb()` inside a transaction body — pass `tx` — or one connection deadlocks. Bump
+  `POOL_VERSION` when options change. Schema in `db/schema/*`, migrations in `drizzle/`.
+  Every table has `.enableRLS()` (no policies; the app's `postgres` role bypasses it) — add it
+  to new tables too.
 - **Auth**: email + password (`bcryptjs`), `jose` HS256 JWT in an httpOnly cookie (`fb_session`,
   30 days). `proxy.ts` does the optimistic redirect; `server/auth/dal.ts` (`verifySession`,
   `getCurrentUser`, `requireAdmin`) is the real guard used by pages and every Server Action.
@@ -104,6 +109,10 @@ There is no test runner. Verification = typecheck + lint + build + walking throu
   expiry, one `clientId` per cart). Render cart-dependent UI only after `useHydrated()` is true.
   Placing an order keeps the cashier on the counter (`PlacedBar` with Print / Open); single-price
   items add on tap, sized items and deals open sheets.
+- **Error screens**: `app/(app)/error.tsx` (a screen failed; tab bar stays), `app/error.tsx` (the
+  shared `(app)` layout failed — an error.tsx never wraps its own folder's layout) and
+  `app/global-error.tsx` (root layout). All retry with `unstable_retry()` (Next 16.2; `reset()`
+  does not re-fetch) and show the error `digest`, which matches the server log entry.
 - **Client → action calls**: always `await callAction(someAction(...))` (`utils/call-action.ts`)
   inside `startTransition`; it turns offline/network failures into `{ ok: false }` toasts.
   `runAction` on the server does the same for unexpected errors (logged, generic message).
@@ -129,7 +138,6 @@ There is no test runner. Verification = typecheck + lint + build + walking throu
   `vaul` bottom sheets, `lucide-react` icons, `react-hot-toast`. See `web-best-practices`.
 - **Dates/money**: helpers in `utils/helper` (Asia/Karachi via `@date-fns/tz`, PKR formatting,
   unit conversion, `businessDateFor`).
-- **PWA**: `app/manifest.ts` + icons in `public/assets`; no service worker yet.
 
 ## Environment
 

@@ -28,7 +28,7 @@ export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 export const dailyCounters = pgTable("daily_counters", {
   businessDate: date({ mode: "string" }).primaryKey(),
   lastSeq: integer().notNull().default(0),
-});
+}).enableRLS();
 
 export const orders = pgTable(
   "orders",
@@ -98,7 +98,7 @@ export const orders = pgTable(
         or (${t.status} = 'cancelled')`
     ),
   ]
-);
+).enableRLS();
 
 export const orderItems = pgTable(
   "order_items",
@@ -139,7 +139,7 @@ export const orderItems = pgTable(
       sql`${t.parentOrderItemId} is null or ${t.unitPriceSnapshot} = 0`
     ),
   ]
-);
+).enableRLS();
 
 export type Order = typeof orders.$inferSelect;
 export type NewOrder = typeof orders.$inferInsert;

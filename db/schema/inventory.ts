@@ -60,7 +60,7 @@ export const inventoryItems = pgTable(
     ),
     check("inventory_items_pack_size_check", sql`${t.packSize} is null or ${t.packSize} > 0`),
   ]
-);
+).enableRLS();
 
 export const inventoryPurchases = pgTable(
   "inventory_purchases",
@@ -97,7 +97,7 @@ export const inventoryPurchases = pgTable(
     check("inventory_purchases_qty_check", sql`${t.quantityBase} > 0`),
     check("inventory_purchases_cost_check", sql`${t.totalCost} >= 0`),
   ]
-);
+).enableRLS();
 
 export const STOCK_MOVEMENT_TYPES = [
   "opening",
@@ -145,7 +145,7 @@ export const stockMovements = pgTable(
         or (${t.type} = 'adjustment')`
     ),
   ]
-);
+).enableRLS();
 
 export type InventoryItem = typeof inventoryItems.$inferSelect;
 export type InventoryPurchase = typeof inventoryPurchases.$inferSelect;

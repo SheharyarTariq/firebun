@@ -17,7 +17,7 @@ export const menuCategories = pgTable("menu_categories", {
   sortOrder: integer().notNull().default(0),
   isActive: boolean().notNull().default(true),
   createdAt: createdAt(),
-});
+}).enableRLS();
 
 export const MENU_ITEM_KINDS = ["single", "deal"] as const;
 export type MenuItemKind = (typeof MENU_ITEM_KINDS)[number];
@@ -48,7 +48,7 @@ export const menuItems = pgTable(
     index("menu_items_category_sort_idx").on(t.categoryId, t.sortOrder),
     check("menu_items_kind_check", sql`${t.kind} in ('single', 'deal')`),
   ]
-);
+).enableRLS();
 
 /**
  * Every item has at least one variant ("Regular" for single-price items,
@@ -71,7 +71,7 @@ export const menuItemVariants = pgTable(
     uniqueIndex("menu_item_variants_item_name_idx").on(t.menuItemId, t.name),
     check("menu_item_variants_price_check", sql`${t.price} >= 0`),
   ]
-);
+).enableRLS();
 
 /** Bill of materials: how much of each inventory item one unit of a variant consumes. */
 export const recipes = pgTable(
@@ -91,7 +91,7 @@ export const recipes = pgTable(
     uniqueIndex("recipes_variant_item_idx").on(t.variantId, t.inventoryItemId),
     check("recipes_quantity_check", sql`${t.quantity} > 0`),
   ]
-);
+).enableRLS();
 
 /**
  * A deal is a menu item of kind "deal" whose variant owns slots. Each slot is
@@ -113,7 +113,7 @@ export const dealSlots = pgTable(
     index("deal_slots_deal_idx").on(t.dealVariantId, t.sortOrder),
     check("deal_slots_quantity_check", sql`${t.quantity} > 0`),
   ]
-);
+).enableRLS();
 
 export const dealSlotOptions = pgTable(
   "deal_slot_options",
@@ -127,7 +127,7 @@ export const dealSlotOptions = pgTable(
       .references(() => menuItemVariants.id, { onDelete: "restrict" }),
   },
   (t) => [uniqueIndex("deal_slot_options_slot_variant_idx").on(t.slotId, t.variantId)]
-);
+).enableRLS();
 
 export type MenuCategory = typeof menuCategories.$inferSelect;
 export type MenuItem = typeof menuItems.$inferSelect;

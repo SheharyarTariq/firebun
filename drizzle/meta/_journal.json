@@ -15,6 +15,13 @@
       "when": 1789581249841,
       "tag": "0001_inventory_pack_sizes",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789970360657,
+      "tag": "0002_enable_rls",
+      "breakpoints": true
     }
   ]
 }

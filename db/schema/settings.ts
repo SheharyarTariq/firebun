@@ -49,6 +49,6 @@ export const settings = pgTable(
     ),
     check("settings_chars_check", sql`${t.charsPerLine} in (32, 42, 48)`),
   ]
-);
+).enableRLS();
 
 export type Settings = typeof settings.$inferSelect;

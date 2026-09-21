@@ -31,7 +31,7 @@ export const users = pgTable(
     uniqueIndex("users_email_lower_idx").on(sql`lower(${t.email})`),
     check("users_role_check", sql`${t.role} in ('admin', 'staff')`),
   ]
-);
+).enableRLS();
 
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;

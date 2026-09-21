@@ -1,3 +1,9 @@
+/**
+ * Row Level Security is switched on for every table (`.enableRLS()`) with no policies.
+ * The app connects as `postgres`, which owns the tables and bypasses RLS, so nothing
+ * changes for it; what it blocks is Supabase's public Data API (anon / authenticated
+ * keys), which this app never uses. Add `.enableRLS()` to every new table too.
+ */
 import { integer, numeric, timestamp } from "drizzle-orm/pg-core";
 
 /** Shared column builders so every table uses the same precision rules. */
