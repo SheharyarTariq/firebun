@@ -1,45 +1,52 @@
-import postgres from "postgres";
-
-export type PgClient = ReturnType<typeof postgres>;
+import { Pool } from "pg";
 
 /** Bump when pool options change so a hot-reloaded dev server builds a fresh pool. */
-export const POOL_VERSION = 4;
+export const POOL_VERSION = 5;
 
 /**
- * Connections per server instance. One is enough and is what keeps the shop online:
+ * How the app reaches Postgres — read this before changing anything here.
  *
- * The app connects through Supabase's **session** pooler (Supavisor, port 5432), where
- * every client connection pins one Postgres backend for as long as it stays open. The
- * pool is small (pool_size 15 by default on this plan, raised to 25 on 2026-09-21) and
- * Vercel keeps an instance's sockets open while it is idle or frozen. With `max: 3`, five
- * warm instances filled the pool and every further request failed with
- * `EMAXCONNSESSION max clients reached in session mode` — logged only in the pooler's
- * logs (supavisor_logs), never in Postgres.
+ * Vercel runs the app as short-lived copies that start, pause and stop with traffic, and
+ * Supabase's free plan only lets them in through its pooler (Supavisor; the direct database
+ * address is IPv6-only). The pooler has two modes on the same host:
  *
- * `max: 1` is safe here: session mode handles postgres.js pipelining, so a page's
- * parallel queries simply queue on the one connection, and no transaction reaches back
- * to `getDb()` for a second connection (every nested call passes `tx`), so it cannot
- * deadlock. Keep it that way when writing new services.
+ * - Session mode (port 5432): every open client connection pins a database worker for as
+ *   long as it stays open. On 2026-09-20/21 paused Vercel copies kept theirs open, filled the
+ *   pool and the app went down with `(EMAXCONNSESSION) max clients reached in session mode`
+ *   — logged only in the pooler's logs (supavisor_logs), never in Postgres.
+ * - Transaction mode (port 6543), used by the app: a worker is borrowed only for the
+ *   milliseconds a query or transaction runs, so paused copies hold nothing. About 200
+ *   client connections share the pool's workers (`default_pool_size`, 40 since 2026-09-21).
+ *
+ * The app used to be on session mode because the previous driver, postgres.js, pipelines
+ * queries and transaction mode stalls on that (pages hung forever). `pg` sends one query at
+ * a time per connection, so transaction mode is safe with it.
+ *
+ * `attachDatabasePool` (in `db/index.ts`) keeps a Vercel copy alive after its last query
+ * until `idleTimeoutMillis` closes the idle connections, so nothing is left open while it is
+ * paused. Transactions pin one connection each: never call `getDb()` inside a transaction
+ * body — pass `tx` — or two requests could wait on each other for a free connection.
  */
-export const POOL_MAX = 1;
-
-/**
- * Why not the transaction pooler (6543) that Supabase recommends for serverless:
- * postgres.js pipelines queued queries on a connection, and Supavisor in transaction
- * mode stalls the connection when a query is pipelined behind a long one (reproduced
- * with the menu's nested relational query — the page hung forever, no error anywhere).
- * Its `max_pipeline: 0` escape hatch skips the `onexecute` callback that transactions
- * need, so it cannot be used either.
- *
- * `idle_timeout` hands the slot back a few seconds after the last query instead of 20,
- * so a quiet instance does not sit on it. `prepare: false` keeps the client
- * pooler-agnostic.
- */
-export function createPool(url: string, max: number = POOL_MAX): PgClient {
-  return postgres(url, {
-    prepare: false,
+export function createPgPool(url: string, max = 5): Pool {
+  return new Pool({
+    connectionString: url,
     max,
-    idle_timeout: 5,
-    connect_timeout: 10,
+    idleTimeoutMillis: 5_000,
+    connectionTimeoutMillis: 10_000,
   });
+}
+
+/**
+ * The app always connects through the transaction pooler. `DATABASE_URL` (Vercel and
+ * `.env.local`) holds Supabase's session-pooler address on 5432; switching the port here,
+ * rather than in every environment, means a deploy can never end up on session mode because
+ * a dashboard setting was missed. Non-Supabase URLs are returned unchanged.
+ */
+export function transactionPoolerUrl(url: string): string {
+  const parsed = new URL(url);
+  if (parsed.hostname.endsWith(".pooler.supabase.com") && parsed.port === "5432") {
+    parsed.port = "6543";
+    return parsed.toString();
+  }
+  return url;
 }

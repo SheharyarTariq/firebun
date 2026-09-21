@@ -48,17 +48,18 @@ There is no test runner. Verification = typecheck + lint + build + walking throu
 
 ## Stack
 
-- **Data**: Supabase Postgres via Drizzle ORM + postgres.js (`db/index.ts` → `getDb()`, lazy,
-  `casing: "snake_case"`). `DATABASE_URL` must be the **session pooler (port 5432)**: the
-  transaction pooler (6543) stalls connections when postgres.js pipelines queries (pages hang
-  with no error) and its `max_pipeline: 0` workaround breaks transactions. Pool options live in
-  `db/pool.ts`: **`max: 1` per server instance, `idle_timeout: 5`** — the session pool is tiny
-  (Supavisor `default_pool_size` 25, raised from 15) and warm Vercel instances with `max: 3`
-  filled it (`EMAXCONNSESSION`, visible only in the pooler's `supavisor_logs`). Never call
-  `getDb()` inside a transaction body — pass `tx` — or one connection deadlocks. Bump
-  `POOL_VERSION` when options change. Schema in `db/schema/*`, migrations in `drizzle/`.
-  Every table has `.enableRLS()` (no policies; the app's `postgres` role bypasses it) — add it
-  to new tables too.
+- **Data**: Supabase Postgres via Drizzle ORM + **`pg`** (node-postgres) (`db/index.ts` → `getDb()`,
+  lazy, `casing: "snake_case"`). The app always uses Supabase's **transaction pooler (6543)**:
+  `transactionPoolerUrl()` in `db/pool.ts` rewrites the session-pooler `DATABASE_URL` (5432) so
+  no environment can end up on session mode, where paused Vercel copies filled the pool and took
+  the app down on 2026-09-20/21 (`EMAXCONNSESSION`, visible only in the pooler's `supavisor_logs`).
+  `attachDatabasePool` (`@vercel/functions`) closes idle connections before Vercel pauses a copy.
+  Pool: `max: 5`, `idleTimeoutMillis: 5000`; Supavisor `default_pool_size` is 40. The previous
+  driver, postgres.js, hung on the transaction pooler because it pipelines queries — do not bring
+  it back. Never call `getDb()` inside a transaction body — pass `tx`. Bump `POOL_VERSION` when
+  pool options change. Migrations (`drizzle.config.ts`) and the seed use `DIRECT_URL` on session
+  mode. Schema in `db/schema/*`, migrations in `drizzle/`. Every table has `.enableRLS()` (no
+  policies; the app's `postgres` role bypasses it) — add it to new tables too.
 - **Auth**: email + password (`bcryptjs`), `jose` HS256 JWT in an httpOnly cookie (`fb_session`,
   30 days). `proxy.ts` does the optimistic redirect; `server/auth/dal.ts` (`verifySession`,
   `getCurrentUser`, `requireAdmin`) is the real guard used by pages and every Server Action.

@@ -7,10 +7,10 @@
  */
 import { config as loadEnv } from "dotenv";
 import { count, eq } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/postgres-js";
+import { drizzle } from "drizzle-orm/node-postgres";
 import { hashPassword } from "@/server/auth/password";
 import { slugify, toBaseQty } from "@/utils/helper";
-import { createPool } from "./pool";
+import { createPgPool } from "./pool";
 import * as schema from "./schema";
 import { INVENTORY_ITEMS } from "./seed-data/inventory";
 import {
@@ -24,9 +24,10 @@ loadEnv({ path: ".env.local" });
 
 type Db = ReturnType<typeof createDb>;
 
+/** One connection is plenty for a one-off local script (session pooler is fine here). */
 function createDb(url: string) {
-  const client = createPool(url, 1);
-  return { client, db: drizzle(client, { schema, casing: "snake_case" }) };
+  const pool = createPgPool(url, 1);
+  return { pool, db: drizzle(pool, { schema, casing: "snake_case" }) };
 }
 
 async function seedAdmin(db: Db["db"]) {
@@ -259,7 +260,7 @@ async function main() {
     throw new Error("DATABASE_URL is not set. Add it to .env.local (see .env.example).");
   }
 
-  const { client, db } = createDb(url);
+  const { pool, db } = createDb(url);
   try {
     await seedAdmin(db);
     await seedSettings(db);
@@ -272,7 +273,7 @@ async function main() {
       .where(eq(schema.settings.id, 1));
     console.log(`Done. Shop: ${settingsRow?.shopName ?? "?"}`);
   } finally {
-    await client.end();
+    await pool.end();
   }
 }
 
