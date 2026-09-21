@@ -128,22 +128,36 @@ export default function MenuScreen({ categories }: MenuScreenProps) {
         )}
 
         {visible.length === 0 ? (
-          <EmptyState
-            icon={UtensilsCrossed}
-            title={totalItems === 0 ? "No menu items yet" : "Nothing matches"}
-            description={
-              totalItems === 0
-                ? "Add items with their sizes and prices, then link each size to inventory."
-                : "Try a different search or category."
-            }
-            action={
-              totalItems === 0 ? (
-                <Button startIcon={<Plus className="h-4 w-4" />} onClick={openCreate}>
-                  Add first item
+          categories.length === 0 ? (
+            // Nothing can be added until a category exists, so point straight at that.
+            <EmptyState
+              icon={Settings2}
+              title="Start with a category"
+              description="Menu items live inside categories like Burgers, Pizza and Drinks. Add one, then add items to it."
+              action={
+                <Button startIcon={<Plus className="h-4 w-4" />} onClick={() => setManageOpen(true)}>
+                  Add category
                 </Button>
-              ) : undefined
-            }
-          />
+              }
+            />
+          ) : (
+            <EmptyState
+              icon={UtensilsCrossed}
+              title={totalItems === 0 ? "No menu items yet" : "Nothing matches"}
+              description={
+                totalItems === 0
+                  ? "Add items with their sizes and prices, then link each size to inventory."
+                  : "Try a different search or category."
+              }
+              action={
+                totalItems === 0 ? (
+                  <Button startIcon={<Plus className="h-4 w-4" />} onClick={openCreate}>
+                    Add first item
+                  </Button>
+                ) : undefined
+              }
+            />
+          )
         ) : (
           visible.map((category) => (
             <section key={category.id} className="space-y-2">

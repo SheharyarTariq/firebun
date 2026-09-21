@@ -125,6 +125,7 @@ export default function ExpenseSheet({ open, onOpenChange, expense, categories, 
             <Input
               placeholder="Type a category"
               autoComplete="off"
+              autoCapitalize="words"
               autoFocus
               value={customCategory}
               onChange={(e) => {

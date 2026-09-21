@@ -194,6 +194,7 @@ export default function CartSheet({ open, onOpenChange, settings, role, onPlaced
               <Input
                 label="Name (optional)"
                 autoComplete="off"
+                autoCapitalize="words"
                 value={cart.customerName}
                 onChange={(e) => cart.setCustomer({ customerName: e.target.value })}
               />

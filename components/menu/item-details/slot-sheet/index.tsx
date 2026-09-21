@@ -168,6 +168,7 @@ export default function SlotSheet({ open, onOpenChange, dealVariantId, slot, cho
             label="Slot name (printed on the bill)"
             placeholder="e.g. Medium Pizza"
             autoComplete="off"
+            autoCapitalize="words"
             value={label}
             onChange={(e) => {
               setLabel(e.target.value);

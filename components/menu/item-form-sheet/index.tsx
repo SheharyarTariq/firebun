@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Plus, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
 import {
+  createCategoryAction,
   createMenuItemAction,
   deleteMenuItemAction,
   updateMenuItemAction,
@@ -39,6 +40,9 @@ interface VariantRow {
   price: string;
 }
 
+/** Chosen in the category dropdown to type a new one instead of picking. */
+const NEW_CATEGORY = "__new__";
+
 const SIZE_TEMPLATES: { label: string; sizes: string[] }[] = [
   { label: "Single price", sizes: ["Regular"] },
   { label: "S / M / L / XL", sizes: ["S", "M", "L", "XL"] },
@@ -69,6 +73,34 @@ export default function ItemFormSheet({ open, onOpenChange, categories, item, de
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isPending, startTransition] = useTransition();
 
+  // With no categories yet there is nothing to pick, so the sheet opens on the name field.
+  const [creatingCategory, setCreatingCategory] = useState(activeCategories.length === 0);
+  const [newCategory, setNewCategory] = useState("");
+  const [categoryPending, setCategoryPending] = useState(false);
+
+  const handleAddCategory = () => {
+    const value = newCategory.trim();
+    if (!value) {
+      setErrors((prev) => ({ ...prev, categoryId: "Type a category name" }));
+      return;
+    }
+    setCategoryPending(true);
+    startTransition(async () => {
+      const result = await callAction(createCategoryAction({ name: value }));
+      setCategoryPending(false);
+      if (!result.ok) {
+        setErrors((prev) => ({ ...prev, categoryId: result.error }));
+        return;
+      }
+      // The server title-cases it, so "burgers" comes back as the "Burgers" we select here.
+      setCategoryId(String(result.data.id));
+      setNewCategory("");
+      setCreatingCategory(false);
+      clearError("categoryId");
+      toast.success("Category added");
+    });
+  };
+
   const clearError = (field: string) => {
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: "" }));
   };
@@ -79,6 +111,15 @@ export default function ItemFormSheet({ open, onOpenChange, categories, item, de
   };
 
   const handleSubmit = async () => {
+    // A category typed but not added yet would otherwise fail as "Pick a category".
+    if (creatingCategory && !categoryId) {
+      setErrors((prev) => ({
+        ...prev,
+        categoryId: newCategory.trim() ? "Tap Add to create this category first" : "Type a category name and tap Add",
+      }));
+      return;
+    }
+
     if (item) {
       const values = {
         categoryId: Number(categoryId),
@@ -203,6 +244,7 @@ export default function ItemFormSheet({ open, onOpenChange, categories, item, de
           label="Name"
           placeholder={kind === "deal" ? "e.g. Deal 9" : "e.g. Zinger Burger"}
           autoComplete="off"
+          autoCapitalize="words"
           value={name}
           onChange={(e) => {
             setName(e.target.value);
@@ -211,17 +253,68 @@ export default function ItemFormSheet({ open, onOpenChange, categories, item, de
           error={errors.name}
         />
 
-        <Select
-          label="Category"
-          options={activeCategories.map((c) => ({ value: String(c.id), label: c.name }))}
-          placeholder="Pick a category"
-          value={categoryId}
-          onChange={(e) => {
-            setCategoryId(e.target.value);
-            clearError("categoryId");
-          }}
-          error={errors.categoryId}
-        />
+        {creatingCategory ? (
+          <div className="space-y-2">
+            <div className="flex items-end gap-2">
+              <Input
+                label="New category"
+                placeholder="e.g. Burgers"
+                autoComplete="off"
+                autoCapitalize="words"
+                value={newCategory}
+                onChange={(e) => {
+                  setNewCategory(e.target.value);
+                  clearError("categoryId");
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleAddCategory();
+                  }
+                }}
+                error={errors.categoryId}
+                hint={activeCategories.length === 0 ? "Categories group the counter screen — Burgers, Pizza, Drinks…" : undefined}
+                containerClassName="flex-1"
+              />
+              <Button className="h-12 shrink-0" isLoading={categoryPending} onClick={handleAddCategory}>
+                Add
+              </Button>
+            </div>
+            {activeCategories.length > 0 && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="-ml-3 text-muted"
+                onClick={() => {
+                  setCreatingCategory(false);
+                  clearError("categoryId");
+                }}
+              >
+                Choose an existing category
+              </Button>
+            )}
+          </div>
+        ) : (
+          <Select
+            label="Category"
+            options={[
+              ...activeCategories.map((c) => ({ value: String(c.id), label: c.name })),
+              { value: NEW_CATEGORY, label: "+ New category…" },
+            ]}
+            placeholder="Pick a category"
+            value={categoryId}
+            onChange={(e) => {
+              if (e.target.value === NEW_CATEGORY) {
+                setCreatingCategory(true);
+                clearError("categoryId");
+                return;
+              }
+              setCategoryId(e.target.value);
+              clearError("categoryId");
+            }}
+            error={errors.categoryId}
+          />
+        )}
 
         <Textarea
           label={kind === "deal" ? "What's included (shown on the bill)" : "Description (optional)"}
@@ -264,6 +357,7 @@ export default function ItemFormSheet({ open, onOpenChange, categories, item, de
                     <Input
                       aria-label="Size name"
                       placeholder="Size"
+                      autoCapitalize="words"
                       value={row.name}
                       onChange={(e) => updateRow(row.key, { name: e.target.value })}
                       containerClassName="w-28"

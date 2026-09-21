@@ -120,6 +120,7 @@ export default function CategoryManagerSheet({ open, onOpenChange, categories }:
               label="New category"
               placeholder="e.g. Desserts"
               autoComplete="off"
+              autoCapitalize="words"
               value={newName}
               onChange={(e) => {
                 setNewName(e.target.value);
@@ -192,6 +193,7 @@ export default function CategoryManagerSheet({ open, onOpenChange, categories }:
               <Input
                 label="Name"
                 autoComplete="off"
+                autoCapitalize="words"
                 value={editName}
                 onChange={(e) => {
                   setEditName(e.target.value);

@@ -198,6 +198,7 @@ export default function ItemFormSheet({
           label="Name"
           placeholder="e.g. Chicken wings"
           autoComplete="off"
+          autoCapitalize="words"
           value={name}
           onChange={(e) => {
             setName(e.target.value);

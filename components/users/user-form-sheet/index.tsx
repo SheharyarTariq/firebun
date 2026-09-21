@@ -79,6 +79,7 @@ export default function UserFormSheet({ open, onOpenChange }: UserFormSheetProps
           label="Name"
           placeholder="e.g. Ali"
           autoComplete="off"
+          autoCapitalize="words"
           value={name}
           onChange={(e) => {
             setName(e.target.value);

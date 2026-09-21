@@ -109,6 +109,7 @@ export default function VariantSheet({
             label="Size name"
             placeholder="e.g. M, Large, 1.5 Litre"
             autoComplete="off"
+            autoCapitalize="words"
             data-autofocus={variant ? undefined : "true"}
             value={name}
             onChange={(e) => {
