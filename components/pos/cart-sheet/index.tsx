@@ -7,6 +7,7 @@ import { placeOrderAction } from "@/app/(app)/pos/actions";
 import BottomSheet from "@/components/common/BottomSheet";
 import Button from "@/components/common/Button";
 import Chips from "@/components/common/Chips";
+import ConfirmSheet from "@/components/common/ConfirmSheet";
 import Input from "@/components/common/Input";
 import NumberStepper from "@/components/common/NumberStepper";
 import type { OrderType, PaymentMethod } from "@/db/schema/orders";
@@ -47,6 +48,7 @@ export default function CartSheet({ open, onOpenChange, settings, role, onPlaced
   const [deliveryText, setDeliveryText] = useState(
     cart.deliveryCharge === null ? String(settings.defaultDeliveryCharge) : String(cart.deliveryCharge)
   );
+  const [confirmClear, setConfirmClear] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [isPending, startTransition] = useTransition();
   const deliveryRef = useRef<HTMLDivElement>(null);
@@ -65,7 +67,9 @@ export default function CartSheet({ open, onOpenChange, settings, role, onPlaced
           ? "Only an admin can give discounts"
           : `Over your limit of Rs ${staffCap} (${settings.staffMaxDiscountPct}%)`
         : null;
-  const canPlace = cart.lines.length > 0 && discountError === null;
+  const discountNotNumber = discountText.trim() !== "" && !Number.isFinite(Number(discountText));
+  const blockReason = discountNotNumber ? "Discount must be a number" : discountError;
+  const canPlace = cart.lines.length > 0 && blockReason === null;
 
   const clearError = (field: string) => {
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: "" }));
@@ -78,7 +82,13 @@ export default function CartSheet({ open, onOpenChange, settings, role, onPlaced
     clearError("discountAmount");
   };
 
-  const scrollToDelivery = () => deliveryRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  const handleClear = () => {
+    cart.clear();
+    setConfirmClear(false);
+    onOpenChange(false);
+  };
+
+  const scrollToDelivery =() => deliveryRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
 
   const handlePlace = async () => {
     const input: PlaceOrderInput = {
@@ -127,32 +137,48 @@ export default function CartSheet({ open, onOpenChange, settings, role, onPlaced
   };
 
   return (
+    <>
     <BottomSheet
-      open={open}
+      open={open && !confirmClear}
       onOpenChange={onOpenChange}
       title="Cart"
       description={`${totals.count} item${totals.count === 1 ? "" : "s"}`}
       footer={
-        <Button size="lg" className="w-full" isLoading={isPending} disabled={!canPlace} onClick={handlePlace}>
-          Place order · {formatMoney(totals.total)}
-        </Button>
+        <div className="space-y-2">
+          {/* The discount field can be scrolled out of view; say why Place is greyed out here. */}
+          {blockReason !== null && cart.lines.length > 0 && (
+            <p role="alert" className="text-center text-xs text-danger">
+              {blockReason}
+            </p>
+          )}
+          <Button size="lg" className="w-full" isLoading={isPending} disabled={!canPlace} onClick={handlePlace}>
+            Place order · {formatMoney(totals.total)}
+          </Button>
+        </div>
       }
     >
       <div className="space-y-5">
         {cart.lines.length === 0 ? (
           <p className="py-6 text-center text-sm text-muted">The cart is empty.</p>
         ) : (
-          <ul className="divide-y divide-border rounded-field border border-border">
-            {cart.lines.map((line) => (
-              <CartRow
-                key={line.key}
-                line={line}
-                onQuantity={(q) => cart.setQuantity(line.key, q)}
-                onNote={(note) => cart.setLineNote(line.key, note)}
-                onRemove={() => cart.removeLine(line.key)}
-              />
-            ))}
-          </ul>
+          <div className="space-y-1">
+            <ul className="divide-y divide-border rounded-field border border-border">
+              {cart.lines.map((line) => (
+                <CartRow
+                  key={line.key}
+                  line={line}
+                  onQuantity={(q) => cart.setQuantity(line.key, q)}
+                  onNote={(note) => cart.setLineNote(line.key, note)}
+                  onRemove={() => cart.removeLine(line.key)}
+                />
+              ))}
+            </ul>
+            <div className="flex justify-end">
+              <Button size="sm" variant="ghost" className="text-danger" startIcon={<Trash2 className="h-4 w-4" />} onClick={() => setConfirmClear(true)}>
+                Clear cart
+              </Button>
+            </div>
+          </div>
         )}
 
         <div className="space-y-1">
@@ -187,20 +213,32 @@ export default function CartSheet({ open, onOpenChange, settings, role, onPlaced
               label="Address"
               placeholder="Street, block, landmark"
               autoComplete="off"
+              maxLength={200}
               value={cart.deliveryAddress}
-              onChange={(e) => cart.setCustomer({ deliveryAddress: e.target.value })}
+              onChange={(e) => {
+                cart.setCustomer({ deliveryAddress: e.target.value });
+                clearError("deliveryAddress");
+              }}
+              error={errors.deliveryAddress}
             />
             <div className="grid grid-cols-2 gap-3">
               <Input
                 label="Name (optional)"
                 autoComplete="off"
                 autoCapitalize="words"
+                maxLength={60}
                 value={cart.customerName}
-                onChange={(e) => cart.setCustomer({ customerName: e.target.value })}
+                onChange={(e) => {
+                  cart.setCustomer({ customerName: e.target.value });
+                  clearError("customerName");
+                }}
+                error={errors.customerName}
               />
               <Input
                 label="Delivery (Rs)"
                 inputMode="decimal"
+                // Left blank, the shop's default charge applies.
+                placeholder={String(settings.defaultDeliveryCharge)}
                 value={deliveryText}
                 onChange={(e) => {
                   setDeliveryText(e.target.value);
@@ -264,7 +302,7 @@ export default function CartSheet({ open, onOpenChange, settings, role, onPlaced
                 cart.setDiscount(Number.isFinite(n) ? n : 0);
                 clearError("discountAmount");
               }}
-              error={discountError ?? errors.discountAmount}
+              error={blockReason ?? errors.discountAmount}
               hint={staffCap !== null && settings.staffMaxDiscountPct > 0 ? `Up to Rs ${staffCap} (${settings.staffMaxDiscountPct}%) without an admin` : undefined}
             />
             <div className="flex flex-wrap gap-2">
@@ -285,8 +323,13 @@ export default function CartSheet({ open, onOpenChange, settings, role, onPlaced
             placeholder="e.g. call on arrival"
             autoComplete="off"
             autoFocus={cart.note === ""}
+            maxLength={200}
             value={cart.note}
-            onChange={(e) => cart.setNote(e.target.value)}
+            onChange={(e) => {
+              cart.setNote(e.target.value);
+              clearError("note");
+            }}
+            error={errors.note}
           />
         )}
 
@@ -298,6 +341,17 @@ export default function CartSheet({ open, onOpenChange, settings, role, onPlaced
         </dl>
       </div>
     </BottomSheet>
+
+    <ConfirmSheet
+      open={open && confirmClear}
+      onOpenChange={setConfirmClear}
+      title="Clear the cart?"
+      description={`${totals.count} item${totals.count === 1 ? "" : "s"} will be removed. This cannot be undone.`}
+      confirmLabel="Clear cart"
+      destructive
+      onConfirm={handleClear}
+    />
+    </>
   );
 }
 
@@ -306,7 +360,7 @@ function QuickChip({ children, onClick }: { children: React.ReactNode; onClick: 
     <button
       type="button"
       onClick={onClick}
-      className="h-9 rounded-full border border-border bg-surface px-3.5 text-sm font-medium transition-colors active:bg-surface-2"
+      className="h-11 rounded-full border border-border bg-surface px-4 text-sm font-medium transition-colors active:bg-surface-2"
     >
       {children}
     </button>
@@ -338,6 +392,7 @@ function CartRow({
               {slot.choices.map((c) => `${c.quantity > 1 ? `${c.quantity} × ` : ""}${c.itemName}${c.variantName !== "Regular" ? ` (${c.variantName})` : ""}`).join(", ")}
             </p>
           ))}
+          {line.quantity > 1 && <p className="text-xs text-muted tabular-nums">{formatMoney(line.unitPrice)} each</p>}
           {line.note && !editingNote && <p className="text-xs italic text-muted">“{line.note}”</p>}
         </div>
         <p className={cn("shrink-0 font-semibold tabular-nums")}>{formatMoney(line.unitPrice * line.quantity)}</p>
@@ -345,6 +400,8 @@ function CartRow({
       {editingNote && (
         <Input
           placeholder="Note for the kitchen"
+          aria-label={`Note for ${line.name}`}
+          maxLength={120}
           autoComplete="off"
           autoFocus
           className="h-10 text-sm"
@@ -359,12 +416,12 @@ function CartRow({
         />
       )}
       <div className="flex items-center justify-between">
-        <NumberStepper value={line.quantity} min={0} max={99} onChange={onQuantity} />
+        <NumberStepper value={line.quantity} min={0} max={99} removeAtOne aria-label={`${line.name} quantity`} onChange={onQuantity} />
         <div className="flex items-center">
-          <Button size="sm" variant="ghost" className="text-muted" aria-label={line.note ? "Edit note" : "Add note"} onClick={() => setEditingNote(true)}>
+          <Button size="sm" variant="ghost" className="text-muted" aria-label={`${line.note ? "Edit note for" : "Add note to"} ${line.name}`} onClick={() => setEditingNote(true)}>
             <MessageSquarePlus className="h-4 w-4" />
           </Button>
-          <Button size="sm" variant="ghost" className="text-danger" aria-label="Remove" onClick={onRemove}>
+          <Button size="sm" variant="ghost" className="text-danger" aria-label={`Remove ${line.name}`} onClick={onRemove}>
             <Trash2 className="h-4 w-4" />
           </Button>
         </div>

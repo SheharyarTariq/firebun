@@ -15,6 +15,7 @@ import Input from "@/components/common/Input";
 import Toggle from "@/components/common/Toggle";
 import type { VariantFull } from "@/server/menu/queries";
 import { callAction } from "@/utils/call-action";
+import { parseNumberInput } from "@/utils/helper";
 import { validateAndSetErrors } from "@/utils/validation";
 import { variantSchema } from "../../schema";
 
@@ -26,6 +27,8 @@ interface VariantSheetProps {
   variant?: VariantFull;
   /** Deals have one "size": hide the name and delete. */
   isDealPrice: boolean;
+  /** The item has only this size, so "Regular" is just "the price". */
+  sole: boolean;
 }
 
 /** Parents remount this with a new `key` on each open so the form starts fresh. */
@@ -35,7 +38,10 @@ export default function VariantSheet({
   itemId,
   variant,
   isDealPrice,
+  sole,
 }: VariantSheetProps) {
+  // A lone size named something else keeps its field so it can be renamed back.
+  const hideName = isDealPrice || (sole && variant?.name === "Regular");
   const [name, setName] = useState(variant?.name ?? "");
   const [price, setPrice] = useState(variant ? String(variant.price) : "");
   const [isActive, setIsActive] = useState(variant?.isActive ?? true);
@@ -48,7 +54,7 @@ export default function VariantSheet({
   };
 
   const handleSubmit = async () => {
-    const values = { name: isDealPrice ? "Regular" : name, price: Number(price), isActive };
+    const values = { name: hideName ? "Regular" : name, price: parseNumberInput(price), isActive };
     if (!(await validateAndSetErrors(variantSchema, values, setErrors))) return;
     startTransition(async () => {
       const result = variant
@@ -59,7 +65,7 @@ export default function VariantSheet({
         toast.error(result.error);
         return;
       }
-      toast.success(variant ? "Saved" : "Size added");
+      toast.success(variant ? `${values.name === "Regular" ? "Price" : values.name} saved` : `${values.name} added`);
       onOpenChange(false);
     });
   };
@@ -96,7 +102,8 @@ export default function VariantSheet({
     <BottomSheet
       open={open && !confirmDelete}
       onOpenChange={onOpenChange}
-      title={isDealPrice ? "Deal price" : variant ? `Edit ${variant.name}` : "New size"}
+      guardUnsaved
+      title={isDealPrice ? "Deal price" : hideName ? "Edit price" : variant ? `Edit ${variant.name}` : "New size"}
       footer={
         <Button size="lg" className="w-full" isLoading={isPending} onClick={handleSubmit}>
           {variant ? "Save" : "Add size"}
@@ -104,7 +111,7 @@ export default function VariantSheet({
       }
     >
       <div className="space-y-4">
-        {!isDealPrice && (
+        {!hideName && (
           <Input
             label="Size name"
             placeholder="e.g. M, Large, 1.5 Litre"
@@ -123,7 +130,7 @@ export default function VariantSheet({
           label="Price (Rs)"
           inputMode="decimal"
           placeholder="0"
-          data-autofocus={isDealPrice || variant ? "true" : undefined}
+          data-autofocus={hideName || variant ? "true" : undefined}
           value={price}
           onChange={(e) => {
             setPrice(e.target.value);

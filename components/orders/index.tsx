@@ -46,7 +46,11 @@ export default function OrdersScreen({ orders, summary, businessDate, todayBusin
     <>
       <PageHeader
         title="Orders"
-        subtitle={`${dayCount} order${dayCount === 1 ? "" : "s"} · ${formatMoney(summary.revenue)}`}
+        subtitle={
+          summary.pending > 0
+            ? `${summary.completed} paid · ${formatMoney(summary.revenue)} · ${summary.pending} unpaid`
+            : `${dayCount} order${dayCount === 1 ? "" : "s"} · ${formatMoney(summary.revenue)}`
+        }
         actions={
           <div className="flex items-center gap-0.5">
             <button
@@ -99,10 +103,13 @@ export default function OrdersScreen({ orders, summary, businessDate, todayBusin
           <button
             type="button"
             onClick={() => setStatus("pending")}
-            className="w-full rounded-field bg-warning-bg px-4 py-2.5 text-left text-sm text-warning"
+            className="flex w-full items-center gap-2 rounded-field bg-warning-bg px-4 py-2.5 text-left text-sm text-warning"
           >
-            {summary.pending} delivery order{summary.pending === 1 ? "" : "s"} waiting for payment ·{" "}
-            {formatMoney(summary.pendingAmount)}
+            <span className="min-w-0 flex-1">
+              {summary.pending} delivery order{summary.pending === 1 ? "" : "s"} waiting for payment ·{" "}
+              {formatMoney(summary.pendingAmount)}
+            </span>
+            <ChevronRight aria-hidden className="h-4 w-4 shrink-0" />
           </button>
         )}
 
@@ -144,6 +151,7 @@ export default function OrdersScreen({ orders, summary, businessDate, todayBusin
                   </span>
                   <Badge variant={STATUS_BADGE[order.status]}>{STATUS_LABELS[order.status]}</Badge>
                 </span>
+                <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />
               </Link>
             ))}
           </Card>

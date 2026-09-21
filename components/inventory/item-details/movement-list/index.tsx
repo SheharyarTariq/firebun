@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { deleteMovementAction } from "@/app/(app)/(admin)/inventory/actions";
+import Button from "@/components/common/Button";
 import Card from "@/components/common/Card";
 import ConfirmSheet from "@/components/common/ConfirmSheet";
 import EmptyState from "@/components/common/EmptyState";
@@ -108,14 +109,15 @@ export default function MovementList({ movements, baseUnit, currentQty }: Moveme
                 <p className={cn("text-xs tabular-nums", after < 0 ? "text-danger" : "text-muted")}>= {formatQty(after, baseUnit)}</p>
               </div>
               {deletable && (
-                <button
-                  type="button"
+                <Button
+                  size="icon"
+                  variant="ghost"
                   aria-label={`Delete ${meta.label.toLowerCase()} entry`}
+                  className="-mr-2 shrink-0 text-muted"
                   onClick={() => setTarget(m)}
-                  className="-mr-2 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-muted transition-colors active:bg-surface-2"
                 >
                   <Trash2 className="h-4 w-4" />
-                </button>
+                </Button>
               )}
             </div>
           );

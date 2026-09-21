@@ -97,9 +97,21 @@
 
 @media (prefers-reduced-motion: reduce) {
   .animate-pop,
-  .animate-fade-up {
+  .animate-fade-up,
+  .animate-bounce,
+  .animate-pulse {
     animation: none;
   }
+}
+
+/*
+ * Keyboard focus ring for anything interactive that has no ring of its own (chips, toggles,
+ * steppers, tab bar, plain links). `:where` keeps specificity at zero, so components that set
+ * their own focus styles (Button, Input) still win.
+ */
+:where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--brand-strong);
+  outline-offset: 2px;
 }
 
 /* Safe-area helpers for phones with notches / gesture bars (PWA standalone mode). */

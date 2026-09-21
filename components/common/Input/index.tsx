@@ -30,6 +30,7 @@ export default function Input({
 }: InputProps) {
   const generatedId = useId();
   const inputId = id ?? generatedId;
+  const messageId = `${inputId}-message`;
 
   return (
     <div className={cn("w-full", containerClassName)}>
@@ -47,6 +48,7 @@ export default function Input({
         <input
           id={inputId}
           aria-invalid={error ? true : undefined}
+          aria-describedby={error || hint ? messageId : undefined}
           className={cn(
             "h-12 w-full rounded-field border border-border bg-surface px-4 text-base text-foreground",
             "placeholder:text-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/30",
@@ -65,9 +67,13 @@ export default function Input({
         )}
       </div>
       {error ? (
-        <p className="mt-1 text-xs text-danger">{error}</p>
+        <p id={messageId} role="alert" className="mt-1 text-xs text-danger">
+          {error}
+        </p>
       ) : hint ? (
-        <p className="mt-1 text-xs text-muted">{hint}</p>
+        <p id={messageId} className="mt-1 text-xs text-muted">
+          {hint}
+        </p>
       ) : null}
     </div>
   );

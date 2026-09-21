@@ -40,7 +40,7 @@ export default function Toggle({
         aria-hidden
         className={cn(
           "relative h-7 w-12 shrink-0 rounded-full transition-colors",
-          checked ? "bg-success" : "bg-border"
+          checked ? "bg-success" : "bg-muted"
         )}
       >
         <span

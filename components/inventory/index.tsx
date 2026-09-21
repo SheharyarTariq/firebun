@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { BellRing, Boxes, Plus, Search } from "lucide-react";
+import { BellRing, Boxes, ChevronRight, Plus, Search } from "lucide-react";
 import Badge from "@/components/common/Badge";
 import Button from "@/components/common/Button";
 import Card from "@/components/common/Card";
@@ -66,7 +66,7 @@ export default function InventoryScreen({ items }: InventoryScreenProps) {
         actions={
           <>
             {activeCount > 0 && (
-              <Button size="sm" variant="header" aria-label="Low-stock limits" className="px-2.5" onClick={openLimits}>
+              <Button size="icon" variant="header" aria-label="Low-stock limits" onClick={openLimits}>
                 <BellRing className="h-4 w-4" />
               </Button>
             )}
@@ -111,6 +111,7 @@ export default function InventoryScreen({ items }: InventoryScreenProps) {
                 Nothing is flagged as “Needed” yet. Give each item a level and the tab badge tells you what to buy.
               </span>
             </span>
+            <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />
           </button>
         )}
 
@@ -183,6 +184,7 @@ function InventoryRow({ item }: { item: InventoryListItem }) {
           <Badge variant="warning">Needed</Badge>
         ) : null}
       </div>
+      <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />
     </Link>
   );
 }

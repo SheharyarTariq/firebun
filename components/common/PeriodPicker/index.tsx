@@ -47,10 +47,18 @@ export default function PeriodPicker({
       />
       {preset === "custom" && (
         <div className="flex items-end gap-2">
-          <Input label="From" type="date" max={today} value={from} onChange={(e) => setFrom(e.target.value)} containerClassName="flex-1" className="h-10 text-sm" />
-          <Input label="To" type="date" max={today} value={to} onChange={(e) => setTo(e.target.value)} containerClassName="flex-1" className="h-10 text-sm" />
+          <Input label="From" type="date" max={today} value={from} onChange={(e) => setFrom(e.target.value)} containerClassName="flex-1" className="h-11" />
+          <Input
+            label="To"
+            type="date"
+            max={today}
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+            containerClassName="flex-1"
+            className="h-11"
+            error={from && to && from > to ? "Before “From”" : undefined}
+          />
           <Button
-            className="h-10"
             disabled={!from || !to || from > to}
             onClick={() => onChange({ preset: "custom", range: { from, to } })}
           >

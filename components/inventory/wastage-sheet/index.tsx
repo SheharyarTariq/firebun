@@ -9,7 +9,7 @@ import Input from "@/components/common/Input";
 import Select from "@/components/common/Select";
 import type { InventoryItem } from "@/db/schema";
 import { callAction } from "@/utils/call-action";
-import { entryQtyToBase, entryUnitOptions, formatQty, type EntryUnit } from "@/utils/helper";
+import { entryQtyToBase, entryUnitOptions, formatQty, parseNumberInput, type EntryUnit } from "@/utils/helper";
 import { validateAndSetErrors } from "@/utils/validation";
 import { wastageSchema, type WastageFormInput } from "../schema";
 
@@ -33,7 +33,7 @@ export default function WastageSheet({ open, onOpenChange, item }: WastageSheetP
   };
 
   const handleSubmit = async () => {
-    const values: WastageFormInput = { qty: Number(qty), unit, reason };
+    const values: WastageFormInput = { qty: parseNumberInput(qty), unit, reason };
     if (!(await validateAndSetErrors(wastageSchema, values, setErrors))) return;
 
     startTransition(async () => {
@@ -52,6 +52,7 @@ export default function WastageSheet({ open, onOpenChange, item }: WastageSheetP
     <BottomSheet
       open={open}
       onOpenChange={onOpenChange}
+      guardUnsaved
       title="Record wastage"
       description={`${item.name} · currently ${formatQty(item.currentQty, item.baseUnit)}`}
       footer={
@@ -94,6 +95,11 @@ export default function WastageSheet({ open, onOpenChange, item }: WastageSheetP
         </div>
         {Number(qty) > 0 && unit !== item.baseUnit && (
           <p className="-mt-2 text-xs text-muted">= {formatQty(entryQtyToBase(item, Number(qty), unit), item.baseUnit)}</p>
+        )}
+        {Number(qty) > 0 && entryQtyToBase(item, Number(qty), unit) > item.currentQty && (
+          <p className="-mt-2 rounded-field bg-warning-bg px-4 py-3 text-sm text-warning">
+            That is more than the {formatQty(item.currentQty, item.baseUnit)} in stock, so stock will go negative.
+          </p>
         )}
         <Input
           label="Reason"

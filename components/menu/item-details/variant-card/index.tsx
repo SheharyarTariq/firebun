@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Copy, Pencil, Plus } from "lucide-react";
+import { Copy, Pencil, Plus, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
 import { copyRecipeAction } from "@/app/(app)/(admin)/menu/actions";
 import Badge from "@/components/common/Badge";
@@ -12,6 +12,7 @@ import { callAction } from "@/utils/call-action";
 import { cn } from "@/utils/cn";
 import { formatMoney, formatQty } from "@/utils/helper";
 import { estimateCost, marginPct } from "../../format";
+import RemoveIngredientSheet from "../remove-ingredient-sheet";
 
 interface VariantCardProps {
   variant: VariantFull;
@@ -40,6 +41,8 @@ export default function VariantCard({
   onCopyFromOtherItem,
 }: VariantCardProps) {
   const [copying, setCopying] = useState<number | null>(null);
+  // The line stays set while the confirm slides away so its title doesn't flip mid-animation.
+  const [removing, setRemoving] = useState<{ line?: RecipeLine; open: boolean }>({ open: false });
   const [, startTransition] = useTransition();
   const estimate = estimateCost(variant.recipes);
   const margin = estimate.cost !== null ? marginPct(variant.price, estimate.cost) : null;
@@ -86,7 +89,7 @@ export default function VariantCard({
           </p>
         </div>
         <p className="text-lg font-bold tabular-nums">{formatMoney(variant.price)}</p>
-        <Button size="sm" variant="ghost" aria-label="Edit size" className="px-2" onClick={onEdit}>
+        <Button size="icon" variant="ghost" aria-label="Edit size" className="-mr-2" onClick={onEdit}>
           <Pencil className="h-4 w-4" />
         </Button>
       </div>
@@ -94,11 +97,11 @@ export default function VariantCard({
       {variant.recipes.length > 0 && (
         <ul className="divide-y divide-border rounded-field border border-border">
           {variant.recipes.map((line) => (
-            <li key={line.id}>
+            <li key={line.id} className="flex items-center">
               <button
                 type="button"
                 onClick={() => onEditIngredient(line)}
-                className="flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm transition-colors active:bg-surface-2"
+                className="flex min-h-11 min-w-0 flex-1 items-center gap-3 py-2 pl-3 text-left text-sm transition-colors active:bg-surface-2"
               >
                 <span className="min-w-0 flex-1 truncate">
                   {line.inventoryItem.name}
@@ -111,7 +114,17 @@ export default function VariantCard({
                 <span className="tabular-nums text-muted">
                   {formatQty(line.quantity, line.inventoryItem.baseUnit)}
                 </span>
+                <Pencil aria-hidden className="h-4 w-4 shrink-0 text-muted" />
               </button>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="shrink-0 text-danger"
+                aria-label={`Remove ${line.inventoryItem.name} from recipe`}
+                onClick={() => setRemoving({ line, open: true })}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
             </li>
           ))}
         </ul>
@@ -141,6 +154,12 @@ export default function VariantCard({
           </Button>
         )}
       </div>
+
+      <RemoveIngredientSheet
+        open={removing.open}
+        onOpenChange={(open) => setRemoving((r) => ({ ...r, open }))}
+        line={removing.line}
+      />
     </Card>
   );
 }

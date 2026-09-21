@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Save } from "lucide-react";
 import toast from "react-hot-toast";
 import { updateSettingsAction } from "@/app/(app)/(admin)/settings/actions";
 import Button from "@/components/common/Button";
 import Card from "@/components/common/Card";
+import ConfirmSheet from "@/components/common/ConfirmSheet";
 import Input from "@/components/common/Input";
 import Select from "@/components/common/Select";
 import Textarea from "@/components/common/Textarea";
@@ -13,6 +15,7 @@ import Toggle from "@/components/common/Toggle";
 import PageHeader from "@/components/layout/page-header";
 import type { Settings } from "@/db/schema";
 import { callAction } from "@/utils/call-action";
+import { parseNumberInput } from "@/utils/helper";
 import { routes } from "@/utils/routes";
 import { validateAndSetErrors } from "@/utils/validation";
 import { settingsSchema, type SettingsFormInput } from "./schema";
@@ -31,11 +34,11 @@ function toInput(f: FormState): SettingsFormInput {
     receiptHeaderLines: f.headerLines.split("\n").map((l) => l.trim()).filter(Boolean),
     receiptFooter: f.footer,
     charsPerLine: Number(f.charsPerLine),
-    defaultDeliveryCharge: Number(f.deliveryCharge),
-    staffMaxDiscountPct: Number(f.staffDiscount),
+    defaultDeliveryCharge: parseNumberInput(f.deliveryCharge),
+    staffMaxDiscountPct: parseNumberInput(f.staffDiscount),
     staffCanAddExpenses: f.staffExpenses,
-    staffCancelWindowMinutes: Number(f.cancelWindow),
-    businessDayCutoffHour: Number(f.cutoffHour),
+    staffCancelWindowMinutes: parseNumberInput(f.cancelWindow),
+    businessDayCutoffHour: parseNumberInput(f.cutoffHour),
     autoPrintOnPlace: f.autoPrint,
     printKitchenCopy: f.kitchenCopy,
   };
@@ -90,6 +93,8 @@ const CUTOFF_OPTIONS = Array.from({ length: 13 }, (_, h) => ({
 }));
 
 export default function SettingsScreen({ settings }: SettingsScreenProps) {
+  const router = useRouter();
+  const [leaveOpen, setLeaveOpen] = useState(false);
   const [saved, setSaved] = useState(() => fromSettings(settings));
   const [form, setForm] = useState(saved);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -100,8 +105,17 @@ export default function SettingsScreen({ settings }: SettingsScreenProps) {
   const set = <K extends keyof FormState>(key: K, value: FormState[K], errorKey?: string) => {
     setForm((prev) => ({ ...prev, [key]: value }));
     const field = errorKey ?? key;
-    if (errors[field]) setErrors((prev) => ({ ...prev, [field]: "" }));
+    // Also clears per-item errors such as `receiptHeaderLines[2]`.
+    const mine = (k: string) => k === field || k.startsWith(`${field}[`);
+    if (Object.entries(errors).some(([k, v]) => v && mine(k))) {
+      setErrors((prev) => Object.fromEntries(Object.entries(prev).map(([k, v]) => [k, mine(k) ? "" : v])));
+    }
   };
+
+  // Header lines are validated one by one (`receiptHeaderLines[1]`); show the first message on the field.
+  const headerLinesError =
+    errors.receiptHeaderLines ||
+    Object.entries(errors).find(([k, v]) => v && k.startsWith("receiptHeaderLines["))?.[1];
 
   const handleSave = async () => {
     const values = toInput(form);
@@ -123,7 +137,12 @@ export default function SettingsScreen({ settings }: SettingsScreenProps) {
 
   return (
     <>
-      <PageHeader title="Shop settings" subtitle={dirty ? "Unsaved changes" : undefined} backHref={routes.ui.more} />
+      <PageHeader
+        title="Shop settings"
+        subtitle={dirty ? "Unsaved changes" : undefined}
+        backHref={routes.ui.more}
+        onBack={dirty ? () => setLeaveOpen(true) : undefined}
+      />
 
       <div className="space-y-4 p-4 pb-28">
         <Card className="space-y-4">
@@ -144,7 +163,7 @@ export default function SettingsScreen({ settings }: SettingsScreenProps) {
             rows={3}
             value={form.headerLines}
             onChange={(e) => set("headerLines", e.target.value, "receiptHeaderLines")}
-            error={errors.receiptHeaderLines}
+            error={headerLinesError}
           />
           <Input label="Footer" value={form.footer} onChange={(e) => set("footer", e.target.value, "receiptFooter")} error={errors.receiptFooter} />
           <Select
@@ -186,6 +205,7 @@ export default function SettingsScreen({ settings }: SettingsScreenProps) {
             value={form.cancelWindow}
             onChange={(e) => set("cancelWindow", e.target.value, "staffCancelWindowMinutes")}
             error={errors.staffCancelWindowMinutes}
+            hint="0 = only admins can cancel orders."
           />
           <Toggle label="Staff can add expenses" description="They only see what they added themselves." checked={form.staffExpenses} onChange={(v) => set("staffExpenses", v)} />
           <Select
@@ -198,6 +218,17 @@ export default function SettingsScreen({ settings }: SettingsScreenProps) {
           />
         </Card>
       </div>
+
+      <ConfirmSheet
+        open={leaveOpen}
+        onOpenChange={setLeaveOpen}
+        title="Leave without saving?"
+        description="Your changes to the shop settings have not been saved."
+        confirmLabel="Leave"
+        cancelLabel="Keep editing"
+        destructive
+        onConfirm={() => router.push(routes.ui.more)}
+      />
 
       <div className="fixed inset-x-0 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-30 px-4 pb-2">
         <Button

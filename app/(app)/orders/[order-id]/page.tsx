@@ -29,13 +29,14 @@ export default async function OrderPage({ params }: PageProps) {
   const [order, user, settings] = await Promise.all([getOrderDetails(id), getCurrentUser(), getSettings()]);
   if (!order) notFound();
 
-  const canCancel = cancelDenialReason(order, user, settings.staffCancelWindowMinutes) === null;
+  const cancelDenied = cancelDenialReason(order, user, settings.staffCancelWindowMinutes);
 
   return (
     <OrderDetails
       order={order}
       viewer={{ id: user.id, role: user.role }}
-      canCancel={canCancel}
+      canCancel={cancelDenied === null}
+      cancelBlockedReason={cancelDenied}
       printKitchenCopy={settings.printKitchenCopy}
     />
   );

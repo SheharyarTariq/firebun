@@ -6,6 +6,8 @@ interface PageHeaderProps {
   subtitle?: string;
   /** Renders a back button; used on detail pages. */
   backHref?: string;
+  /** Runs instead of navigating when the back arrow is tapped (unsaved-changes prompt). */
+  onBack?: () => void;
   /** Right-hand slot for buttons or a badge. */
   actions?: React.ReactNode;
   className?: string;
@@ -16,6 +18,7 @@ export default function PageHeader({
   title,
   subtitle,
   backHref,
+  onBack,
   actions,
   className,
 }: PageHeaderProps) {
@@ -27,7 +30,7 @@ export default function PageHeader({
       )}
     >
       <div className="flex h-14 items-center gap-2">
-        {backHref && <BackArrow href={backHref} className="-ml-2" />}
+        {backHref && <BackArrow href={backHref} onBack={onBack} className="-ml-2" />}
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-lg font-semibold leading-tight">{title}</h1>
           {subtitle && (

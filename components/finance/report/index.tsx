@@ -136,7 +136,7 @@ export default function FinanceReportView({ report }: FinanceReportViewProps) {
             <a
               key={type}
               href={routes.api.financeExport(type, range.from, range.to)}
-              className="flex h-10 items-center justify-center gap-1.5 rounded-field border border-border text-sm font-medium capitalize transition-colors active:bg-surface-2"
+              className="flex h-11 items-center justify-center gap-1.5 rounded-field border border-border text-sm font-medium capitalize transition-colors active:bg-surface-2"
             >
               <Download className="h-4 w-4" /> {type}
             </a>

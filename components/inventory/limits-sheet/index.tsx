@@ -54,6 +54,7 @@ export default function LimitsSheet({ open, onOpenChange, items }: LimitsSheetPr
     <BottomSheet
       open={open}
       onOpenChange={onOpenChange}
+      guardUnsaved
       title="Low-stock limits"
       description="An item shows as “Needed” when stock is at or below its limit. Leave empty for no alert."
       footer={

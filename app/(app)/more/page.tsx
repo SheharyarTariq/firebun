@@ -54,8 +54,8 @@ const ADMIN_LINKS: MoreLink[] = [
   },
   {
     href: routes.ui.settings,
-    label: "Shop settings & printer",
-    description: "Delivery charge, receipt, printer",
+    label: "Shop settings",
+    description: "Delivery charge, receipt, discounts and rules",
     icon: Settings,
   },
 ];
@@ -141,7 +141,7 @@ export default async function MorePage() {
                   <p className="font-medium">{link.label}</p>
                   <p className="truncate text-xs text-muted">{link.description}</p>
                 </div>
-                <ChevronRight className="h-4 w-4 shrink-0 text-muted" />
+                <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />
               </Link>
             ))}
           </Card>

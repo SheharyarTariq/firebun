@@ -201,6 +201,7 @@ export default function MenuItemDetails({ details }: MenuItemDetailsProps) {
         itemId={item.id}
         variant={sheet?.type === "variant" ? sheet.variant : undefined}
         isDealPrice={isDeal}
+        sole={item.variants.length === 1}
       />
       <IngredientSheet
         key={`ingredient-${sheetKey}`}

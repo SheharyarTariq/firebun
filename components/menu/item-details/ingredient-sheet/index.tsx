@@ -3,10 +3,7 @@
 import { useMemo, useState, useTransition } from "react";
 import { Check, Search, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
-import {
-  removeRecipeLineAction,
-  setRecipeLineAction,
-} from "@/app/(app)/(admin)/menu/actions";
+import { setRecipeLineAction } from "@/app/(app)/(admin)/menu/actions";
 import BottomSheet from "@/components/common/BottomSheet";
 import Button from "@/components/common/Button";
 import Input from "@/components/common/Input";
@@ -21,10 +18,12 @@ import {
   formatMoney,
   formatQty,
   fromBaseQty,
+  parseNumberInput,
   type EntryUnit,
 } from "@/utils/helper";
 import { validateAndSetErrors } from "@/utils/validation";
 import { recipeLineSchema } from "../../schema";
+import RemoveIngredientSheet from "../remove-ingredient-sheet";
 
 interface IngredientSheetProps {
   open: boolean;
@@ -54,7 +53,11 @@ export default function IngredientSheet({
   line,
   inventory,
 }: IngredientSheetProps) {
-  const initial = line ? inventory.find((i) => i.id === line.inventoryItemId) ?? null : null;
+  // The picker list only holds active items; an archived ingredient still has to open its
+  // quantity editor (and be removable), so fall back to the line's own copy of the item.
+  const initial: InventoryChoice | null = line
+    ? inventory.find((i) => i.id === line.inventoryItemId) ?? { ...line.inventoryItem, currentQty: 0, usedIn: 0 }
+    : null;
   const [selected, setSelected] = useState<InventoryChoice | null>(initial);
   const [query, setQuery] = useState("");
   const [qty, setQty] = useState(
@@ -64,6 +67,7 @@ export default function IngredientSheet({
   const [alsoIds, setAlsoIds] = useState<Set<number>>(new Set());
   const [added, setAdded] = useState<string[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [confirmRemove, setConfirmRemove] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   // Lines added in this session count as used too, even before the server refresh lands.
@@ -90,7 +94,7 @@ export default function IngredientSheet({
 
   const handleSubmit = async () => {
     if (!variant || !selected) return;
-    const values = { inventoryItemId: selected.id, qty: Number(qty), unit, alsoVariantIds: [...alsoIds] };
+    const values = { inventoryItemId: selected.id, qty: parseNumberInput(qty), unit, alsoVariantIds: [...alsoIds] };
     if (!(await validateAndSetErrors(recipeLineSchema, values, setErrors))) return;
     const name = selected.name;
     startTransition(async () => {
@@ -101,7 +105,7 @@ export default function IngredientSheet({
         return;
       }
       if (line) {
-        toast.success("Quantity updated");
+        toast.success(`${name} updated`);
         onOpenChange(false);
         return;
       }
@@ -113,26 +117,13 @@ export default function IngredientSheet({
     });
   };
 
-  const handleRemove = () => {
-    if (!line) return;
-    startTransition(async () => {
-      const result = await callAction(removeRecipeLineAction(line.id));
-      if (!result.ok) {
-        toast.error(result.error);
-        return;
-      }
-      toast.success("Ingredient removed");
-      onOpenChange(false);
-    });
-  };
-
   const sizeLabel = variant ? (variant.name === "Regular" ? itemName : `${itemName} · ${variant.name}`) : itemName;
   const title = line ? `Edit ${line.inventoryItem.name}` : selected ? `How much ${selected.name}?` : "Add ingredient";
 
   const footer = selected ? (
     <div className="flex gap-2">
       {line && (
-        <Button variant="outline" size="lg" aria-label="Remove ingredient" className="px-4 text-danger" isLoading={isPending} onClick={handleRemove}>
+        <Button variant="outline" size="lg" aria-label="Remove ingredient" className="px-4 text-danger" disabled={isPending} onClick={() => setConfirmRemove(true)}>
           <Trash2 className="h-5 w-5" />
         </Button>
       )}
@@ -147,7 +138,16 @@ export default function IngredientSheet({
   ) : undefined;
 
   return (
-    <BottomSheet open={open} onOpenChange={onOpenChange} title={title} description={`For one ${sizeLabel}`} footer={footer}>
+    <>
+    {line && (
+      <RemoveIngredientSheet
+        open={confirmRemove}
+        onOpenChange={setConfirmRemove}
+        line={line}
+        onRemoved={() => onOpenChange(false)}
+      />
+    )}
+    <BottomSheet open={open && !confirmRemove} onOpenChange={onOpenChange} title={title} description={`For one ${sizeLabel}`} footer={footer}>
       {!selected ? (
         <div className="space-y-3">
           {added.length > 0 && (
@@ -218,7 +218,7 @@ export default function IngredientSheet({
       ) : (
         <div className="space-y-4">
           {!line && (
-            <button type="button" className="text-sm text-muted underline" onClick={() => setSelected(null)}>
+            <button type="button" className="-my-2 py-2 text-sm text-muted underline" onClick={() => setSelected(null)}>
               Choose a different ingredient
             </button>
           )}
@@ -292,5 +292,6 @@ export default function IngredientSheet({
         </div>
       )}
     </BottomSheet>
+    </>
   );
 }

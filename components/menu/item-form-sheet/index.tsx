@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useId, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2 } from "lucide-react";
+import { List, Plus, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
 import {
   createCategoryAction,
@@ -20,6 +20,7 @@ import Textarea from "@/components/common/Textarea";
 import Toggle from "@/components/common/Toggle";
 import type { MenuCategory, MenuItem, MenuItemKind } from "@/db/schema";
 import { callAction } from "@/utils/call-action";
+import { parseNumberInput } from "@/utils/helper";
 import { routes } from "@/utils/routes";
 import { validateAndSetErrors } from "@/utils/validation";
 import { createMenuItemSchema, updateMenuItemSchema } from "../schema";
@@ -77,6 +78,7 @@ export default function ItemFormSheet({ open, onOpenChange, categories, item, de
   const [creatingCategory, setCreatingCategory] = useState(activeCategories.length === 0);
   const [newCategory, setNewCategory] = useState("");
   const [categoryPending, setCategoryPending] = useState(false);
+  const newCategoryId = useId();
 
   const handleAddCategory = () => {
     const value = newCategory.trim();
@@ -137,7 +139,7 @@ export default function ItemFormSheet({ open, onOpenChange, categories, item, de
           toast.error(result.error);
           return;
         }
-        toast.success("Item updated");
+        toast.success(`${name.trim()} updated`);
         onOpenChange(false);
       });
       return;
@@ -148,7 +150,8 @@ export default function ItemFormSheet({ open, onOpenChange, categories, item, de
       name,
       kind,
       description: description.trim() || undefined,
-      variants: rows.map((r) => ({ name: r.name, price: Number(r.price) })),
+      // One size has no name field: it is "Regular", which the bill and cart leave out.
+      variants: rows.map((r) => ({ name: rows.length === 1 ? "Regular" : r.name, price: parseNumberInput(r.price) })),
     };
     if (!(await validateAndSetErrors(createMenuItemSchema, values, setErrors))) return;
     startTransition(async () => {
@@ -197,10 +200,10 @@ export default function ItemFormSheet({ open, onOpenChange, categories, item, de
       <ConfirmSheet
         open={confirmDelete}
         onOpenChange={(next) => !next && setConfirmDelete(false)}
-        title={`Delete ${item.name}?`}
+        title={blockedReason ? `${item.name} can’t be deleted` : `Delete ${item.name}?`}
         description={blockedReason ?? "Its sizes, prices, recipes and deal contents are deleted with it. This cannot be undone."}
-        confirmLabel="Delete"
-        destructive
+        confirmLabel={blockedReason ? "OK" : "Delete"}
+        destructive={!blockedReason}
         isLoading={isPending}
         onConfirm={blockedReason ? () => setConfirmDelete(false) : handleDelete}
       />
@@ -208,6 +211,7 @@ export default function ItemFormSheet({ open, onOpenChange, categories, item, de
     <BottomSheet
       open={open && !confirmDelete}
       onOpenChange={onOpenChange}
+      guardUnsaved
       title={isEdit ? "Edit item" : kind === "deal" ? "New deal" : "New menu item"}
       footer={
         <div className="flex gap-2">
@@ -254,10 +258,29 @@ export default function ItemFormSheet({ open, onOpenChange, categories, item, de
         />
 
         {creatingCategory ? (
-          <div className="space-y-2">
-            <div className="flex items-end gap-2">
+          <div>
+            {/* The way back sits beside the label, where the eye lands when the field swaps. */}
+            <div className="mb-1.5 flex items-center justify-between gap-2">
+              <label htmlFor={newCategoryId} className="text-sm font-medium">
+                New category
+              </label>
+              {activeCategories.length > 0 && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  startIcon={<List className="h-4 w-4" />}
+                  onClick={() => {
+                    setCreatingCategory(false);
+                    clearError("categoryId");
+                  }}
+                >
+                  Choose existing
+                </Button>
+              )}
+            </div>
+            <div className="flex items-start gap-2">
               <Input
-                label="New category"
+                id={newCategoryId}
                 placeholder="e.g. Burgers"
                 autoComplete="off"
                 autoCapitalize="words"
@@ -280,19 +303,6 @@ export default function ItemFormSheet({ open, onOpenChange, categories, item, de
                 Add
               </Button>
             </div>
-            {activeCategories.length > 0 && (
-              <Button
-                size="sm"
-                variant="ghost"
-                className="-ml-3 text-muted"
-                onClick={() => {
-                  setCreatingCategory(false);
-                  clearError("categoryId");
-                }}
-              >
-                Choose an existing category
-              </Button>
-            )}
           </div>
         ) : (
           <Select
@@ -340,7 +350,7 @@ export default function ItemFormSheet({ open, onOpenChange, categories, item, de
                   options={SIZE_TEMPLATES.map((t) => ({ value: t.label, label: t.label }))}
                   placeholder="Template"
                   containerClassName="w-40"
-                  className="h-9 text-sm"
+                  className="h-11 text-sm"
                   value=""
                   onChange={(e) => {
                     const template = SIZE_TEMPLATES.find((t) => t.label === e.target.value);
@@ -353,7 +363,7 @@ export default function ItemFormSheet({ open, onOpenChange, categories, item, de
             <div className="space-y-2">
               {rows.map((row, index) => (
                 <div key={row.key} className="flex items-start gap-2">
-                  {kind === "single" && (
+                  {kind === "single" && rows.length > 1 && (
                     <Input
                       aria-label="Size name"
                       placeholder="Size"
@@ -374,8 +384,9 @@ export default function ItemFormSheet({ open, onOpenChange, categories, item, de
                   {kind === "single" && rows.length > 1 && (
                     <Button
                       variant="ghost"
+                      size="icon"
                       aria-label={`Remove ${row.name || `size ${index + 1}`}`}
-                      className="h-12 px-2.5 text-danger"
+                      className="h-12 text-danger"
                       onClick={() => setRows((prev) => prev.filter((r) => r.key !== row.key))}
                     >
                       <Trash2 className="h-4 w-4" />

@@ -1,6 +1,7 @@
 "use client";
 
 import { Bluetooth, Check, ExternalLink, Printer, Smartphone } from "lucide-react";
+import toast from "react-hot-toast";
 import Badge from "@/components/common/Badge";
 import Button from "@/components/common/Button";
 import { RAWBT_PLAY_URL } from "@/utils/printing/adapters/rawbt";
@@ -59,7 +60,7 @@ export default function PrinterPanel({ onReady, hideTestPrint = false }: Printer
 
   return (
     <div className="space-y-4">
-      <div className="space-y-2">
+      <div role="radiogroup" aria-label="How this phone prints" className="space-y-2">
         {OPTIONS.map((option) => {
           const active = prefs.transport === option.value;
           const unsupported = option.value === "bluetooth" && !printer.bluetoothSupported;
@@ -67,6 +68,8 @@ export default function PrinterPanel({ onReady, hideTestPrint = false }: Printer
             <button
               key={option.value}
               type="button"
+              role="radio"
+              aria-checked={active}
               disabled={unsupported}
               onClick={() => choose(option.value)}
               className={cn(
@@ -109,7 +112,13 @@ export default function PrinterPanel({ onReady, hideTestPrint = false }: Printer
               {printer.bluetoothConnected ? "Pair a different printer" : "Pair printer"}
             </Button>
             {printer.bluetoothConnected && (
-              <Button variant="outline" onClick={printer.unpairBluetooth}>
+              <Button
+                variant="outline"
+                onClick={async () => {
+                  await printer.unpairBluetooth();
+                  toast.success("Printer disconnected");
+                }}
+              >
                 Disconnect
               </Button>
             )}
@@ -146,6 +155,11 @@ export default function PrinterPanel({ onReady, hideTestPrint = false }: Printer
         >
           Test print
         </Button>
+      )}
+      {!hideTestPrint && (!printer.isConfigured || printer.needsPairing) && (
+        <p className="-mt-2 text-center text-xs text-muted">
+          {!printer.isConfigured ? "Choose how this phone prints to enable a test print." : "Pair the printer first to enable a test print."}
+        </p>
       )}
     </div>
   );

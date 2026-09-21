@@ -11,7 +11,7 @@ import ConfirmSheet from "@/components/common/ConfirmSheet";
 import Input from "@/components/common/Input";
 import type { ExpenseRow } from "@/server/expenses/queries";
 import { callAction } from "@/utils/call-action";
-import { formatMoney } from "@/utils/helper";
+import { formatMoney, parseNumberInput } from "@/utils/helper";
 import { validateAndSetErrors } from "@/utils/validation";
 import { expenseSchema, type ExpenseFormInput } from "../schema";
 
@@ -50,7 +50,7 @@ export default function ExpenseSheet({ open, onOpenChange, expense, categories, 
   const category = categoryChip === OTHER ? customCategory : categoryChip;
 
   const handleSubmit = async () => {
-    const values: ExpenseFormInput = { category, amount: Number(amount), description, expenseDate: date };
+    const values: ExpenseFormInput = { category, amount: parseNumberInput(amount), description, expenseDate: date };
     if (!(await validateAndSetErrors(expenseSchema, values, setErrors))) return;
     startTransition(async () => {
       const result = expense ? await callAction(updateExpenseAction(expense.id, values)) : await callAction(createExpenseAction(values));
@@ -95,6 +95,7 @@ export default function ExpenseSheet({ open, onOpenChange, expense, categories, 
     <BottomSheet
       open={open && !confirmDelete}
       onOpenChange={onOpenChange}
+      guardUnsaved
       title={isEdit ? "Edit expense" : "New expense"}
       footer={
         <div className="flex gap-2">

@@ -1,6 +1,6 @@
 "use client";
 
-import { Minus, Plus } from "lucide-react";
+import { Minus, Plus, Trash2 } from "lucide-react";
 import { cn } from "@/utils/cn";
 
 interface NumberStepperProps {
@@ -11,6 +11,8 @@ interface NumberStepperProps {
   step?: number;
   size?: "sm" | "md";
   disabled?: boolean;
+  /** When "−" at 1 would drop the quantity to 0 (min 0), show a trash icon so it reads as "remove". */
+  removeAtOne?: boolean;
   className?: string;
   "aria-label"?: string;
 }
@@ -24,12 +26,14 @@ export default function NumberStepper({
   step = 1,
   size = "md",
   disabled = false,
+  removeAtOne = false,
   className,
   "aria-label": ariaLabel = "Quantity",
 }: NumberStepperProps) {
   const canDecrement = !disabled && value - step >= min;
   const canIncrement = !disabled && value + step <= max;
   const buttonSize = size === "sm" ? "h-9 w-9" : "h-11 w-11";
+  const removes = removeAtOne && min === 0 && value === 1;
 
   return (
     <div
@@ -42,15 +46,16 @@ export default function NumberStepper({
     >
       <button
         type="button"
-        aria-label="Decrease"
+        aria-label={removes ? "Remove" : "Decrease"}
         disabled={!canDecrement}
         onClick={() => onChange(Math.max(min, value - step))}
         className={cn(
-          "flex items-center justify-center rounded-l-field text-foreground transition-colors active:bg-surface-2 disabled:opacity-30",
+          "flex items-center justify-center rounded-l-field transition-colors active:bg-surface-2 disabled:opacity-30",
+          removes ? "text-danger" : "text-foreground",
           buttonSize
         )}
       >
-        <Minus className="h-4 w-4" />
+        {removes ? <Trash2 className="h-4 w-4" /> : <Minus className="h-4 w-4" />}
       </button>
       <span
         className={cn(

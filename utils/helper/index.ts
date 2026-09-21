@@ -33,6 +33,14 @@ export function toNumber(value: number | string | null | undefined): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+/**
+ * Reads a typed number field for validation. A blank field is `NaN` (so the schema says
+ * "X is required") rather than 0, which `Number("")` would give and a `min(0)` rule accepts.
+ */
+export function parseNumberInput(raw: string): number {
+  return raw.trim() === "" ? NaN : Number(raw);
+}
+
 /** Round to 2 decimals without floating-point drift (12.345 → 12.35). */
 export function roundMoney(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;

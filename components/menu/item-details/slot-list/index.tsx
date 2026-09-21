@@ -1,4 +1,4 @@
-import { Layers } from "lucide-react";
+import { Layers, Pencil } from "lucide-react";
 import Badge from "@/components/common/Badge";
 import Card from "@/components/common/Card";
 import EmptyState from "@/components/common/EmptyState";
@@ -47,6 +47,7 @@ export default function SlotList({ slots, onEdit }: SlotListProps) {
               </span>
             </span>
             {broken.length > 0 && <Badge variant="danger">{broken.length} unavailable</Badge>}
+            <Pencil aria-hidden className="h-4 w-4 shrink-0 text-muted" />
           </button>
         );
       })}

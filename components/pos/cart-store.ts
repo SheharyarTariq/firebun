@@ -48,8 +48,14 @@ export interface CartState {
   paymentMethod: PaymentMethod | null;
 
   addLine: (line: Omit<CartLine, "key">) => void;
-  replaceLines: (lines: Omit<CartLine, "key">[]) => void;
+  /** Starts a fresh cart with these lines; `details` carries over order type / customer (repeat order). */
+  replaceLines: (
+    lines: Omit<CartLine, "key">[],
+    details?: Partial<Pick<CartState, "orderType" | "customerName" | "customerPhone" | "deliveryAddress">>
+  ) => void;
   setQuantity: (key: string, quantity: number) => void;
+  /** Takes one unit off the newest line of an item (the grid's "−"); removes the line at 0. */
+  decrementItem: (menuItemId: number) => void;
   setLineNote: (key: string, note: string | null) => void;
   removeLine: (key: string) => void;
   setOrderType: (orderType: OrderType) => void;
@@ -109,8 +115,14 @@ export const useCart = create<CartState>()(
           return { lines: [...state.lines, { ...line, key: newId() }] };
         }),
 
-      replaceLines: (lines) =>
-        set({ ...emptyOrder(), lines: lines.map((l) => ({ ...l, key: newId() })) }),
+      replaceLines: (lines, details) =>
+        set({
+          ...emptyOrder(),
+          ...details,
+          // Same rule as setOrderType: delivery is paid on delivery, counter orders now.
+          ...(details?.orderType === "delivery" ? { paymentMethod: null } : {}),
+          lines: lines.map((l) => ({ ...l, key: newId() })),
+        }),
 
       setQuantity: (key, quantity) =>
         set((state) => ({
@@ -119,6 +131,18 @@ export const useCart = create<CartState>()(
               ? state.lines.filter((l) => l.key !== key)
               : state.lines.map((l) => (l.key === key ? { ...l, quantity } : l)),
         })),
+
+      decrementItem: (menuItemId) =>
+        set((state) => {
+          const target = state.lines.findLast((l) => l.menuItemId === menuItemId);
+          if (!target) return state;
+          return {
+            lines:
+              target.quantity <= 1
+                ? state.lines.filter((l) => l.key !== target.key)
+                : state.lines.map((l) => (l.key === target.key ? { ...l, quantity: l.quantity - 1 } : l)),
+          };
+        }),
 
       setLineNote: (key, note) =>
         set((state) => ({

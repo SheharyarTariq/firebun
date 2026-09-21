@@ -7,6 +7,8 @@ import { cn } from "@/utils/cn";
 interface BackArrowProps {
   /** The screen one level up (orders list for an order, More for settings…). */
   href: string;
+  /** Replaces the navigation, e.g. to ask "Leave without saving?" first. */
+  onBack?: () => void;
   className?: string;
 }
 
@@ -14,9 +16,9 @@ interface BackArrowProps {
  * Goes "up", not "back": a detail page opened from the counter's confirmation strip or a
  * home-screen shortcut still lands on its list, which is what the header arrow promises.
  */
-export default function BackArrow({ href, className }: BackArrowProps) {
+export default function BackArrow({ href, onBack, className }: BackArrowProps) {
   const router = useRouter();
-  const handleClick = () => router.push(href);
+  const handleClick = () => (onBack ? onBack() : router.push(href));
 
   return (
     <button

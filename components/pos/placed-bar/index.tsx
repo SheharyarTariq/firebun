@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { Check, ChevronRight, Printer, TriangleAlert, X } from "lucide-react";
 import Loader from "@/components/common/Loader";
+import { cn } from "@/utils/cn";
 import { formatMoney, formatOrderNumber } from "@/utils/helper";
 import { routes } from "@/utils/routes";
 
@@ -15,9 +16,13 @@ export interface PlacedOrder {
   duplicate: boolean;
 }
 
+/** How the last print of this order went, so the bar can say so instead of always offering "Print". */
+export type PrintOutcome = "printed" | "failed" | null;
+
 interface PlacedBarProps {
   placed: PlacedOrder;
   printing: boolean;
+  printOutcome?: PrintOutcome;
   onPrint: () => void;
   onDismiss: () => void;
 }
@@ -26,13 +31,17 @@ const SHORT_MS = 8_000;
 const WITH_WARNINGS_MS = 20_000;
 
 /** Confirmation strip above the tab bar after an order is placed; the counter stays put. */
-export default function PlacedBar({ placed, printing, onPrint, onDismiss }: PlacedBarProps) {
+export default function PlacedBar({ placed, printing, printOutcome = null, onPrint, onDismiss }: PlacedBarProps) {
   const hasWarnings = placed.warnings.length > 0;
+  // A failed print stays up long enough to be noticed and retried.
+  const lingers = hasWarnings || printOutcome === "failed";
 
   useEffect(() => {
-    const timer = setTimeout(onDismiss, hasWarnings ? WITH_WARNINGS_MS : SHORT_MS);
+    // Restarts on every print attempt so the bar never vanishes mid-print.
+    if (printing) return;
+    const timer = setTimeout(onDismiss, lingers ? WITH_WARNINGS_MS : SHORT_MS);
     return () => clearTimeout(timer);
-  }, [placed.orderId, hasWarnings, onDismiss]);
+  }, [placed.orderId, lingers, printing, printOutcome, onDismiss]);
 
   return (
     <div className="fixed inset-x-0 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-30 px-4 pb-2">
@@ -53,14 +62,25 @@ export default function PlacedBar({ placed, printing, onPrint, onDismiss }: Plac
             type="button"
             onClick={onPrint}
             disabled={printing}
-            className="flex h-10 items-center gap-1.5 rounded-field px-2.5 text-sm font-semibold text-brand transition-colors active:bg-white/10 disabled:opacity-60"
+            className={cn(
+              "flex h-11 items-center gap-1.5 rounded-field px-2.5 text-sm font-semibold transition-colors active:bg-white/10 disabled:opacity-60",
+              printOutcome === "failed" ? "text-warning-bg" : "text-brand"
+            )}
           >
-            {printing ? <Loader size="sm" /> : <Printer className="h-4 w-4" />}
-            Print
+            {printing ? (
+              <Loader size="sm" />
+            ) : printOutcome === "printed" ? (
+              <Check className="h-4 w-4" />
+            ) : printOutcome === "failed" ? (
+              <TriangleAlert className="h-4 w-4" />
+            ) : (
+              <Printer className="h-4 w-4" />
+            )}
+            {printOutcome === "printed" ? "Printed" : printOutcome === "failed" ? "Retry" : "Print"}
           </button>
           <Link
             href={routes.ui.orderDetails(placed.orderId)}
-            className="flex h-10 items-center gap-0.5 rounded-field px-2 text-sm font-semibold transition-colors active:bg-white/10"
+            className="ml-1 flex h-11 items-center gap-0.5 rounded-field px-2 text-sm font-semibold transition-colors active:bg-white/10"
           >
             Open
             <ChevronRight className="h-4 w-4" />
@@ -69,7 +89,7 @@ export default function PlacedBar({ placed, printing, onPrint, onDismiss }: Plac
             type="button"
             aria-label="Dismiss"
             onClick={onDismiss}
-            className="flex h-10 w-9 items-center justify-center rounded-field text-ink-muted transition-colors active:bg-white/10"
+            className="flex h-11 w-10 items-center justify-center rounded-field text-ink-muted transition-colors active:bg-white/10"
           >
             <X className="h-4 w-4" />
           </button>

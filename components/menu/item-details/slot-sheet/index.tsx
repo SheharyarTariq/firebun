@@ -75,6 +75,13 @@ export default function SlotSheet({ open, onOpenChange, dealVariantId, slot, cho
     return [...map.entries()];
   }, [filtered]);
 
+  // Saved options whose item or size has since been hidden are missing from `choices`; they are
+  // still counted, so they are listed here to be untickable.
+  const unavailable = useMemo(
+    () => (slot?.options ?? []).filter((o) => !choices.some((c) => c.variantId === o.variant.id)),
+    [slot, choices]
+  );
+
   const toggle = (id: number) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -106,7 +113,7 @@ export default function SlotSheet({ open, onOpenChange, dealVariantId, slot, cho
         toast.error(result.error);
         return;
       }
-      toast.success(slot ? "Slot saved" : "Slot added");
+      toast.success(`Slot “${label.trim()}” ${slot ? "saved" : "added"}`);
       onOpenChange(false);
     });
   };
@@ -132,6 +139,7 @@ export default function SlotSheet({ open, onOpenChange, dealVariantId, slot, cho
         open={confirmDelete}
         onOpenChange={(next) => !next && setConfirmDelete(false)}
         title={`Remove “${slot.label}” from this deal?`}
+        description="Customers will no longer get this with the deal. Past orders are not affected."
         confirmLabel="Remove"
         destructive
         isLoading={isPending}
@@ -141,6 +149,7 @@ export default function SlotSheet({ open, onOpenChange, dealVariantId, slot, cho
     <BottomSheet
       open={open && !confirmDelete}
       onOpenChange={onOpenChange}
+      guardUnsaved
       title={slot ? `Edit slot — ${slot.label}` : "New slot"}
       description="What the customer gets, and what they may choose from."
       footer={
@@ -187,7 +196,7 @@ export default function SlotSheet({ open, onOpenChange, dealVariantId, slot, cho
             <span className="text-sm font-medium">Customer can choose from</span>
             <button
               type="button"
-              className="text-xs font-medium text-brand-text"
+              className="-my-3 py-3 pl-3 text-xs font-medium text-brand-text"
               onClick={selectAllShown}
             >
               Select all shown ({filtered.length})
@@ -195,6 +204,30 @@ export default function SlotSheet({ open, onOpenChange, dealVariantId, slot, cho
           </div>
           {errors.optionVariantIds && (
             <p className="text-xs text-danger">{errors.optionVariantIds}</p>
+          )}
+          {unavailable.length > 0 && (
+            <div className="space-y-1">
+              <p className="px-1 text-xs font-semibold uppercase tracking-wide text-warning">No longer available</p>
+              <ul className="divide-y divide-border rounded-field border border-warning/40 bg-warning-bg">
+                {unavailable.map((o) => (
+                  <li key={o.variant.id}>
+                    <label className="flex cursor-pointer items-center gap-3 px-3 py-2.5 text-sm">
+                      <input
+                        type="checkbox"
+                        className="h-5 w-5 accent-brand-strong"
+                        checked={selectedIds.has(o.variant.id)}
+                        onChange={() => toggle(o.variant.id)}
+                      />
+                      <span className="min-w-0 flex-1 truncate">
+                        {o.variant.name === "Regular" ? o.variant.item.name : `${o.variant.item.name} · ${o.variant.name}`}
+                        <span className="text-muted"> · {o.variant.item.isActive ? "size hidden" : "item hidden"}</span>
+                      </span>
+                    </label>
+                  </li>
+                ))}
+              </ul>
+              <p className="px-1 text-xs text-muted">Customers can’t pick these. Untick to take them out of the slot.</p>
+            </div>
           )}
           <Input
             type="search"

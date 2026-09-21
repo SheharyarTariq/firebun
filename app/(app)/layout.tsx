@@ -1,4 +1,5 @@
 import BottomNav, { type NavBadge } from "@/components/layout/bottom-nav";
+import OfflineBanner from "@/components/layout/offline-banner";
 import { getCurrentUser } from "@/server/auth/dal";
 import { countInventoryAttention } from "@/server/inventory/queries";
 import { countItemsWithoutRecipe } from "@/server/menu/queries";
@@ -36,6 +37,7 @@ export default async function AppLayout({
 
   return (
     <div className="flex min-h-dvh flex-col">
+      <OfflineBanner />
       <div className="flex flex-1 flex-col pb-[calc(4.25rem+env(safe-area-inset-bottom))]">
         {children}
       </div>

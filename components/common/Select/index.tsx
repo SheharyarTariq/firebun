@@ -35,6 +35,7 @@ export default function Select({
 }: SelectProps) {
   const generatedId = useId();
   const selectId = id ?? generatedId;
+  const messageId = `${selectId}-message`;
   const isControlled = value !== undefined;
 
   return (
@@ -48,6 +49,7 @@ export default function Select({
         <select
           id={selectId}
           aria-invalid={error ? true : undefined}
+          aria-describedby={error || hint ? messageId : undefined}
           value={value}
           defaultValue={!isControlled ? (defaultValue ?? (placeholder ? "" : undefined)) : undefined}
           className={cn(
@@ -73,9 +75,13 @@ export default function Select({
         <ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-muted" />
       </div>
       {error ? (
-        <p className="mt-1 text-xs text-danger">{error}</p>
+        <p id={messageId} role="alert" className="mt-1 text-xs text-danger">
+          {error}
+        </p>
       ) : hint ? (
-        <p className="mt-1 text-xs text-muted">{hint}</p>
+        <p id={messageId} className="mt-1 text-xs text-muted">
+          {hint}
+        </p>
       ) : null}
     </div>
   );

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Wallet } from "lucide-react";
+import { Pencil, Wallet } from "lucide-react";
 import Badge from "@/components/common/Badge";
 import Card from "@/components/common/Card";
 import EmptyState from "@/components/common/EmptyState";
@@ -73,6 +73,7 @@ export default function ExpensesList({ rows, total, categories, today, canAdd, c
                   <span className="mt-1 block truncate text-sm">{expense.description}</span>
                 </span>
                 <span className="shrink-0 font-semibold tabular-nums">{formatMoney(expense.amount)}</span>
+                {canEdit && <Pencil aria-hidden className="h-4 w-4 shrink-0 text-muted" />}
               </button>
             ))}
           </Card>

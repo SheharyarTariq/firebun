@@ -93,7 +93,7 @@ export default function PurchaseList({ purchases, item }: PurchaseListProps) {
                   {voided ? (
                     <Badge variant="danger">Voided</Badge>
                   ) : (
-                    <Button size="sm" variant="ghost" className="text-danger" aria-label="Delete purchase" onClick={() => setTarget(p)}>
+                    <Button size="icon" variant="ghost" className="-mr-2 text-danger" aria-label="Delete purchase" onClick={() => setTarget(p)}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   )}

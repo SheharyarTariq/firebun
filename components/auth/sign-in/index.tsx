@@ -22,6 +22,15 @@ export default function SignIn({ next }: SignInProps) {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [offline, setOffline] = useState(false);
+  // The "wrong password" banner belongs to the attempt that produced it; typing hides it.
+  const [dismissed, setDismissed] = useState<SignInState | null>(null);
+
+  const bannerError = offline
+    ? "No connection. Check your internet and try again."
+    : dismissed === state
+      ? undefined
+      : state.error;
 
   const emailError = errors.email || state.fieldErrors?.email;
   const passwordError = errors.password || state.fieldErrors?.password;
@@ -31,6 +40,12 @@ export default function SignIn({ next }: SignInProps) {
     if (!(await validateAndSetErrors(signInSchema, { email, password }, setErrors))) {
       return;
     }
+    // A failed request while offline would land on the error screen and lose what was typed.
+    if (typeof navigator !== "undefined" && !navigator.onLine) {
+      setOffline(true);
+      return;
+    }
+    setOffline(false);
 
     const formData = new FormData();
     formData.set("email", email);
@@ -55,6 +70,7 @@ export default function SignIn({ next }: SignInProps) {
         value={email}
         onChange={(event) => {
           setEmail(event.target.value);
+          setDismissed(state);
           if (errors.email) setErrors((prev) => ({ ...prev, email: "" }));
         }}
         error={emailError}
@@ -67,27 +83,29 @@ export default function SignIn({ next }: SignInProps) {
         placeholder="••••••••"
         startIcon={<LockKeyhole className="h-5 w-5" />}
         endIcon={
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="icon"
             aria-label={showPassword ? "Hide password" : "Show password"}
             aria-pressed={showPassword}
             onClick={() => setShowPassword((v) => !v)}
-            className="-m-2 flex h-9 w-9 items-center justify-center rounded-full text-muted active:bg-surface-2"
+            className="-mr-3 rounded-full text-muted"
           >
             {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-          </button>
+          </Button>
         }
         value={password}
         onChange={(event) => {
           setPassword(event.target.value);
+          setDismissed(state);
           if (errors.password) setErrors((prev) => ({ ...prev, password: "" }));
         }}
         error={passwordError}
       />
 
-      {state.error && (
+      {bannerError && (
         <p role="alert" className="rounded-field bg-danger-bg px-4 py-3 text-sm text-danger">
-          {state.error}
+          {bannerError}
         </p>
       )}
 

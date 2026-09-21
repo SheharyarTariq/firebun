@@ -14,6 +14,7 @@ import {
   entryQtyToBase,
   entryUnitOptions,
   formatQty,
+  parseNumberInput,
   type EntryUnit,
 } from "@/utils/helper";
 import { validateAndSetErrors } from "@/utils/validation";
@@ -46,7 +47,7 @@ export default function StockCountSheet({ open, onOpenChange, item }: StockCount
       : null;
 
   const handleSubmit = async () => {
-    const values: StockCountFormInput = { countedQty: Number(counted), unit, reason };
+    const values: StockCountFormInput = { countedQty: parseNumberInput(counted), unit, reason };
     if (!(await validateAndSetErrors(stockCountSchema, values, setErrors))) return;
 
     startTransition(async () => {
@@ -65,11 +66,14 @@ export default function StockCountSheet({ open, onOpenChange, item }: StockCount
     <BottomSheet
       open={open}
       onOpenChange={onOpenChange}
+      guardUnsaved
       title="Stock count"
       description={`${item.name} · currently ${formatQty(item.currentQty, item.baseUnit)}`}
       footer={
         <Button size="lg" className="w-full" isLoading={isPending} onClick={handleSubmit}>
-          Save
+          {countedNumber !== null && Number.isFinite(countedNumber) && countedNumber >= 0
+            ? `Set stock to ${formatQty(entryQtyToBase(item, countedNumber, unit), item.baseUnit)}`
+            : "Save"}
         </Button>
       }
     >

@@ -55,7 +55,8 @@ export default function RootLayout({
         <Toaster
           position="top-center"
           containerStyle={{ top: "calc(env(safe-area-inset-top) + 12px)" }}
-          toastOptions={{ duration: 3000, className: "text-sm" }}
+          // Errors stay longer: a failed save or print has to be read, not glimpsed.
+          toastOptions={{ duration: 3000, className: "text-sm", error: { duration: 6000 } }}
         />
       </body>
     </html>

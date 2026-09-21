@@ -92,6 +92,20 @@ export default function ItemFormSheet({
     clearError("baseUnit");
   };
 
+  // The limit and pack size are typed in the display unit, so switching it re-expresses what is
+  // already typed (5 kg → 5000 g) instead of silently reading "5" as 5 g.
+  const handleDisplayUnitChange = (next: DisplayUnit) => {
+    const rescale = (raw: string) => {
+      const n = toNumberOrNull(raw);
+      if (n === null || !Number.isFinite(n)) return raw;
+      return String(Number(((n * unitFactor(displayUnit)) / unitFactor(next)).toPrecision(12)));
+    };
+    setThreshold(rescale);
+    setPackSize(rescale);
+    setDisplayUnit(next);
+    clearError("displayUnit");
+  };
+
   const handleSubmit = async () => {
     // Threshold and pack size are typed in the display unit; the server stores base units.
     const factor = unitFactor(displayUnit);
@@ -117,7 +131,7 @@ export default function ItemFormSheet({
         toast.error(result.error);
         return;
       }
-      toast.success(item ? "Item updated" : "Item added");
+      toast.success(`${name.trim()} ${item ? "updated" : "added"}`);
       onOpenChange(false);
       if (!item && result.data) router.push(routes.ui.inventoryItemDetails(result.data.id));
     });
@@ -160,13 +174,13 @@ export default function ItemFormSheet({
       <ConfirmSheet
         open={confirmDelete}
         onOpenChange={(next) => !next && setConfirmDelete(false)}
-        title={`Delete ${item.name}?`}
+        title={blockedReason ? `${item.name} can’t be deleted` : `Delete ${item.name}?`}
         description={
           blockedReason ??
           (deleteConsequence ? `Its ${deleteConsequence} are deleted with it. This cannot be undone.` : "This cannot be undone.")
         }
-        confirmLabel="Delete"
-        destructive
+        confirmLabel={blockedReason ? "OK" : "Delete"}
+        destructive={!blockedReason}
         isLoading={isPending}
         onConfirm={blockedReason ? () => setConfirmDelete(false) : handleDelete}
       />
@@ -174,6 +188,7 @@ export default function ItemFormSheet({
     <BottomSheet
       open={open && !confirmDelete}
       onOpenChange={onOpenChange}
+      guardUnsaved
       title={isEdit ? "Edit item" : "New inventory item"}
       description={
         isEdit
@@ -226,10 +241,7 @@ export default function ItemFormSheet({
             label="Stock and prices shown per"
             options={displayOptions}
             value={displayUnit}
-            onChange={(e) => {
-              setDisplayUnit(e.target.value as DisplayUnit);
-              clearError("displayUnit");
-            }}
+            onChange={(e) => handleDisplayUnitChange(e.target.value as DisplayUnit)}
             error={errors.displayUnit}
           />
         )}

@@ -2,7 +2,7 @@ import Loader from "@/components/common/Loader";
 import { cn } from "@/utils/cn";
 
 export type ButtonVariant = "primary" | "secondary" | "outline" | "ghost" | "danger" | "header";
-export type ButtonSize = "sm" | "md" | "lg";
+export type ButtonSize = "sm" | "md" | "lg" | "icon";
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: ButtonVariant;
@@ -22,9 +22,12 @@ const VARIANT_STYLES: Record<ButtonVariant, string> = {
 };
 
 const SIZE_STYLES: Record<ButtonSize, string> = {
-  sm: "h-9 gap-1.5 rounded-lg px-3 text-sm",
+  // 36px to look, 44px to hit: the pseudo-element extends the tap area 4px above and below.
+  sm: "relative h-9 gap-1.5 rounded-lg px-3 text-sm after:absolute after:inset-x-0 after:-inset-y-1 after:content-['']",
   md: "h-11 gap-2 rounded-field px-4 text-sm",
   lg: "h-12 gap-2 rounded-field px-5 text-base",
+  /** Icon-only button: a full 44px square target. Always pass an `aria-label`. */
+  icon: "h-11 w-11 rounded-field p-0",
 };
 
 /** The only button used outside `components/common`. Minimum 44px tall for thumbs. */

@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Ban, Plus, Printer, RotateCcw, Trash2, Wallet } from "lucide-react";
+import { Ban, Phone, Plus, Printer, RotateCcw, Trash2, Wallet } from "lucide-react";
 import toast from "react-hot-toast";
 import { cancelOrderAction, deleteOrderAction, markOrderPaidAction } from "@/app/(app)/orders/actions";
 import Badge from "@/components/common/Badge";
@@ -33,19 +33,22 @@ interface OrderDetailsProps {
   viewer: { id: number; role: UserRole };
   /** Decided on the server (admin: always; staff: own order within the cancel window). */
   canCancel: boolean;
+  /** Why Cancel is missing (staff outside the window, someone else's order); shown instead of the button. */
+  cancelBlockedReason?: string | null;
   printKitchenCopy: boolean;
 }
 
 type Sheet = "paid" | "cancel" | "printer" | "repeat" | "delete" | null;
 
-export default function OrderDetails({ order, viewer, canCancel, printKitchenCopy }: OrderDetailsProps) {
+export default function OrderDetails({ order, viewer, canCancel, cancelBlockedReason, printKitchenCopy }: OrderDetailsProps) {
   const router = useRouter();
   const hydrated = useHydrated();
   const cartCount = useCart((s) => s.lines.length);
   const replaceLines = useCart((s) => s.replaceLines);
   const printer = usePrinter();
   const [sheet, setSheet] = useState<Sheet>(null);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
+  // No default: taking a payment is a decision, and "Cash" pre-picked hides a wrong tap.
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | "">("");
   const [reason, setReason] = useState("");
   const [restock, setRestock] = useState(true);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -55,6 +58,13 @@ export default function OrderDetails({ order, viewer, canCancel, printKitchenCop
   const childrenOf = (parentId: number) => order.items.filter((i) => i.parentOrderItemId === parentId);
   // Test or mistaken orders: admins may remove them once cancelled.
   const canDelete = viewer.role === "admin" && order.status === "cancelled";
+
+  const openCancel = () => {
+    setReason("");
+    setRestock(true);
+    setErrors({});
+    setSheet("cancel");
+  };
 
   const handleDelete = () => {
     startTransition(async () => {
@@ -69,6 +79,7 @@ export default function OrderDetails({ order, viewer, canCancel, printKitchenCop
   };
 
   const handleMarkPaid = async () => {
+    if (paymentMethod === "") return;
     if (!(await validateAndSetErrors(markPaidSchema, { paymentMethod }, setErrors))) return;
     startTransition(async () => {
       const result = await callAction(markOrderPaidAction(order.id, { paymentMethod }));
@@ -136,9 +147,14 @@ export default function OrderDetails({ order, viewer, canCancel, printKitchenCop
         })),
       };
     });
-    replaceLines(lines);
+    replaceLines(lines, {
+      orderType: order.orderType,
+      customerName: order.customerName ?? "",
+      customerPhone: order.customerPhone ?? "",
+      deliveryAddress: order.deliveryAddress ?? "",
+    });
     setSheet(null);
-    toast.success("Items copied to a new cart");
+    toast.success("Copied to a new cart — prices are checked again when you place it");
     router.push(routes.ui.pos);
   };
 
@@ -209,7 +225,14 @@ export default function OrderDetails({ order, viewer, canCancel, printKitchenCop
         {(order.customerName || order.customerPhone || order.deliveryAddress || order.note) && (
           <Card className="space-y-1 text-sm">
             {order.customerName && <p className="font-medium">{order.customerName}</p>}
-            {order.customerPhone && <p><a href={`tel:${order.customerPhone}`} className="underline">{order.customerPhone}</a></p>}
+            {order.customerPhone && (
+              <p>
+                <a href={`tel:${order.customerPhone}`} className="-my-1 inline-flex min-h-11 items-center gap-2 font-medium underline">
+                  <Phone aria-hidden className="h-4 w-4" />
+                  {order.customerPhone}
+                </a>
+              </p>
+            )}
             {order.deliveryAddress && <p className="text-muted">{order.deliveryAddress}</p>}
             {order.note && <p className="italic text-muted">“{order.note}”</p>}
           </Card>
@@ -220,9 +243,12 @@ export default function OrderDetails({ order, viewer, canCancel, printKitchenCop
             Repeat this order
           </Button>
           {canCancel && (
-            <Button variant="ghost" className="text-danger" startIcon={<Ban className="h-4 w-4" />} onClick={() => setSheet("cancel")}>
+            <Button variant="ghost" className="text-danger" startIcon={<Ban className="h-4 w-4" />} onClick={openCancel}>
               Cancel order
             </Button>
+          )}
+          {!canCancel && cancelBlockedReason && order.status !== "cancelled" && (
+            <p className="max-w-xs px-4 text-center text-xs text-muted">{cancelBlockedReason}</p>
           )}
           {canDelete && (
             <Button variant="ghost" className="text-danger" startIcon={<Trash2 className="h-4 w-4" />} onClick={() => setSheet("delete")}>
@@ -284,12 +310,12 @@ export default function OrderDetails({ order, viewer, canCancel, printKitchenCop
         title="Mark as paid"
         description={`${formatMoney(order.total)} received from the customer`}
         footer={
-          <Button size="lg" className="w-full" isLoading={isPending} onClick={handleMarkPaid}>
-            Confirm payment
+          <Button size="lg" className="w-full" isLoading={isPending} disabled={paymentMethod === ""} onClick={handleMarkPaid}>
+            {paymentMethod === "" ? "Pick how it was paid" : "Confirm payment"}
           </Button>
         }
       >
-        <Chips<PaymentMethod>
+        <Chips<PaymentMethod | "">
           aria-label="Payment method"
           value={paymentMethod}
           onChange={setPaymentMethod}
@@ -304,9 +330,14 @@ export default function OrderDetails({ order, viewer, canCancel, printKitchenCop
         title={`Cancel order ${formatOrderNumber(order.dailySeq)}?`}
         description="Cancelled orders are not counted as income."
         footer={
-          <Button size="lg" variant="danger" className="w-full" isLoading={isPending} onClick={handleCancel}>
-            Cancel order
-          </Button>
+          <div className="grid grid-cols-2 gap-3">
+            <Button size="lg" variant="outline" disabled={isPending} onClick={() => setSheet(null)}>
+              Keep order
+            </Button>
+            <Button size="lg" variant="danger" isLoading={isPending} onClick={handleCancel}>
+              Cancel order
+            </Button>
+          </div>
         }
       >
         <div className="space-y-4">

@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { Drawer } from "vaul";
+import Button from "@/components/common/Button";
 import { cn } from "@/utils/cn";
 
 interface BottomSheetProps {
@@ -13,22 +14,22 @@ interface BottomSheetProps {
   /** Sticky footer (e.g. the primary button) rendered outside the scroll area. */
   footer?: React.ReactNode;
   className?: string;
+  /**
+   * Form sheets: once the user has typed or picked something, a swipe-down, tap outside or
+   * Escape asks "Discard changes?" instead of silently throwing the input away. Closing from
+   * the parent (after a save) is never intercepted. Only for sheets the parent remounts with
+   * a new `key` on each open (the "edited" flag is not reset otherwise).
+   */
+  guardUnsaved?: boolean;
 }
 
-/**
- * Native-feeling bottom sheet (vaul). Used for pickers, forms and confirmations.
- * Mark the field to focus with `data-autofocus="true"`: it is focused once the sheet has
- * finished sliding in, so the keyboard does not fight the animation.
- */
-export default function BottomSheet({
-  open,
-  onOpenChange,
-  title,
-  description,
-  children,
-  footer,
-  className,
-}: BottomSheetProps) {
+interface SheetProps extends Omit<BottomSheetProps, "guardUnsaved"> {
+  /** Fires when something inside the scroll area is edited (used by `guardUnsaved`). */
+  onEdit?: () => void;
+}
+
+/** The plain vaul sheet; `BottomSheet` wraps it with the unsaved-changes guard. */
+function Sheet({ open, onOpenChange, title, description, children, footer, className, onEdit }: SheetProps) {
   const contentRef = useRef<HTMLDivElement>(null);
 
   return (
@@ -65,7 +66,14 @@ export default function BottomSheet({
             )}
           </div>
 
-          <div className="flex-1 overflow-y-auto px-5 py-4">{children}</div>
+          {/* Search boxes filter a list; typing in one is not an edit worth guarding. */}
+          <div
+            className="flex-1 overflow-y-auto px-5 py-4"
+            onInput={(e) => (e.target as HTMLInputElement).type !== "search" && onEdit?.()}
+            onChange={(e) => (e.target as HTMLInputElement).type !== "search" && onEdit?.()}
+          >
+            {children}
+          </div>
 
           {footer && (
             <div className="shrink-0 border-t border-border bg-surface px-5 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
@@ -76,5 +84,63 @@ export default function BottomSheet({
         </Drawer.Content>
       </Drawer.Portal>
     </Drawer.Root>
+  );
+}
+
+/**
+ * Native-feeling bottom sheet (vaul). Used for pickers, forms and confirmations.
+ * Mark the field to focus with `data-autofocus="true"`: it is focused once the sheet has
+ * finished sliding in, so the keyboard does not fight the animation.
+ */
+export default function BottomSheet({ guardUnsaved = false, open, onOpenChange, ...sheet }: BottomSheetProps) {
+  // Parents remount form sheets with a new `key` on each open, so this starts clean every time.
+  const [edited, setEdited] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+
+  if (!guardUnsaved) return <Sheet {...sheet} open={open} onOpenChange={onOpenChange} />;
+
+  const handleOpenChange = (next: boolean) => {
+    if (!next && edited) {
+      setConfirming(true);
+      return;
+    }
+    onOpenChange(next);
+  };
+
+  return (
+    <>
+      <Sheet
+        {...sheet}
+        open={open && !confirming}
+        onOpenChange={handleOpenChange}
+        onEdit={() => setEdited(true)}
+      />
+      <Sheet
+        open={open && confirming}
+        onOpenChange={(next) => !next && setConfirming(false)}
+        title="Discard changes?"
+        description="What you entered here has not been saved."
+        footer={
+          <div className="grid grid-cols-2 gap-3">
+            <Button variant="outline" size="lg" onClick={() => setConfirming(false)}>
+              Keep editing
+            </Button>
+            <Button
+              variant="danger"
+              size="lg"
+              onClick={() => {
+                setConfirming(false);
+                setEdited(false);
+                onOpenChange(false);
+              }}
+            >
+              Discard
+            </Button>
+          </div>
+        }
+      >
+        {null}
+      </Sheet>
+    </>
   );
 }

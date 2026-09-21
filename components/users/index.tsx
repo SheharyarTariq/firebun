@@ -110,7 +110,7 @@ function UserList({ users, currentUserId, onSelect }: UserListProps) {
           <Badge variant={user.role === "admin" ? "brand" : "neutral"}>
             {user.role === "admin" ? "Admin" : "Staff"}
           </Badge>
-          <ChevronRight className="h-4 w-4 shrink-0 text-muted" />
+          <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />
         </button>
       ))}
     </Card>

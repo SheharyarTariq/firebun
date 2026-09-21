@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useOptimistic, useState } from "react";
-import { BluetoothOff, Search, ShoppingBag } from "lucide-react";
+import { BluetoothOff, Search, ShoppingBag, X } from "lucide-react";
 import toast from "react-hot-toast";
+import Button from "@/components/common/Button";
 import Chips from "@/components/common/Chips";
 import EmptyState from "@/components/common/EmptyState";
 import Input from "@/components/common/Input";
@@ -19,7 +20,7 @@ import { quantitiesByItem, useCart, useHydrated } from "./cart-store";
 import DealSheet from "./deal-sheet";
 import ItemCard from "./item-card";
 import ItemSheet from "./item-sheet";
-import PlacedBar, { type PlacedOrder } from "./placed-bar";
+import PlacedBar, { type PlacedOrder, type PrintOutcome } from "./placed-bar";
 
 export interface PosSettings {
   defaultDeliveryCharge: number;
@@ -62,11 +63,13 @@ export default function PosScreen({ catalog: serverCatalog, settings, user, busi
   const [sheetKey, setSheetKey] = useState(0);
 
   const [placed, setPlaced] = useState<PlacedOrder | null>(null);
+  const [printOutcome, setPrintOutcome] = useState<PrintOutcome>(null);
   const [pendingPrint, setPendingPrint] = useState<number | null>(null);
 
   const hydrated = useHydrated();
   const lines = useCart((s) => s.lines);
   const addLine = useCart((s) => s.addLine);
+  const decrementItem = useCart((s) => s.decrementItem);
   const printer = usePrinter();
 
   const inCart = useMemo(() => (hydrated ? quantitiesByItem(lines) : NO_QUANTITIES), [hydrated, lines]);
@@ -123,11 +126,13 @@ export default function PosScreen({ catalog: serverCatalog, settings, user, busi
     }
     const id = toast.loading("Printing bill…");
     const ok = await printer.print(orderId, { kitchenCopy: settings.printKitchenCopy, quiet: true });
+    setPrintOutcome(ok ? "printed" : "failed");
     if (ok) toast.success("Bill printed", { id });
     else toast.dismiss(id);
   };
 
   const handlePlaced = async (result: PlaceOrderResult) => {
+    setPrintOutcome(null);
     setPlaced({ orderId: result.orderId, dailySeq: result.dailySeq, total: result.total, warnings: result.warnings, duplicate: result.duplicate });
     if (!settings.autoPrintOnPlace || result.duplicate || !printer.isConfigured) return;
     // Still inside the tap's activation window, so Bluetooth / RawBT are allowed to print.
@@ -168,23 +173,37 @@ export default function PosScreen({ catalog: serverCatalog, settings, user, busi
         }
       />
 
-      <div className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-20 space-y-1 bg-background px-4 pb-1 pt-3">
+      {/* Search scrolls away with the grid; only the category chips stay pinned under the header. */}
+      <div className="mx-auto w-full max-w-6xl px-4 pt-3">
         <Input
           type="search"
           placeholder="Search menu"
           startIcon={<Search className="h-5 w-5" />}
+          endIcon={
+            query !== "" && (
+              <Button size="icon" variant="ghost" aria-label="Clear search" className="-mr-3 h-10 w-10" onClick={() => setQuery("")}>
+                <X className="h-4 w-4" />
+              </Button>
+            )
+          }
+          className="[&::-webkit-search-cancel-button]:hidden"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        <Chips
-          aria-label="Category"
-          value={categoryId}
-          onChange={setCategoryId}
-          options={[{ value: ALL, label: "All" }, ...catalog.map((c) => ({ value: String(c.id), label: c.name }))]}
-        />
       </div>
 
-      <div className="px-4 pb-28">
+      <div className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-20 bg-background">
+        <div className="mx-auto w-full max-w-6xl px-4 py-1">
+          <Chips
+            aria-label="Category"
+            value={categoryId}
+            onChange={setCategoryId}
+            options={[{ value: ALL, label: "All" }, ...catalog.map((c) => ({ value: String(c.id), label: c.name }))]}
+          />
+        </div>
+      </div>
+
+      <div className="mx-auto w-full max-w-6xl px-4 pb-28">
         {items.length === 0 ? (
           <EmptyState
             icon={ShoppingBag}
@@ -196,13 +215,14 @@ export default function PosScreen({ catalog: serverCatalog, settings, user, busi
             }
           />
         ) : (
-          <div className="grid grid-cols-2 gap-3 pt-2">
+          <div className="grid grid-cols-2 gap-3 pt-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {items.map((item) => (
               <ItemCard
                 key={item.id}
                 item={item}
                 inCart={inCart.get(item.id) ?? 0}
                 onTap={() => handleTap(item)}
+                onDecrement={() => decrementItem(item.id)}
                 onMore={() => show("item", item)}
               />
             ))}
@@ -211,7 +231,7 @@ export default function PosScreen({ catalog: serverCatalog, settings, user, busi
       </div>
 
       {placed && lines.length === 0 ? (
-        <PlacedBar placed={placed} printing={printer.busy} onPrint={() => printBill(placed.orderId)} onDismiss={dismissPlaced} />
+        <PlacedBar placed={placed} printing={printer.busy} printOutcome={printOutcome} onPrint={() => printBill(placed.orderId)} onDismiss={dismissPlaced} />
       ) : (
         <CartBar defaultDeliveryCharge={settings.defaultDeliveryCharge} onOpen={() => show("cart")} />
       )}

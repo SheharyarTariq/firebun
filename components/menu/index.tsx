@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ChefHat, Plus, Search, Settings2, UtensilsCrossed } from "lucide-react";
+import { ChefHat, ChevronRight, Plus, Search, Settings2, UtensilsCrossed } from "lucide-react";
 import Badge from "@/components/common/Badge";
 import Button from "@/components/common/Button";
 import Card from "@/components/common/Card";
@@ -97,10 +97,10 @@ export default function MenuScreen({ categories }: MenuScreenProps) {
             className="min-w-0 flex-1"
           />
           <Button
-            size="sm"
+            size="icon"
             variant="outline"
             aria-label="Manage categories"
-            className="shrink-0 px-2.5"
+            className="shrink-0"
             onClick={() => setManageOpen(true)}
           >
             <Settings2 className="h-4 w-4" />
@@ -124,6 +124,7 @@ export default function MenuScreen({ categories }: MenuScreenProps) {
                 Sales only deduct stock for items with a recipe. Tap to see which ones are missing.
               </span>
             </span>
+            <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />
           </button>
         )}
 
@@ -227,6 +228,7 @@ function MenuRow({ item }: { item: MenuListItem }) {
           <Badge variant="success">Recipe ✓</Badge>
         )}
       </div>
+      <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />
     </Link>
   );
 }

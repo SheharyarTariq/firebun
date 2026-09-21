@@ -51,14 +51,45 @@ export default function ItemSheet({ open, onOpenChange, item: itemProp, onAvaila
     onOpenChange(false);
   };
 
+  const setAvailability = async (next: boolean) => {
+    onAvailabilityChange(item.id, next); // optimistic; reverts by itself if the action fails
+    return callAction(toggleItemAvailabilityAction(item.id, next));
+  };
+
   const toggleAvailability = () => {
     const next = !item.isAvailable;
     onOpenChange(false);
     startTransition(async () => {
-      onAvailabilityChange(item.id, next); // optimistic; reverts by itself if the action fails
-      const result = await callAction(toggleItemAvailabilityAction(item.id, next));
-      if (!result.ok) toast.error(result.error);
-      else toast.success(next ? `${item.name} is back on sale` : `${item.name} marked sold out`);
+      const result = await setAvailability(next);
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      if (next) {
+        toast.success(`${item.name} is back on sale`);
+        return;
+      }
+      // Sold out hides the item on every phone, so a mis-tap gets a way back.
+      toast(
+        (t) => (
+          <span className="flex items-center gap-2">
+            {item.name} marked sold out
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                toast.dismiss(t.id);
+                void setAvailability(true).then((undone) => {
+                  if (!undone.ok) toast.error(undone.error);
+                });
+              }}
+            >
+              Undo
+            </Button>
+          </span>
+        ),
+        { duration: 6000 }
+      );
     });
   };
 

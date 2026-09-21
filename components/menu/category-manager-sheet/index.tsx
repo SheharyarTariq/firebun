@@ -155,7 +155,7 @@ export default function CategoryManagerSheet({ open, onOpenChange, categories }:
                       {category.items.length} item{category.items.length === 1 ? "" : "s"}
                     </span>
                   </span>
-                  <ChevronRight className="h-4 w-4 shrink-0 text-muted" />
+                  <ChevronRight aria-hidden className="h-4 w-4 shrink-0 text-muted" />
                 </button>
               </li>
             ))}

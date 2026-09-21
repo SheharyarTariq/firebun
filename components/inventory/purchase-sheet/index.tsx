@@ -17,6 +17,7 @@ import {
   formatCostPerUnit,
   formatMoney,
   formatMoneyExact,
+  parseNumberInput,
   toIsoDate,
   type EntryUnit,
 } from "@/utils/helper";
@@ -63,10 +64,10 @@ export default function PurchaseSheet({ open, onOpenChange, item, suppliers = []
   const handleSubmit = async () => {
     const values: PurchaseFormInput = {
       itemId: item.id,
-      enteredQty: Number(qty),
+      enteredQty: parseNumberInput(qty),
       enteredUnit: unit,
       priceMode,
-      price: Number(price),
+      price: parseNumberInput(price),
       supplier: supplier.trim() || undefined,
       note: note.trim() || undefined,
       purchaseDate: date,
@@ -89,6 +90,7 @@ export default function PurchaseSheet({ open, onOpenChange, item, suppliers = []
     <BottomSheet
       open={open}
       onOpenChange={onOpenChange}
+      guardUnsaved
       title="Record purchase"
       description={item.name}
       footer={
