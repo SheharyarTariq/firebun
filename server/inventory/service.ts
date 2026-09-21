@@ -14,6 +14,7 @@ import {
   entryQtyToBase,
   isUnitCompatible,
   roundMoney,
+  titleCaseName,
   toIsoDate,
   type BaseUnit,
   type DisplayUnit,
@@ -201,7 +202,7 @@ function normaliseItem(input: ItemInput) {
       ? null
       : round3(input.packSize);
   return {
-    name: input.name.trim(),
+    name: titleCaseName(input.name),
     baseUnit: input.baseUnit,
     displayUnit: input.displayUnit,
     lowStockThreshold:
@@ -301,7 +302,7 @@ export async function recordPurchase(
     );
     const unitCost = round6(totalCost / qtyBase);
     const purchasedAt = purchaseTimestamp(input.purchaseDate);
-    const supplier = input.supplier?.trim() || null;
+    const supplier = input.supplier ? titleCaseName(input.supplier) || null : null;
 
     const [purchase] = await tx
       .insert(inventoryPurchases)

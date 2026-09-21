@@ -13,7 +13,7 @@ import {
   type MenuItemKind,
 } from "@/db/schema";
 import { ServiceError } from "@/server/errors";
-import { roundMoney, slugify } from "@/utils/helper";
+import { roundMoney, slugify, titleCaseName } from "@/utils/helper";
 
 const round3 = (n: number) => Math.round((n + Number.EPSILON) * 1e3) / 1e3;
 
@@ -26,7 +26,7 @@ export async function createCategory(name: string) {
   const [{ m }] = await db.select({ m: max(menuCategories.sortOrder) }).from(menuCategories);
   const [row] = await db
     .insert(menuCategories)
-    .values({ name: name.trim(), sortOrder: (m ?? -1) + 1 })
+    .values({ name: titleCaseName(name), sortOrder: (m ?? -1) + 1 })
     .returning();
   return row;
 }
@@ -34,7 +34,7 @@ export async function createCategory(name: string) {
 export async function updateCategory(id: number, input: { name: string; isActive: boolean }) {
   const [row] = await getDb()
     .update(menuCategories)
-    .set({ name: input.name.trim(), isActive: input.isActive })
+    .set({ name: titleCaseName(input.name), isActive: input.isActive })
     .where(eq(menuCategories.id, id))
     .returning();
   if (!row) throw new ServiceError("Category not found.");
@@ -152,7 +152,7 @@ export async function createMenuItem(input: CreateMenuItemInput): Promise<{ id: 
       .insert(menuItems)
       .values({
         categoryId: input.categoryId,
-        name: input.name.trim(),
+        name: titleCaseName(input.name),
         kind: input.kind,
         slug: await uniqueSlug(tx, input.name),
         description: input.description?.trim() || null,
@@ -163,7 +163,7 @@ export async function createMenuItem(input: CreateMenuItemInput): Promise<{ id: 
     await tx.insert(menuItemVariants).values(
       input.variants.map((v, i) => ({
         menuItemId: item.id,
-        name: v.name.trim(),
+        name: titleCaseName(v.name),
         price: roundMoney(v.price),
         sortOrder: i,
       }))
@@ -193,15 +193,15 @@ export async function updateMenuItem(id: number, input: UpdateMenuItemInput) {
       .where(eq(menuCategories.id, input.categoryId));
     if (!category) throw new ServiceError("Pick a category.", { categoryId: "Unknown category" });
 
+    // Normalise once: the same text typed again must keep the item's existing slug.
+    const name = titleCaseName(input.name);
+
     const [row] = await tx
       .update(menuItems)
       .set({
         categoryId: input.categoryId,
-        name: input.name.trim(),
-        slug:
-          existing.name.trim() === input.name.trim() && existing.slug
-            ? existing.slug
-            : await uniqueSlug(tx, input.name, id),
+        name,
+        slug: existing.name === name && existing.slug ? existing.slug : await uniqueSlug(tx, name, id),
         description: input.description?.trim() || null,
         isActive: input.isActive,
         isAvailable: input.isAvailable,
@@ -261,7 +261,7 @@ export async function addVariant(itemId: number, input: VariantInput) {
       .insert(menuItemVariants)
       .values({
         menuItemId: itemId,
-        name: input.name.trim(),
+        name: titleCaseName(input.name),
         price: roundMoney(input.price),
         sortOrder: (m ?? -1) + 1,
       })
@@ -297,7 +297,7 @@ export async function updateVariant(
 
     const [row] = await tx
       .update(menuItemVariants)
-      .set({ name: input.name.trim(), price: roundMoney(input.price), isActive: input.isActive })
+      .set({ name: titleCaseName(input.name), price: roundMoney(input.price), isActive: input.isActive })
       .where(eq(menuItemVariants.id, id))
       .returning();
     return row;
@@ -462,7 +462,7 @@ export async function addDealSlot(dealVariantId: number, input: DealSlotInput) {
       .insert(dealSlots)
       .values({
         dealVariantId,
-        label: input.label.trim(),
+        label: titleCaseName(input.label),
         quantity: Math.max(1, Math.round(input.quantity)),
         sortOrder: (m ?? -1) + 1,
       })
@@ -480,7 +480,7 @@ export async function updateDealSlot(slotId: number, input: DealSlotInput) {
 
     await tx
       .update(dealSlots)
-      .set({ label: input.label.trim(), quantity: Math.max(1, Math.round(input.quantity)) })
+      .set({ label: titleCaseName(input.label), quantity: Math.max(1, Math.round(input.quantity)) })
       .where(eq(dealSlots.id, slotId));
     await tx.delete(dealSlotOptions).where(eq(dealSlotOptions.slotId, slotId));
     await tx.insert(dealSlotOptions).values(ids.map((variantId) => ({ slotId, variantId })));

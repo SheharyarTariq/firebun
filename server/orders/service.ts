@@ -19,7 +19,7 @@ import type { CurrentUser } from "@/server/auth/dal";
 import { ServiceError } from "@/server/errors";
 import { applyMovement, recomputeItem } from "@/server/inventory/service";
 import { getSettings } from "@/server/settings/queries";
-import { businessDateFor, formatQty, roundMoney } from "@/utils/helper";
+import { businessDateFor, formatQty, roundMoney, titleCaseName } from "@/utils/helper";
 
 // ---------------------------------------------------------------------------
 // Input
@@ -264,7 +264,7 @@ export async function placeOrder(input: PlaceOrderInput, user: CurrentUser): Pro
         dailySeq,
         status,
         orderType: input.orderType,
-        customerName: input.customerName?.trim() || null,
+        customerName: input.customerName ? titleCaseName(input.customerName) || null : null,
         customerPhone: input.customerPhone?.trim() || null,
         deliveryAddress: input.orderType === "delivery" ? input.deliveryAddress?.trim() || null : null,
         subtotal,

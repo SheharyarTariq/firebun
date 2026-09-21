@@ -317,6 +317,17 @@ export function slugify(text: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
+/**
+ * Tidies a name typed at the counter: "dawan mighty" → "Dawan Mighty". Every service
+ * runs a saved name through this, so lists stay consistent however it was typed.
+ *
+ * It only ever uppercases, never the other way round, so "COKE" and "7up 1 L" survive
+ * untouched. An apostrophe is not a word break, so "young's" becomes "Young's".
+ */
+export function titleCaseName(value: string): string {
+  return value.trim().replace(/(^|[\s([/&+-])([a-z])/g, (_, before: string, letter: string) => before + letter.toUpperCase());
+}
+
 /** "#042" style daily order number for bills and lists. */
 export function formatOrderNumber(dailySeq: number): string {
   return `#${String(dailySeq).padStart(3, "0")}`;

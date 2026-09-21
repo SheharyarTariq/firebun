@@ -5,7 +5,7 @@ import { expenses, type Expense } from "@/db/schema";
 import type { CurrentUser } from "@/server/auth/dal";
 import { ServiceError } from "@/server/errors";
 import { getSettings } from "@/server/settings/queries";
-import { roundMoney, toIsoDate } from "@/utils/helper";
+import { roundMoney, titleCaseName, toIsoDate } from "@/utils/helper";
 
 export interface ExpenseInput {
   category: string;
@@ -22,7 +22,7 @@ function normalise(input: ExpenseInput) {
   const amount = roundMoney(input.amount);
   if (!(amount > 0)) throw new ServiceError("Amount must be more than 0.", { amount: "Must be more than 0" });
   return {
-    category: input.category.trim(),
+    category: titleCaseName(input.category),
     amount,
     description: input.description.trim(),
     expenseDate: input.expenseDate,

@@ -4,6 +4,7 @@ import { getDb } from "@/db";
 import { expenses, inventoryPurchases, orders, settings, stockMovements, users, type User, type UserRole } from "@/db/schema";
 import { hashPassword, verifyPassword } from "@/server/auth/password";
 import { ServiceError } from "@/server/errors";
+import { titleCaseName } from "@/utils/helper";
 
 export interface CreateUserInput {
   name: string;
@@ -35,7 +36,7 @@ export async function createUser(input: CreateUserInput): Promise<{ id: number }
   const [row] = await db
     .insert(users)
     .values({
-      name: input.name.trim(),
+      name: titleCaseName(input.name),
       email,
       passwordHash: await hashPassword(input.password),
       role: input.role,
@@ -79,7 +80,7 @@ export async function updateUser(
     await tx
       .update(users)
       .set({
-        ...(input.name !== undefined && { name: input.name.trim() }),
+        ...(input.name !== undefined && { name: titleCaseName(input.name) }),
         ...(input.role !== undefined && { role: input.role }),
         ...(input.isActive !== undefined && { isActive: input.isActive }),
         ...((roleChanges || deactivates) && {
