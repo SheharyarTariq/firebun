@@ -10,6 +10,7 @@ import Card from "@/components/common/Card";
 import SectionHeading from "@/components/common/SectionHeading";
 import Toggle from "@/components/common/Toggle";
 import PageHeader from "@/components/layout/page-header";
+import PageBody from "@/components/layout/page-body";
 import type {
   DealSlotFull,
   MenuItemDetails as MenuItemDetailsData,
@@ -82,7 +83,7 @@ export default function MenuItemDetails({ details }: MenuItemDetailsProps) {
         }
       />
 
-      <div className="space-y-4 p-4">
+      <PageBody gap={4}>
         {item.description && <p className="px-1 text-sm text-muted">{item.description}</p>}
 
         <Toggle
@@ -185,7 +186,7 @@ export default function MenuItemDetails({ details }: MenuItemDetailsProps) {
             </p>
           </Card>
         )}
-      </div>
+      </PageBody>
 
       <ItemFormSheet
         key={`edit-${sheetKey}`}

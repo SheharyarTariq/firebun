@@ -10,6 +10,8 @@ import Chips from "@/components/common/Chips";
 import EmptyState from "@/components/common/EmptyState";
 import ListRow from "@/components/common/ListRow";
 import PageHeader from "@/components/layout/page-header";
+import PageBody from "@/components/layout/page-body";
+import HeroStat from "@/components/layout/page-header/hero-stat";
 import type { OrderStatus } from "@/db/schema/orders";
 import type { DaySummary, OrderListRow } from "@/server/orders/queries";
 import { cn } from "@/utils/cn";
@@ -47,10 +49,16 @@ export default function OrdersScreen({ orders, summary, businessDate, todayBusin
     <>
       <PageHeader
         title="Orders"
-        subtitle={
-          summary.pending > 0
-            ? `${summary.completed} paid · ${formatMoney(summary.revenue)} · ${summary.pending} unpaid`
-            : `${dayCount} order${dayCount === 1 ? "" : "s"} · ${formatMoney(summary.revenue)}`
+        hero={
+          <HeroStat
+            figures={[
+              { label: "Taken", value: formatMoney(summary.revenue), tone: "brand" },
+              { label: `Order${dayCount === 1 ? "" : "s"}`, value: String(dayCount) },
+              ...(summary.pending > 0
+                ? [{ label: "Unpaid", value: String(summary.pending), tone: "warning" as const }]
+                : []),
+            ]}
+          />
         }
         actions={
           <div className="flex items-center gap-0.5">
@@ -87,8 +95,9 @@ export default function OrdersScreen({ orders, summary, businessDate, todayBusin
         }
       />
 
-      <div className="space-y-3 p-4">
+      <PageBody gap={3}>
         <Chips<Filter>
+          wrap
           aria-label="Status"
           value={status}
           onChange={setStatus}
@@ -145,7 +154,7 @@ export default function OrdersScreen({ orders, summary, businessDate, todayBusin
             ))}
           </Card>
         )}
-      </div>
+      </PageBody>
     </>
   );
 }

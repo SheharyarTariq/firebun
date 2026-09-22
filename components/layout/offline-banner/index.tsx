@@ -25,14 +25,18 @@ export default function OfflineBanner() {
   if (online) return null;
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-[calc(env(safe-area-inset-top)+3.75rem)] z-40 flex justify-center px-4">
+    // `top-canopy` is the canopy's real height. This used to hard-code 3.75rem against a 3.5rem
+    // header plus a 2px rule, so the pill landed on the first control of every screen.
+    <div className="top-canopy pointer-events-none fixed inset-x-0 z-40 pt-2">
+      <div className="page-gutter flex justify-center">
       <p
         role="status"
-        className="flex items-center gap-1.5 rounded-full bg-warning-bg px-3 py-1.5 text-xs font-semibold text-warning shadow-md"
+        className="flex items-center gap-1.5 rounded-full bg-warning-bg px-3 py-1.5 text-caption normal-case tracking-normal text-warning shadow-2"
       >
         <WifiOff aria-hidden className="h-3.5 w-3.5" />
         Offline — orders can’t be placed until you reconnect
       </p>
+      </div>
     </div>
   );
 }

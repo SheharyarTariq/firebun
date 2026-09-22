@@ -1,11 +1,11 @@
 import { Download, TrendingDown, TrendingUp } from "lucide-react";
-import Badge from "@/components/common/Badge";
 import Banner from "@/components/common/Banner";
 import Card from "@/components/common/Card";
 import SectionHeading from "@/components/common/SectionHeading";
+import { BarList, DayColumns } from "@/components/finance/charts";
 import type { FinanceReport } from "@/server/finance/queries";
 import { cn } from "@/utils/cn";
-import { formatBusinessDate, formatMoney, rangeDays } from "@/utils/helper";
+import { formatBusinessDate, formatMoney, rangeDays, shiftIsoDate } from "@/utils/helper";
 import { routes } from "@/utils/routes";
 
 interface FinanceReportViewProps {
@@ -19,10 +19,12 @@ export default function FinanceReportView({ report }: FinanceReportViewProps) {
   const grossMargin = sales.income > 0 ? Math.round(((sales.income - report.ingredientCost) / sales.income) * 100) : null;
   const profitMargin = sales.income > 0 ? Math.round((report.profit / sales.income) * 100) : null;
   const previousLabel = days === 1 ? "yesterday" : days === 7 ? "the week before" : `the ${days} days before`;
+  const buckets = buildBuckets(report.byDay, range.from, range.to, days);
 
   return (
     <>
-      <div className="grid grid-cols-2 gap-3">
+      {/* Four KPIs across on a monitor instead of a 2×2 block with the rest scrolled away. */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Tile
           label="Income"
           value={formatMoney(sales.income)}
@@ -41,6 +43,14 @@ export default function FinanceReportView({ report }: FinanceReportViewProps) {
         <Tile label="Expenses" value={formatMoney(expenses.total)} hint={`${expenses.count} entr${expenses.count === 1 ? "y" : "ies"}`} tone="warning" />
       </div>
 
+      {/*
+        * On a monitor the report's cards sit two-up. In one column each card's label/value rows
+        * ran the full width of the window, putting every number an inch from its own label.
+        *
+        * CSS columns rather than a grid: the cards are wildly different heights, and a grid would
+        * leave a dead column under every short card while it waited for the tall one beside it.
+        */}
+      <div className="space-y-4 xl:columns-2 xl:gap-4 xl:space-y-0 xl:[&>*]:mb-4 xl:[&>*]:break-inside-avoid">
       <Card className="space-y-2">
         <SectionHeading>Cash</SectionHeading>
         <Row label="Money in (paid orders)" value={formatMoney(sales.income)} />
@@ -69,45 +79,38 @@ export default function FinanceReportView({ report }: FinanceReportViewProps) {
       </Card>
 
       {expenses.byCategory.length > 0 && (
-        <Card className="space-y-2">
+        <Card className="space-y-3">
           <SectionHeading>Expenses by category</SectionHeading>
-          {expenses.byCategory.map((c) => (
-            <Row key={c.category} label={c.category} value={formatMoney(c.total)} />
-          ))}
+          {/* A distribution printed as label/value rows makes you do the comparing yourself. */}
+          <BarList
+            tone="spend"
+            format={formatMoney}
+            data={expenses.byCategory.map((c) => ({ key: c.category, label: c.category, value: c.total }))}
+          />
         </Card>
       )}
 
       {report.topItems.length > 0 && (
-        <Card className="space-y-2">
+        <Card className="space-y-3">
           <SectionHeading>Top sellers</SectionHeading>
-          <ol className="divide-y divide-border">
-            {report.topItems.map((item, i) => (
-              <li key={`${item.name}-${item.variant}`} className="flex items-center gap-3 py-2 text-sm">
-                <span className="w-5 text-xs text-muted tabular-nums">{i + 1}.</span>
-                <span className="min-w-0 flex-1 truncate">
-                  {item.name}
-                  {item.variant !== "Regular" && <span className="text-muted"> · {item.variant}</span>}
-                </span>
-                <Badge>{item.quantity}×</Badge>
-                <span className="w-20 text-right font-medium tabular-nums">{formatMoney(item.revenue)}</span>
-              </li>
-            ))}
-          </ol>
+          {/* Ranked *and* weighted — as a plain list, #1 and #10 carried identical visual weight. */}
+          <BarList
+            format={formatMoney}
+            data={report.topItems.map((item) => ({
+              key: `${item.name}-${item.variant}`,
+              label: item.variant === "Regular" ? item.name : `${item.name} · ${item.variant}`,
+              sub: `${item.quantity}×`,
+              value: item.revenue,
+            }))}
+          />
         </Card>
       )}
 
-      {days > 1 && report.byDay.length > 0 && (
-        <Card className="space-y-2">
-          <SectionHeading>By day</SectionHeading>
-          <ul className="divide-y divide-border">
-            {report.byDay.map((d) => (
-              <li key={d.date} className="flex items-center justify-between py-2 text-sm">
-                <span>{formatBusinessDate(d.date)}</span>
-                <span className="text-xs text-muted">{d.orders} order{d.orders === 1 ? "" : "s"}</span>
-                <span className="w-24 text-right font-medium tabular-nums">{formatMoney(d.income)}</span>
-              </li>
-            ))}
-          </ul>
+      {/* One day is not a trend — the columns would just be a single full-height bar. */}
+      {days > 1 && report.byDay.length > 1 && (
+        <Card className="space-y-3">
+          <SectionHeading>Income by {buckets.unit}</SectionHeading>
+          <DayColumns format={formatMoney} unit={buckets.unit} data={buckets.data} />
         </Card>
       )}
 
@@ -115,7 +118,8 @@ export default function FinanceReportView({ report }: FinanceReportViewProps) {
         <Card className="space-y-2">
           <SectionHeading>Stock purchases</SectionHeading>
           <ul className="divide-y divide-border">
-            {report.recentPurchases.map((p) => (
+            {/* Up to 50 rows used to render in full, burying everything below them. */}
+            {report.recentPurchases.slice(0, 8).map((p) => (
               <li key={p.id} className={cn("flex items-center gap-3 py-2 text-sm", p.voided && "opacity-50 line-through")}>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate">{p.item}</span>
@@ -128,12 +132,19 @@ export default function FinanceReportView({ report }: FinanceReportViewProps) {
               </li>
             ))}
           </ul>
+          {report.recentPurchases.length > 8 && (
+            <p className="pt-1 text-label text-muted">
+              + {report.recentPurchases.length - 8} more in the period · {formatMoney(purchases.total)} in total
+            </p>
+          )}
         </Card>
       )}
 
+      </div>
+
       <Card className="space-y-2">
         <SectionHeading>Export (CSV)</SectionHeading>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-3 gap-2 sm:max-w-md">
           {(["orders", "purchases", "expenses"] as const).map((type) => (
             <a
               key={type}
@@ -166,7 +177,7 @@ function Tile({
     <Card className="space-y-1 p-3">
       <p className="text-xs font-medium uppercase tracking-wide text-muted">{label}</p>
       <p className={cn("text-xl font-bold tabular-nums", tone === "success" && "text-success", tone === "warning" && "text-warning", tone === "danger" && "text-danger")}>{value}</p>
-      {hint && <p className="truncate text-xs text-muted">{hint}</p>}
+      {hint && <p className="text-label text-muted">{hint}</p>}
       {delta}
     </Card>
   );
@@ -197,4 +208,55 @@ function Row({ label, value, muted, indent, hint, strong }: { label: string; val
       <span className="shrink-0 font-medium tabular-nums">{value}</span>
     </div>
   );
+}
+
+/**
+ * Turns the income-per-day rows into a continuous series for the column chart.
+ *
+ * Two things the raw rows can't do. They only contain days that *had* income, so plotting them
+ * directly draws a quiet Tuesday right next to a busy Friday as if they were consecutive — the
+ * chart would read as steady trade when trade actually stopped. And a long custom range would
+ * put a year of sub-pixel columns on a phone, so past six weeks this buckets into weeks.
+ */
+function buildBuckets(
+  byDay: { date: string; income: number; orders: number }[],
+  from: string,
+  to: string,
+  days: number
+) {
+  const income = new Map(byDay.map((d) => [d.date, d]));
+  const daily: { date: string; income: number; orders: number }[] = [];
+  for (let cursor = from, guard = 0; cursor <= to && guard < 800; cursor = shiftIsoDate(cursor, 1), guard++) {
+    const hit = income.get(cursor);
+    daily.push({ date: cursor, income: hit?.income ?? 0, orders: hit?.orders ?? 0 });
+  }
+
+  const short = (iso: string) => formatBusinessDate(iso).replace(/\s\d{4}$/, "");
+  if (days <= 45) {
+    return {
+      unit: "day",
+      data: daily.map((d) => ({
+        date: d.date,
+        label: formatBusinessDate(d.date),
+        short: short(d.date),
+        value: d.income,
+        orders: d.orders,
+      })),
+    };
+  }
+
+  const weeks: { date: string; label: string; short: string; value: number; orders: number }[] = [];
+  for (let i = 0; i < daily.length; i += 7) {
+    const week = daily.slice(i, i + 7);
+    const start = week[0].date;
+    const end = week[week.length - 1].date;
+    weeks.push({
+      date: start,
+      label: `${short(start)} – ${short(end)}`,
+      short: short(start),
+      value: week.reduce((n, d) => n + d.income, 0),
+      orders: week.reduce((n, d) => n + d.orders, 0),
+    });
+  }
+  return { unit: "week", data: weeks };
 }

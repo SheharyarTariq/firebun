@@ -6,6 +6,7 @@ import { Plus } from "lucide-react";
 import Button from "@/components/common/Button";
 import PeriodPicker from "@/components/common/PeriodPicker";
 import PageHeader from "@/components/layout/page-header";
+import PageBody from "@/components/layout/page-body";
 import { EXPENSE_PRESETS, resolvePeriod, type DateRange, type PeriodPreset } from "@/utils/helper";
 import { routes } from "@/utils/routes";
 import ExpenseSheet from "./expense-sheet";
@@ -58,10 +59,10 @@ export default function ExpensesShell({ today, categories, canAdd, children }: E
         }
       />
 
-      <div className="space-y-3 p-4">
+      <PageBody gap={3}>
         <PeriodPicker key={preset} preset={preset} range={range} today={today} presets={EXPENSE_PRESETS} onChange={navigate} />
         {children}
-      </div>
+      </PageBody>
 
       {canAdd && (
         <ExpenseSheet key={addKey} open={addOpen} onOpenChange={setAddOpen} categories={categories} today={today} canDelete={false} />

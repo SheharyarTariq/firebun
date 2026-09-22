@@ -23,8 +23,8 @@ const VARIANT_STYLES: Record<ButtonVariant, string> = {
 
 const SIZE_STYLES: Record<ButtonSize, string> = {
   // 36px to look, 44px to hit: the pseudo-element extends the tap area 4px above and below.
-  sm: "relative h-9 gap-1.5 rounded-lg px-3 text-sm after:absolute after:inset-x-0 after:-inset-y-1 after:content-['']",
-  md: "h-11 gap-2 rounded-field px-4 text-sm",
+  sm: "relative h-9 gap-1.5 rounded-field px-3 text-label after:absolute after:inset-x-0 after:-inset-y-1 after:content-['']",
+  md: "h-11 gap-2 rounded-field px-4 text-body",
   lg: "h-12 gap-2 rounded-field px-5 text-base",
   /** Icon-only button: a full 44px square target. Always pass an `aria-label`. */
   icon: "h-11 w-11 rounded-field p-0",
@@ -47,9 +47,10 @@ export default function Button({
       type={type}
       disabled={disabled || isLoading}
       className={cn(
-        "inline-flex select-none items-center justify-center font-semibold transition-colors",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2",
-        "disabled:cursor-not-allowed disabled:opacity-40",
+        "inline-flex select-none items-center justify-center font-semibold",
+        // The press is the only feedback a touch device gets — hover never fires on a phone.
+        "transition-[background-color,transform] active:scale-[0.98] motion-reduce:transition-none motion-reduce:active:scale-100",
+        "disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100",
         VARIANT_STYLES[variant],
         SIZE_STYLES[size],
         className

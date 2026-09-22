@@ -45,7 +45,11 @@ function Sheet({ open, onOpenChange, title, description, children, footer, class
         <Drawer.Content
           ref={contentRef}
           className={cn(
+            // On a pointer device this lifts off the bottom edge and rounds all four corners, so it
+            // reads as a dialog. It stays bottom-anchored rather than centred: vaul animates the
+            // open/close with its own transform, and a centring translate fights it.
             "fixed inset-x-0 bottom-0 z-50 mx-auto flex max-h-[92dvh] w-full max-w-lg flex-col rounded-t-sheet bg-surface shadow-sheet outline-none",
+            "lg:bottom-6 lg:max-h-[80dvh] lg:max-w-xl lg:rounded-sheet",
             className
           )}
         >

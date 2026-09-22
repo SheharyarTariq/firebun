@@ -171,17 +171,28 @@ export default function PosScreen({ catalog: serverCatalog, settings, user, busi
             <button
               type="button"
               onClick={() => show("printer")}
-              className="relative flex h-9 items-center gap-1.5 rounded-full border border-white/20 px-3 text-xs font-medium text-ink-muted transition-colors after:absolute after:inset-x-0 after:-inset-y-1 after:content-[''] active:bg-white/10"
+              // The only warning a cashier gets before placing an order that can't print, so it
+              // reads as a warning rather than as the dimmest thing on the screen.
+              className="relative flex h-9 items-center gap-1.5 rounded-full bg-warning-bg px-3 text-caption normal-case tracking-normal text-warning transition-colors after:absolute after:inset-x-0 after:-inset-y-1 after:content-[''] active:bg-warning-bg/80"
             >
               <BluetoothOff className="h-3.5 w-3.5" />
-              Printer · not paired
+              No printer
             </button>
           ) : undefined
         }
       />
 
+      {/* The ink ground shows only through the sheet's top corners — see PageBody. */}
+      <div className="flex flex-1 flex-col bg-ink">
+      <div className="flex flex-1 flex-col rounded-t-[1.25rem] bg-background lg:flex-row">
+      {/*
+        * Desktop is a till: the menu on the left, the cart permanently on the right, so the
+        * cashier watches the order build as they tap. Below `lg` this is one column and the cart
+        * stays where it was — the floating bar and a bottom sheet.
+        */}
+      <div className="flex min-w-0 flex-1 flex-col">
       {/* Search scrolls away with the grid; only the category chips stay pinned under the header. */}
-      <div className="mx-auto w-full max-w-6xl px-4 pt-3">
+      <div className="page-gutter pt-4">
         <Input
           type="search"
           placeholder="Search menu"
@@ -199,8 +210,8 @@ export default function PosScreen({ catalog: serverCatalog, settings, user, busi
         />
       </div>
 
-      <div className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] z-20 bg-background">
-        <div className="mx-auto w-full max-w-6xl px-4 py-1">
+      <div className="top-canopy sticky z-20 bg-background">
+        <div className="page-gutter py-1">
           <Chips
             aria-label="Category"
             value={categoryId}
@@ -210,7 +221,7 @@ export default function PosScreen({ catalog: serverCatalog, settings, user, busi
         </div>
       </div>
 
-      <div className="mx-auto w-full max-w-6xl px-4 pb-28">
+      <div className="page-gutter pb-28 lg:pb-6">
         {items.length === 0 ? (
           <EmptyState
             icon={ShoppingBag}
@@ -222,7 +233,16 @@ export default function PosScreen({ catalog: serverCatalog, settings, user, busi
             }
           />
         ) : (
-          <div className="grid grid-cols-2 gap-3 pt-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          /*
+           * Two columns on a phone, not three: a third column leaves ~101px of card, which cannot
+           * hold a 44px stepper — and a mis-tapped stepper silently adds an item to the bill.
+           *
+           * `auto-rows-fr` makes every row as tall as the tallest card in the grid, so a card
+           * with a size row and one without are the same height. It is deliberately not a fixed
+           * `min-h-*`: that would have to assume the worst case (a two-line name plus chips,
+           * ~189px) and impose it on simple cards whose natural height is ~117px.
+           */
+          <div className="grid auto-rows-fr grid-cols-2 gap-2.5 pt-2 min-[480px]:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
             {items.map((item) => (
               <ItemCard
                 key={item.id}
@@ -237,12 +257,32 @@ export default function PosScreen({ catalog: serverCatalog, settings, user, busi
           </div>
         )}
       </div>
+      </div>
 
-      {placed && lines.length === 0 ? (
-        <PlacedBar placed={placed} printing={printer.busy} printOutcome={printOutcome} onPrint={() => printBill(placed.orderId)} onDismiss={dismissPlaced} />
-      ) : (
-        <CartBar defaultDeliveryCharge={settings.defaultDeliveryCharge} onOpen={() => show("cart")} />
-      )}
+      {/* The always-on cart. Sticky so it stays put while the menu scrolls beside it. */}
+      <aside className="hidden w-96 shrink-0 border-l border-border lg:block">
+        <div className="sticky top-header h-[calc(100dvh-var(--spacing-header)-var(--spacing-nav))]">
+          <CartSheet
+            variant="panel"
+            open={false}
+            onOpenChange={() => {}}
+            settings={settings}
+            role={user.role}
+            onPlaced={handlePlaced}
+          />
+        </div>
+      </aside>
+      </div>
+      </div>
+
+      {/* Phone only: on desktop the cart is the panel and needs no summary bar. */}
+      <div className="lg:hidden">
+        {placed && lines.length === 0 ? (
+          <PlacedBar placed={placed} printing={printer.busy} printOutcome={printOutcome} onPrint={() => printBill(placed.orderId)} onDismiss={dismissPlaced} />
+        ) : (
+          <CartBar defaultDeliveryCharge={settings.defaultDeliveryCharge} onOpen={() => show("cart")} />
+        )}
+      </div>
 
       <ItemSheet
         key={`item-${sheetKey}`}

@@ -7,6 +7,7 @@ import Button from "@/components/common/Button";
 import Card from "@/components/common/Card";
 import Chips from "@/components/common/Chips";
 import PageHeader from "@/components/layout/page-header";
+import PageBody from "@/components/layout/page-body";
 import type { InventoryItemDetails } from "@/server/inventory/queries";
 import { cn } from "@/utils/cn";
 import {
@@ -74,7 +75,7 @@ export default function ItemDetails({ details }: ItemDetailsProps) {
         }
       />
 
-      <div className="space-y-4 p-4">
+      <PageBody gap={4}>
         <Card className="space-y-4">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -104,7 +105,8 @@ export default function ItemDetails({ details }: ItemDetailsProps) {
             ) : null}
           </div>
 
-          <dl className="grid grid-cols-3 gap-3 text-sm">
+          {/* Two columns on a phone: at 375px three made "Rs 125.00 / pcs" wrap onto two lines. */}
+          <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
             <div>
               <dt className="text-xs text-muted">Low-stock limit</dt>
               <dd className="font-medium tabular-nums">
@@ -133,7 +135,7 @@ export default function ItemDetails({ details }: ItemDetailsProps) {
           </dl>
         </Card>
 
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-3 gap-2 sm:max-w-lg">
           <Button
             size="lg"
             startIcon={<ShoppingCart className="h-5 w-5" />}
@@ -174,7 +176,7 @@ export default function ItemDetails({ details }: ItemDetailsProps) {
         ) : (
           <PurchaseList purchases={purchases} item={item} />
         )}
-      </div>
+      </PageBody>
 
       <ItemFormSheet
         key={`edit-${sheetKey}`}

@@ -15,6 +15,8 @@ import ConfirmSheet from "@/components/common/ConfirmSheet";
 import Input from "@/components/common/Input";
 import Toggle from "@/components/common/Toggle";
 import PageHeader from "@/components/layout/page-header";
+import FloatingBar from "@/components/layout/floating-bar";
+import PageBody from "@/components/layout/page-body";
 import type { PaymentMethod } from "@/db/schema/orders";
 import type { UserRole } from "@/db/schema/users";
 import { useCart, useHydrated, type CartLine } from "@/components/pos/cart-store";
@@ -172,7 +174,7 @@ export default function OrderDetails({ order, viewer, canCancel, cancelBlockedRe
         actions={<Badge variant={STATUS_BADGE[order.status]}>{STATUS_LABELS[order.status]}</Badge>}
       />
 
-      <div className="space-y-4 p-4 pb-28">
+      <PageBody gap={4} className="pb-28">
         {order.status === "cancelled" && (
           <Card className="space-y-1 border-danger/40 bg-danger-bg/40 text-sm">
             <p className="font-semibold text-danger">Cancelled{order.cancelledByUser ? ` by ${order.cancelledByUser.name}` : ""}</p>
@@ -238,28 +240,40 @@ export default function OrderDetails({ order, viewer, canCancel, cancelBlockedRe
           </Card>
         )}
 
-        <div className="flex flex-col items-center gap-1">
-          <Button variant="ghost" startIcon={<RotateCcw className="h-4 w-4" />} onClick={handleRepeat}>
-            Repeat this order
-          </Button>
-          {canCancel && (
-            <Button variant="ghost" className="text-danger" startIcon={<Ban className="h-4 w-4" />} onClick={openCancel}>
-              Cancel order
-            </Button>
-          )}
-          {!canCancel && cancelBlockedReason && order.status !== "cancelled" && (
-            <p className="max-w-xs px-4 text-center text-xs text-muted">{cancelBlockedReason}</p>
-          )}
-          {canDelete && (
-            <Button variant="ghost" className="text-danger" startIcon={<Trash2 className="h-4 w-4" />} onClick={() => setSheet("delete")}>
-              Delete order
-            </Button>
-          )}
-        </div>
-      </div>
+        {/*
+          * Repeat is benign and frequent, so it sits with the other everyday actions and gets a
+          * real button. Cancel and Delete are separated below a rule with room between them —
+          * they used to sit 4px under Repeat as three identical centred ghost buttons, which is
+          * a mis-tap waiting to happen on a phone.
+          */}
+        <Button variant="outline" size="lg" className="w-full" startIcon={<RotateCcw className="h-4 w-4" />} onClick={handleRepeat}>
+          Repeat this order
+        </Button>
 
-      <div className="fixed inset-x-0 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-30 px-4 pb-2">
-        <div className="mx-auto grid w-full max-w-lg grid-cols-2 gap-2">
+        {(canCancel || canDelete || (cancelBlockedReason && order.status !== "cancelled")) && (
+          <div className="space-y-3 pt-4">
+            <div className="border-t border-border" />
+            {!canCancel && cancelBlockedReason && order.status !== "cancelled" && (
+              <p className="px-4 text-center text-label text-muted">{cancelBlockedReason}</p>
+            )}
+            <div className="flex flex-col items-center gap-3">
+              {canCancel && (
+                <Button variant="ghost" className="text-danger" startIcon={<Ban className="h-4 w-4" />} onClick={openCancel}>
+                  Cancel order
+                </Button>
+              )}
+              {canDelete && (
+                <Button variant="ghost" className="text-danger" startIcon={<Trash2 className="h-4 w-4" />} onClick={() => setSheet("delete")}>
+                  Delete order
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+      </PageBody>
+
+      <FloatingBar>
+        <div className="mx-auto grid grid-cols-2 gap-2 lg:max-w-lg">
           <Button size="lg" variant="outline" className="shadow-md" startIcon={<Printer className="h-5 w-5" />} isLoading={printer.busy} onClick={printBill}>
             Print bill
           </Button>
@@ -271,7 +285,7 @@ export default function OrderDetails({ order, viewer, canCancel, cancelBlockedRe
             New order
           </Link>
         </div>
-      </div>
+      </FloatingBar>
 
       <PrinterSheet
         open={sheet === "printer"}

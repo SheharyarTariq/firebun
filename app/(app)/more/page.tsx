@@ -14,6 +14,7 @@ import Badge from "@/components/common/Badge";
 import Card from "@/components/common/Card";
 import ListRow from "@/components/common/ListRow";
 import PageHeader from "@/components/layout/page-header";
+import PageBody from "@/components/layout/page-body";
 import ChangePasswordSheet from "@/components/more/change-password-sheet";
 import DangerZone from "@/components/more/danger-zone";
 import SignOutButton from "@/components/more/sign-out-button";
@@ -85,7 +86,7 @@ export default async function MorePage() {
   return (
     <>
       <PageHeader title="More" />
-      <div className="space-y-4 p-4">
+      <PageBody gap={4}>
         <Card className="flex items-center gap-3">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-brand/25 text-base font-semibold text-brand-text">
             {initials}
@@ -107,7 +108,7 @@ export default async function MorePage() {
                 Finance <ChevronRight className="h-3.5 w-3.5" />
               </span>
             </span>
-            <span className="mt-2 grid grid-cols-2 gap-3">
+            <span className="mt-2 grid grid-cols-2 gap-3 sm:max-w-sm">
               <span>
                 <span className="block text-2xl font-bold tabular-nums text-brand">{formatMoney(today.income)}</span>
                 <span className="block text-xs text-ink-muted">
@@ -145,16 +146,14 @@ export default async function MorePage() {
 
         <div className="space-y-2">
           <ChangePasswordSheet />
-          <form action={signOutAction}>
-            <SignOutButton />
-          </form>
+          <SignOutButton action={signOutAction} />
         </div>
 
         {/* TEMPORARY — setup tool; see server/maintenance/clear-data.ts to remove it. */}
         {user.role === "admin" && <DangerZone />}
 
         <p className="text-center text-xs text-muted">{config.appName} · v0.1</p>
-      </div>
+      </PageBody>
     </>
   );
 }

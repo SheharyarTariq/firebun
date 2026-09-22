@@ -5,12 +5,14 @@ import { BellRing, Boxes, Plus, Search } from "lucide-react";
 import Badge from "@/components/common/Badge";
 import Banner from "@/components/common/Banner";
 import Button from "@/components/common/Button";
-import Card from "@/components/common/Card";
 import Chips from "@/components/common/Chips";
 import EmptyState from "@/components/common/EmptyState";
 import Input from "@/components/common/Input";
 import ListRow from "@/components/common/ListRow";
+import Card from "@/components/common/Card";
 import PageHeader from "@/components/layout/page-header";
+import PageBody from "@/components/layout/page-body";
+import HeroStat from "@/components/layout/page-header/hero-stat";
 import type { InventoryListItem } from "@/server/inventory/queries";
 import { cn } from "@/utils/cn";
 import { describePack, formatQty } from "@/utils/helper";
@@ -63,7 +65,18 @@ export default function InventoryScreen({ items }: InventoryScreenProps) {
     <>
       <PageHeader
         title="Inventory"
-        subtitle={`${activeCount} items · ${neededCount} needed`}
+        hero={
+          <HeroStat
+            figures={[
+              {
+                label: "Need buying",
+                value: String(neededCount),
+                tone: neededCount > 0 ? "warning" : "default",
+              },
+              { label: "Items", value: String(activeCount) },
+            ]}
+          />
+        }
         actions={
           <>
             {activeCount > 0 && (
@@ -78,7 +91,7 @@ export default function InventoryScreen({ items }: InventoryScreenProps) {
         }
       />
 
-      <div className="space-y-3 p-4">
+      <PageBody gap={3}>
         <Input
           type="search"
           placeholder="Search items"
@@ -127,7 +140,7 @@ export default function InventoryScreen({ items }: InventoryScreenProps) {
             ))}
           </Card>
         )}
-      </div>
+      </PageBody>
 
       <ItemFormSheet key={`create-${createKey}`} open={createOpen} onOpenChange={setCreateOpen} />
       <LimitsSheet key={`limits-${limitsKey}`} open={limitsOpen} onOpenChange={setLimitsOpen} items={activeItems} />
@@ -136,25 +149,49 @@ export default function InventoryScreen({ items }: InventoryScreenProps) {
 }
 
 function InventoryRow({ item }: { item: InventoryListItem }) {
+  /*
+   * Only say something worth saying. "No low-stock limit · packet of 6 pcs" repeated on nearly
+   * every row is noise that buries the rows that do differ — a limit is only interesting once
+   * it exists, and the pack only when the item is bought in one.
+   */
   const hint = [
-    item.lowStockThreshold === null
-      ? "No low-stock limit"
-      : `Limit ${formatQty(item.lowStockThreshold, item.baseUnit)}`,
+    item.lowStockThreshold === null ? null : `Limit ${formatQty(item.lowStockThreshold, item.baseUnit)}`,
     describePack(item),
   ]
     .filter(Boolean)
     .join(" · ");
 
+  /*
+   * How full the shelf is, against its own limit — without this, 2 kg and 120 pcs look
+   * identical and you have to read every number to find what is running out. "Full" is twice
+   * the limit, which is roughly what a restock puts back.
+   */
+  const level =
+    item.lowStockThreshold && item.lowStockThreshold > 0 && item.currentQty > 0
+      ? Math.min(1, item.currentQty / (item.lowStockThreshold * 2))
+      : null;
+
   return (
     <ListRow href={routes.ui.inventoryItemDetails(item.id)} trailing="chevron">
       <div className="min-w-0 flex-1">
-        <p className={cn("truncate font-medium", !item.isActive && "text-muted")}>{item.name}</p>
-        <p className="truncate text-xs text-muted">{hint}</p>
+        <p className={cn("truncate text-heading", !item.isActive && "text-muted")}>{item.name}</p>
+        {hint && <p className="truncate text-label text-muted">{hint}</p>}
+        {level !== null && (
+          <span aria-hidden className="mt-1.5 block h-1 w-16 overflow-hidden rounded-full bg-muted-bg">
+            <span
+              className={cn(
+                "block h-full rounded-full",
+                item.needed ? "bg-warning" : "bg-success"
+              )}
+              style={{ width: `${Math.max(6, level * 100)}%` }}
+            />
+          </span>
+        )}
       </div>
       <div className="flex flex-col items-end gap-1">
         <p
           className={cn(
-            "font-semibold tabular-nums",
+            "text-body money",
             item.currentQty < 0 && "text-danger",
             item.currentQty >= 0 && item.needed && "text-warning"
           )}

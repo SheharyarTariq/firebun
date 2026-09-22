@@ -67,7 +67,7 @@ export default function BottomNav({ role, showExpenses, badges = {} }: BottomNav
       aria-label="Main"
       className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-surface/95 backdrop-blur pb-safe"
     >
-      <ul className="mx-auto flex max-w-lg">
+      <ul className="mx-auto flex max-w-xl">
         {items.map((item) => {
           const active = isActive(item);
           const badge = badges[item.href];
@@ -77,7 +77,7 @@ export default function BottomNav({ role, showExpenses, badges = {} }: BottomNav
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "flex h-[4.25rem] flex-col items-center justify-center gap-1 text-[11px] font-medium text-muted transition-colors",
+                  "flex h-nav flex-col items-center justify-center gap-1 text-caption tracking-normal text-muted transition-colors",
                   active && "text-foreground"
                 )}
               >
@@ -91,7 +91,7 @@ export default function BottomNav({ role, showExpenses, badges = {} }: BottomNav
                   {badge && badge.count > 0 && (
                     <span
                       className={cn(
-                        "absolute -right-0.5 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none",
+                        "absolute -right-0.5 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-caption tracking-normal leading-none",
                         BADGE_TONE[badge.tone]
                       )}
                     >

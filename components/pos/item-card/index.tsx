@@ -39,66 +39,90 @@ export default function ItemCard({ item, inCart, inCartByVariant, onTap, onDecre
   const picked = item.variants.find((v) => v.id === pickedId) ?? item.variants[0];
   const targetId = sized ? picked.id : undefined;
   const quantity = sized ? (inCartByVariant.get(picked.id) ?? 0) : inCart;
+  const showStepper = quickAddable && quantity > 0;
 
   return (
     <div
       className={cn(
-        "relative flex min-h-28 rounded-card border shadow-xs transition-[transform,background-color] active:scale-[0.98] motion-reduce:transition-none motion-reduce:active:scale-100",
+        "relative flex rounded-card shadow-1 transition-[transform,background-color] active:scale-[0.98] motion-reduce:transition-none motion-reduce:active:scale-100",
         // Deals echo the black-and-yellow menu board so they stand out in the grid.
-        isDeal ? "border-ink bg-ink text-ink-foreground active:bg-ink/90" : "border-border bg-surface active:bg-surface-2",
-        inCart > 0 && (isDeal ? "border-brand" : "border-brand-strong/60 bg-brand/10"),
+        isDeal ? "bg-ink text-ink-foreground active:bg-ink/90" : "bg-surface active:bg-surface-2",
+        inCart > 0 && (isDeal ? "ring-2 ring-brand" : "bg-brand/10 ring-2 ring-brand-strong/50"),
         !item.isAvailable && "opacity-60"
       )}
     >
-      {/* The whole card is the tap target; chips can't nest in a button, so the content sits above it and lets taps through. */}
+      {/*
+       * The whole card is the tap target, which is what makes adding fast. It stops short of the
+       * stepper row, though: the "−" used to sit 10px from a card edge that silently added an
+       * item, so a thumb landing slightly high put a wrong line on the bill with no undo.
+       */}
       <button
         type="button"
         onClick={() => onTap(targetId)}
         aria-label={sized ? `Add ${item.name}, ${picked.name}` : quickAddable ? `Add ${item.name}` : item.name}
-        className="absolute inset-0 rounded-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+        className={cn("absolute inset-x-0 top-0 rounded-card", showStepper ? "bottom-14" : "bottom-0")}
       />
 
-      <div className="pointer-events-none relative flex min-w-0 flex-1 flex-col justify-between p-3 text-left">
-        <div className={cn("flex items-start justify-between gap-2", quickAddable ? "pr-8" : "pr-6")}>
-          <span className="line-clamp-2 text-sm font-semibold leading-tight">{item.name}</span>
+      <div className="pointer-events-none relative flex min-w-0 flex-1 flex-col p-2.5 text-left">
+        <div className={cn("flex items-start justify-between gap-2", quickAddable && "pr-9")}>
+          <span className="line-clamp-2 text-heading">{item.name}</span>
           {isDeal && <Badge variant="brand">Deal</Badge>}
         </div>
-        <div className="mt-1 flex flex-1 flex-col justify-between">
-          <span className={cn("whitespace-nowrap text-sm font-bold tabular-nums", isDeal && "text-brand")}>
+
+        {sized && (
+          // One scrolling row. `Chips` fades whichever edge still has more behind it and scrolls
+          // the picked size into view, so nothing hides the way it used to. The negative bleed
+          // matches this card's `p-2.5` so the row scrolls edge to edge.
+          <div className="pointer-events-auto mt-1.5">
+            <Chips
+              className="-mx-2.5 px-2.5"
+              aria-label={`${item.name} size`}
+              value={String(picked.id)}
+              onChange={(id) => setPickedId(Number(id))}
+              options={item.variants.map((v) => ({ value: String(v.id), label: v.name, count: inCartByVariant.get(v.id) || undefined }))}
+            />
+          </div>
+        )}
+
+        {/*
+          * The price sits on its own line so it survives the in-cart state. It used to share the
+          * bottom row with the action, which meant the stepper *replaced* it once the item was in
+          * the cart — a cashier could not see what a line in the order costs.
+          *
+          * `flex-1 items-start` is what makes equal-height cards work. Cards are stretched to a
+          * common height, and this puts the spare height *below* the price: name and price stay
+          * together as the item's identity, and the button stays anchored at the bottom. Letting
+          * the slack land between the name and the price pulls those two apart, and letting it
+          * land mid-card reads as a hole — which is why the grid used to opt out of stretching
+          * altogether. Don't put `items-start` back on the grid to "fix" that.
+          */}
+        <div className="mt-0.5 flex min-w-0 flex-1 items-start">
+          <span className={cn("min-w-0 truncate text-body money", isDeal && "text-brand")}>
             {hasSizes && !sized && <span className="font-normal text-muted">from </span>}
             {formatMoney(sized ? picked.price : min)}
           </span>
-          {sized && (
-            <div className="pointer-events-auto mt-1">
-              <Chips
-                aria-label={`${item.name} size`}
-                className="-mx-3 px-3"
-                value={String(picked.id)}
-                onChange={(id) => setPickedId(Number(id))}
-                options={item.variants.map((v) => ({ value: String(v.id), label: v.name, count: inCartByVariant.get(v.id) || undefined }))}
-              />
-            </div>
+        </div>
+
+        {/* Fixed height with or without the stepper so the grid does not jump on the first tap. */}
+        <div className="mt-2 flex h-11 items-center justify-end gap-2">
+          {showStepper ? (
+            <NumberStepper
+              size="md"
+              min={0}
+              max={99}
+              removeAtOne
+              value={quantity}
+              aria-label={sized ? `${item.name} ${picked.name} quantity` : `${item.name} quantity`}
+              onChange={(next) => (next > quantity ? onTap(targetId) : onDecrement(targetId))}
+              className="pointer-events-auto flex w-full justify-between bg-surface shadow-1"
+            />
+          ) : !item.isAvailable ? (
+            <Badge variant="danger">Sold out</Badge>
+          ) : (
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand text-brand-ink">
+              <Plus className="h-5 w-5" strokeWidth={2.5} />
+            </span>
           )}
-          {/* Fixed height with or without the stepper so the grid does not jump on the first tap. */}
-          <div className="mt-2 flex h-9 items-center justify-end">
-            {!item.isAvailable ? (
-              <Badge variant="danger">Sold out</Badge>
-            ) : (
-              <>
-                {!quickAddable && (
-                  <span className={cn("mr-auto text-xs", isDeal ? "text-ink-muted" : "text-muted")}>
-                    {hasSizes ? `${item.variants.length} sizes` : "Choose"}
-                  </span>
-                )}
-                {/* Same "+" on every in-stock card; deals keep it in the cart too (the count badge shows the total). */}
-                {(!quickAddable || quantity === 0) && (
-                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-brand text-brand-ink">
-                    <Plus className="h-5 w-5" strokeWidth={2.5} />
-                  </span>
-                )}
-              </>
-            )}
-          </div>
         </div>
       </div>
 
@@ -111,19 +135,6 @@ export default function ItemCard({ item, inCart, inCartByVariant, onTap, onDecre
         >
           <MoreHorizontal className="h-5 w-5" />
         </button>
-      )}
-
-      {quickAddable && quantity > 0 && (
-        <NumberStepper
-          size="sm"
-          min={0}
-          max={99}
-          removeAtOne
-          value={quantity}
-          aria-label={sized ? `${item.name} ${picked.name} quantity` : `${item.name} quantity`}
-          onChange={(next) => (next > quantity ? onTap(targetId) : onDecrement(targetId))}
-          className="absolute bottom-2.5 right-2.5 shadow-xs"
-        />
       )}
 
       {!quickAddable && inCart > 0 && (

@@ -1,5 +1,5 @@
 import PageSkeleton from "@/components/layout/page-skeleton";
 
 export default function Loading() {
-  return <PageSkeleton title="Inventory" variant="list" filters />;
+  return <PageSkeleton title="Inventory" variant="list" filters hero />;
 }

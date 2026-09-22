@@ -3,6 +3,7 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import PeriodPicker from "@/components/common/PeriodPicker";
 import PageHeader from "@/components/layout/page-header";
+import PageBody from "@/components/layout/page-body";
 import { FINANCE_PRESETS, formatBusinessDate, rangeDays, resolvePeriod, type DateRange, type PeriodPreset } from "@/utils/helper";
 import { routes } from "@/utils/routes";
 
@@ -41,10 +42,10 @@ export default function FinanceShell({ today, children }: FinanceShellProps) {
   return (
     <>
       <PageHeader title="Finance" subtitle={subtitle} backHref={routes.ui.more} />
-      <div className="space-y-4 p-4">
+      <PageBody gap={4}>
         <PeriodPicker key={preset} preset={preset} range={range} today={today} onChange={navigate} />
         {children}
-      </div>
+      </PageBody>
     </>
   );
 }

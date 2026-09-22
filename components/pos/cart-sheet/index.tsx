@@ -28,6 +28,12 @@ interface CartSheetProps {
   role: UserRole;
   /** Runs inside the same tap (auto-print needs the activation window) after the sheet closes. */
   onPlaced: (result: PlaceOrderResult) => Promise<void>;
+  /**
+   * "sheet" is the phone: a bottom sheet opened from the cart bar. "panel" is the desktop till,
+   * where the cart is always on screen beside the menu. Same body, same logic — only the shell
+   * around it differs.
+   */
+  variant?: "sheet" | "panel";
 }
 
 type PayChoice = PaymentMethod | "cod";
@@ -40,7 +46,7 @@ const ORDER_TYPES: { value: OrderType; label: string }[] = [
 
 const PLACE_OFFLINE = "No connection. Tap Place order again once online — the same cart is never charged twice.";
 
-export default function CartSheet({ open, onOpenChange, settings, role, onPlaced }: CartSheetProps) {
+export default function CartSheet({ open, onOpenChange, settings, role, onPlaced, variant = "sheet" }: CartSheetProps) {
   const cart = useCart();
   const [discountText, setDiscountText] = useState(cart.discountAmount ? String(cart.discountAmount) : "");
   const [showDiscount, setShowDiscount] = useState(cart.discountAmount > 0);
@@ -136,27 +142,21 @@ export default function CartSheet({ open, onOpenChange, settings, role, onPlaced
     });
   };
 
-  return (
-    <>
-    <BottomSheet
-      open={open && !confirmClear}
-      onOpenChange={onOpenChange}
-      title="Cart"
-      description={`${totals.count} item${totals.count === 1 ? "" : "s"}`}
-      footer={
-        <div className="space-y-2">
-          {/* The discount field can be scrolled out of view; say why Place is greyed out here. */}
-          {blockReason !== null && cart.lines.length > 0 && (
-            <p role="alert" className="text-center text-xs text-danger">
-              {blockReason}
-            </p>
-          )}
-          <Button size="lg" className="w-full" isLoading={isPending} disabled={!canPlace} onClick={handlePlace}>
-            Place order · {formatMoney(totals.total)}
-          </Button>
-        </div>
-      }
-    >
+  const footer = (
+    <div className="space-y-2">
+      {/* The discount field can be scrolled out of view; say why Place is greyed out here. */}
+      {blockReason !== null && cart.lines.length > 0 && (
+        <p role="alert" className="text-center text-xs text-danger">
+          {blockReason}
+        </p>
+      )}
+      <Button size="lg" className="w-full" isLoading={isPending} disabled={!canPlace} onClick={handlePlace}>
+        Place order · {formatMoney(totals.total)}
+      </Button>
+    </div>
+  );
+
+  const body = (
       <div className="space-y-5">
         {cart.lines.length === 0 ? (
           <p className="py-6 text-center text-sm text-muted">The cart is empty.</p>
@@ -338,10 +338,35 @@ export default function CartSheet({ open, onOpenChange, settings, role, onPlaced
           <div className="flex justify-between border-t border-border pt-1 text-base font-bold"><dt>Total</dt><dd className="tabular-nums">{formatMoney(totals.total)}</dd></div>
         </dl>
       </div>
-    </BottomSheet>
+  );
+
+  return (
+    <>
+    {variant === "panel" ? (
+      <aside aria-label="Cart" className="flex h-full flex-col bg-surface">
+        <div className="shrink-0 border-b border-border px-4 py-3">
+          <h2 className="text-heading">Cart</h2>
+          <p className="text-label text-muted">
+            {totals.count} item{totals.count === 1 ? "" : "s"}
+          </p>
+        </div>
+        <div className="flex-1 overflow-y-auto px-4 py-4">{body}</div>
+        <div className="shrink-0 border-t border-border p-4">{footer}</div>
+      </aside>
+    ) : (
+      <BottomSheet
+        open={open && !confirmClear}
+        onOpenChange={onOpenChange}
+        title="Cart"
+        description={`${totals.count} item${totals.count === 1 ? "" : "s"}`}
+        footer={footer}
+      >
+        {body}
+      </BottomSheet>
+    )}
 
     <ConfirmSheet
-      open={open && confirmClear}
+      open={confirmClear && (variant === "panel" || open)}
       onOpenChange={setConfirmClear}
       title="Clear the cart?"
       description={`${totals.count} item${totals.count === 1 ? "" : "s"} will be removed. This cannot be undone.`}

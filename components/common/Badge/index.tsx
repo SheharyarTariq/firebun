@@ -19,7 +19,7 @@ export default function Badge({ variant = "neutral", className, ...props }: Badg
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap",
+        "inline-flex items-center rounded-full px-2.5 py-1 text-caption tracking-normal whitespace-nowrap",
         VARIANT_STYLES[variant],
         className
       )}

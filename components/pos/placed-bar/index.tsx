@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import Link from "next/link";
 import { Check, ChevronRight, Printer, TriangleAlert, X } from "lucide-react";
+import FloatingBar from "@/components/layout/floating-bar";
 import Loader from "@/components/common/Loader";
 import { cn } from "@/utils/cn";
 import { formatMoney, formatOrderNumber } from "@/utils/helper";
@@ -44,10 +45,10 @@ export default function PlacedBar({ placed, printing, printOutcome = null, onPri
   }, [placed.orderId, lingers, printing, printOutcome, onDismiss]);
 
   return (
-    <div className="fixed inset-x-0 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-30 px-4 pb-2">
+    <FloatingBar>
       <div
         role="status"
-        className="mx-auto w-full max-w-lg animate-fade-up rounded-card bg-ink text-ink-foreground shadow-lg"
+        className="animate-fade-up rounded-card bg-ink text-ink-foreground shadow-3"
       >
         <div className="flex h-14 items-center gap-2 pl-4 pr-1">
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-success text-white">
@@ -109,6 +110,6 @@ export default function PlacedBar({ placed, printing, printOutcome = null, onPri
           </ul>
         )}
       </div>
-    </div>
+    </FloatingBar>
   );
 }

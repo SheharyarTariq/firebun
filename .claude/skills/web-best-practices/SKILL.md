@@ -40,14 +40,42 @@ Never hard-code hex colours in components; add a token if one is missing.
 
 ## 2. Mobile-first rules (the app runs on Android phones at a counter)
 
-- Touch targets are at least 44px: buttons `h-11`/`h-12`, list rows `py-3.5`, nav `h-[4.25rem]`.
-- Inputs use `text-base` (16px) so the browser does not zoom on focus.
+- Touch targets are at least 44px: buttons `h-11`/`h-12`, list rows `py-3.5`, nav `h-nav`.
+  36px controls (`Button size="sm"`, `Chips`) reach 44px with `after:absolute after:inset-x-0
+  after:-inset-y-1` — keep the pseudo-element, it is deliberate.
+- Inputs use `text-base` (16px) so the browser does not zoom on focus. `globals.css` also sets a
+  16px floor on bare `input`/`select`/`textarea` for anything that skips the component.
 - Money and quantity fields: `inputMode="decimal"` (or `"numeric"`), never rely on `type="number"` spinners.
 - No hover-only affordances; use `active:` states for feedback.
 - Lists render as cards/rows, not tables. Horizontal category chips scroll with `overflow-x-auto`.
 - Pickers, forms and confirmations open in `BottomSheet` / `ConfirmSheet`, not centred modals.
 - Primary actions sit at the bottom of the screen or sheet, within thumb reach.
-- Every screen starts with `<PageHeader title=… />`; content gets `p-4` and `space-y-4`.
+- Every screen starts with `<PageHeader title=… />` and wraps its content in `<PageBody>`.
+
+---
+
+## 2a. Widths and breakpoints — mobile-first, not mobile-only
+
+The app ran for a long time with **one** responsive class in the whole codebase, and every
+container hard-coded `max-w-lg`. On a 1920px monitor that left 82% of the window empty. Rules:
+
+- **Never write a new `max-w-*` on a page container.** The canopy (`PageHeader`), the page body
+  (`PageBody`), the floating bars (`FloatingBar`) and the offline pill all use the **`page-gutter`**
+  utility from `globals.css`. That one utility owns the page margin at every width.
+- **Chrome heights are tokens, not literals:** `--spacing-header` (canopy) and `--spacing-nav`
+  (tab bar). Use `h-header` / `h-nav` / `top-canopy` / `bottom-nav-offset`. Never type `4.25rem`.
+- **Content fills the window; individual controls do not.** A list wants the width. A text input
+  or a button does not — cap those (`max-w-xl`, `lg:max-w-md`) so a field never runs the width of
+  a monitor.
+- **Fill width with more content, not longer rows** — a wider grid, or CSS `columns` for stacks
+  of cards of uneven height (a grid leaves a dead column under every short card). Splitting a
+  *list* into two columns was tried and rejected: it misfires whenever the list is short, putting
+  one row beside a large empty cell. Lists stay a single column.
+- **Every fixed `grid-cols-N` needs a breakpoint.** `grid-cols-2 lg:grid-cols-4`, not a constant.
+- The POS is the one screen with a distinct desktop layout: menu grid plus a permanent cart panel
+  at `lg`, the floating cart bar below it. `CartSheet` renders both via its `variant` prop.
+- **Check changes at 390 / 768 / 1440 / 1920.** The phone is still the primary target — a desktop
+  improvement that costs the counter anything is not an improvement.
 
 ---
 

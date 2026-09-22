@@ -1,6 +1,7 @@
 "use client";
 
 import { ChevronUp, ShoppingBag } from "lucide-react";
+import FloatingBar from "@/components/layout/floating-bar";
 import { formatMoney } from "@/utils/helper";
 import { cartTotals, useCart, useHydrated } from "../cart-store";
 
@@ -21,11 +22,11 @@ export default function CartBar({ defaultDeliveryCharge, onOpen }: CartBarProps)
   const totals = cartTotals({ lines, discountAmount, deliveryCharge, orderType }, defaultDeliveryCharge);
 
   return (
-    <div className="fixed inset-x-0 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-30 px-4 pb-2">
+    <FloatingBar>
       <button
         type="button"
         onClick={onOpen}
-        className="mx-auto flex h-14 w-full max-w-lg items-center gap-3 rounded-card bg-brand px-4 text-brand-ink shadow-[0_8px_24px_-8px_rgb(255_180_0/0.7)] transition-[background-color,transform] active:scale-[0.99] active:bg-brand-strong motion-reduce:transition-none"
+        className="flex h-14 w-full items-center gap-3 rounded-card bg-brand px-4 text-brand-ink shadow-[0_8px_24px_-8px_rgb(255_180_0/0.7)] transition-[background-color,transform] active:scale-[0.99] active:bg-brand-strong motion-reduce:transition-none"
       >
         {/* Re-mounted on every count change so the pop animation replays. */}
         <span
@@ -41,6 +42,6 @@ export default function CartBar({ defaultDeliveryCharge, onOpen }: CartBarProps)
         <span className="text-base font-bold tabular-nums">{formatMoney(totals.total)}</span>
         <ChevronUp className="h-5 w-5" />
       </button>
-    </div>
+    </FloatingBar>
   );
 }

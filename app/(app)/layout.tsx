@@ -38,7 +38,7 @@ export default async function AppLayout({
   return (
     <div className="flex min-h-dvh flex-col">
       <OfflineBanner />
-      <main className="flex flex-1 flex-col pb-[calc(4.25rem+env(safe-area-inset-bottom))]">
+      <main className="flex flex-1 flex-col pb-[calc(var(--spacing-nav)+env(safe-area-inset-bottom))]">
         {children}
       </main>
       <BottomNav role={user.role} showExpenses={user.role === "admin" || settings.staffCanAddExpenses} badges={badges} />

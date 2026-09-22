@@ -12,6 +12,7 @@ import Input from "@/components/common/Input";
 import ListRow from "@/components/common/ListRow";
 import SectionHeading from "@/components/common/SectionHeading";
 import PageHeader from "@/components/layout/page-header";
+import PageBody from "@/components/layout/page-body";
 import type { MenuCategoryWithItems, MenuListItem } from "@/server/menu/queries";
 import { cn } from "@/utils/cn";
 import { routes } from "@/utils/routes";
@@ -74,15 +75,33 @@ export default function MenuScreen({ categories }: MenuScreenProps) {
     <>
       <PageHeader
         title="Menu"
-        subtitle={`${totalItems} items · ${withRecipe} of ${singles.length} have a recipe${soldOut ? ` · ${soldOut} sold out` : ""}`}
+        // Sold-out is the urgent fact, so it leads. The old line put it last in a single
+        // truncating row and it was the first thing cut off.
+        subtitle={[
+          soldOut > 0 ? `${soldOut} sold out` : null,
+          singles.length - withRecipe > 0 ? `${singles.length - withRecipe} without a recipe` : null,
+          `${totalItems} items`,
+        ]
+          .filter(Boolean)
+          .join(" · ")}
         actions={
-          <Button size="sm" startIcon={<Plus className="h-4 w-4" />} onClick={openCreate}>
-            Add
-          </Button>
+          <>
+            <Button
+              size="icon"
+              variant="header"
+              aria-label="Manage categories"
+              onClick={() => setManageOpen(true)}
+            >
+              <Settings2 className="h-5 w-5" />
+            </Button>
+            <Button size="sm" startIcon={<Plus className="h-4 w-4" />} onClick={openCreate}>
+              Add
+            </Button>
+          </>
         }
       />
 
-      <div className="space-y-3 p-4">
+      <PageBody gap={3}>
         <Input
           type="search"
           placeholder="Search menu"
@@ -90,24 +109,17 @@ export default function MenuScreen({ categories }: MenuScreenProps) {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
-        <div className="flex items-center gap-2">
-          <Chips
-            aria-label="Category"
-            value={categoryFilter}
-            onChange={setCategoryFilter}
-            options={chipOptions}
-            className="min-w-0 flex-1"
-          />
-          <Button
-            size="icon"
-            variant="outline"
-            aria-label="Manage categories"
-            className="shrink-0"
-            onClick={() => setManageOpen(true)}
-          >
-            <Settings2 className="h-4 w-4" />
-          </Button>
-        </div>
+        {/*
+          * The chips row gets the full width back. It sat in a flex row beside the categories
+          * button while keeping its own `-mx-4` bleed, so scrolling chips ran underneath that
+          * button; managing categories is an admin action and belongs in the header anyway.
+          */}
+        <Chips
+          aria-label="Category"
+          value={categoryFilter}
+          onChange={setCategoryFilter}
+          options={chipOptions}
+        />
 
         {missingRecipe > 0 && categoryFilter !== NO_RECIPE && query === "" && (
           <Banner
@@ -166,7 +178,7 @@ export default function MenuScreen({ categories }: MenuScreenProps) {
             </section>
           ))
         )}
-      </div>
+      </PageBody>
 
       <ItemFormSheet
         key={createKey}

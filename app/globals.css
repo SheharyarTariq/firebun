@@ -11,7 +11,10 @@
   --background: #f6f5f2;
   --foreground: #16130f;
   --surface: #ffffff;
+  /* Pressed / hover fill. NOT an elevation level — for that use --surface-raised. */
   --surface-2: #f0eee8;
+  /* Raised cards and sheets: a hair warmer than --surface so stacked cards separate. */
+  --surface-raised: #fffdf8;
   --border: #e3e0d8;
   --muted: #6b665e; /* 5.7:1 on white — readable hints, not decoration */
   --muted-bg: #efede7;
@@ -41,6 +44,7 @@
   --color-foreground: var(--foreground);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
+  --color-surface-raised: var(--surface-raised);
   --color-border: var(--border);
   --color-muted: var(--muted);
   --color-muted-bg: var(--muted-bg);
@@ -66,10 +70,59 @@
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 
+  /*
+   * Type scale. Use these instead of raw text-sm/text-xs so headings, body and meta keep a
+   * deliberate distance from each other. Each carries its own leading and weight.
+   *
+   * One exception: form fields stay on `text-base` (16px). Anything smaller makes Android and
+   * iOS zoom the page on focus — see components/common/Input.
+   */
+  --text-display: 1.75rem; /* 28px — the one big number on a screen (canopy heroes, KPIs) */
+  --text-display--line-height: 2rem;
+  --text-display--font-weight: 700;
+  --text-display--letter-spacing: -0.02em;
+
+  --text-title: 1.25rem; /* 20px — page titles, sheet titles */
+  --text-title--line-height: 1.625rem;
+  --text-title--font-weight: 600;
+  --text-title--letter-spacing: -0.01em;
+
+  --text-heading: 1.0625rem; /* 17px — card headings, item names, list row titles */
+  --text-heading--line-height: 1.375rem;
+  --text-heading--font-weight: 600;
+
+  --text-body: 0.9375rem; /* 15px — default reading size */
+  --text-body--line-height: 1.3125rem;
+
+  --text-label: 0.8125rem; /* 13px — field labels, row meta, hints */
+  --text-label--line-height: 1.125rem;
+  --text-label--font-weight: 500;
+
+  --text-caption: 0.6875rem; /* 11px — SectionHeading, nav labels, badges */
+  --text-caption--line-height: 0.875rem;
+  --text-caption--font-weight: 600;
+  --text-caption--letter-spacing: 0.04em;
+
   --radius-card: 1rem;
   --radius-field: 0.75rem;
   --radius-sheet: 1.5rem;
+
+  /*
+   * Elevation. Cards used to be defined by a 1px border on a flat background, which made every
+   * surface read the same. Now depth does that job and --border is for dividers and fields.
+   */
+  --shadow-1: 0 1px 2px rgb(20 18 16 / 0.06), 0 1px 3px rgb(20 18 16 / 0.04);
+  --shadow-2: 0 4px 12px -2px rgb(20 18 16 / 0.08), 0 2px 4px -2px rgb(20 18 16 / 0.05);
+  --shadow-3: 0 12px 32px -8px rgb(20 18 16 / 0.16);
   --shadow-sheet: 0 -8px 30px rgb(0 0 0 / 0.12);
+
+  /* The dark canopy's inner height. Anything that sticks below it must use the same number. */
+  --spacing-header: 3.5rem;
+  /*
+   * The bottom tab bar's height. Every floating bar sits on top of it and the app shell reserves
+   * room for it, so it was written out as a bare `4.25rem` in six places across five files.
+   */
+  --spacing-nav: 4.25rem;
 
   /* Small "something changed" motion for badges and counters. */
   --animate-pop: pop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -105,9 +158,12 @@
 }
 
 /*
- * Keyboard focus ring for anything interactive that has no ring of its own (chips, toggles,
- * steppers, tab bar, plain links). `:where` keeps specificity at zero, so components that set
- * their own focus styles (Button, Input) still win.
+ * One keyboard focus ring for the whole app. Components used to each bring their own — Button
+ * had a brand ring with an offset, fields had a softer one, everything else fell through to
+ * this — so three different things meant "focused". This is now the only one.
+ *
+ * Fields keep a separate `focus:` border tint (see Input): that marks the *active* field on tap
+ * as well as by keyboard, which is a different job from showing where the keyboard is.
  */
 :where(a, button, input, select, textarea, summary, [tabindex]):focus-visible {
   outline: 2px solid var(--brand-strong);
@@ -122,6 +178,58 @@
   padding-top: env(safe-area-inset-top);
 }
 
+/*
+ * Anything that pins itself directly under the dark canopy — the offline pill, the POS's sticky
+ * category row. Both used to hard-code their own slightly-wrong number and landed on top of the
+ * control beneath them, so the offset lives here once.
+ */
+@utility top-canopy {
+  top: calc(var(--spacing-header) + env(safe-area-inset-top));
+}
+
+/*
+ * The one page container. The canopy's contents, the page body, the floating bars and the offline
+ * pill all use it, so they line up with each other at every width instead of each picking a cap.
+ *
+ * Content runs the full width of the window — a 512px column on a 1920px monitor left four fifths
+ * of the screen empty. The gutter grows with the viewport so text never touches the edge.
+ */
+@utility page-gutter {
+  width: 100%;
+  margin-inline: auto;
+  padding-inline: 1rem;
+
+  @media (width >= 48rem) {
+    padding-inline: 1.5rem;
+  }
+  @media (width >= 64rem) {
+    padding-inline: 2rem;
+  }
+}
+
+/* Sits above the bottom tab bar: cart bar, save bar, order actions. */
+@utility bottom-nav-offset {
+  bottom: calc(var(--spacing-nav) + env(safe-area-inset-bottom));
+}
+
+/*
+ * The brand glow from the sign-in screen, reused as the app's one flourish: a soft yellow
+ * bloom behind a hero number on the ink canopy. One per screen, never two.
+ */
+@utility brand-glow {
+  background-image: radial-gradient(closest-side, rgb(255 180 0 / 0.18), transparent);
+}
+
+/*
+ * Money and quantities. Figures never jitter as they change, and they carry a touch more weight
+ * than the label beside them — in a shop app the number is the content.
+ */
+@utility money {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
 html {
   height: 100%;
   -webkit-text-size-adjust: 100%;
@@ -132,8 +240,19 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: var(--text-body);
+  line-height: var(--text-body--line-height);
   -webkit-tap-highlight-color: transparent;
   overscroll-behavior-y: none;
+}
+
+/*
+ * 16px floor on form controls: anything smaller makes Android and iOS zoom the page on focus,
+ * and the page never zooms back. `:where` keeps this at zero specificity so a component can
+ * still set its own size — as long as it sets one at least this big.
+ */
+:where(input, select, textarea) {
+  font-size: 1rem;
 }
 
 /* Hide native number spinners; the app uses its own steppers and numeric keyboards. */

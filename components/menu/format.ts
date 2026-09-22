@@ -1,6 +1,12 @@
 import { formatMoney } from "@/utils/helper";
 
-/** "Rs 350" for a single price, "S 600 · M 999 · L 1,400" for sizes. */
+/**
+ * "Rs 350" for a single price, "Rs 999 – 1,800" across sizes.
+ *
+ * This used to list every size ("S 999 · M 1,450 · L 1,600 · XL 1,800 · Family 2,200"), which
+ * truncated mid-number on a phone and so told you less than the range does. The per-size prices
+ * are one tap away on the item screen.
+ */
 export function summariseVariants(
   variants: { name: string; price: number; isActive: boolean }[]
 ): string {
@@ -8,7 +14,11 @@ export function summariseVariants(
   const list = active.length > 0 ? active : variants;
   if (list.length === 0) return "No price";
   if (list.length === 1) return formatMoney(list[0].price);
-  return list.map((v) => `${v.name} ${formatMoney(v.price).replace("Rs ", "")}`).join(" · ");
+  const prices = list.map((v) => v.price);
+  const low = Math.min(...prices);
+  const high = Math.max(...prices);
+  if (low === high) return `${formatMoney(low)} · ${list.length} sizes`;
+  return `${formatMoney(low)} – ${formatMoney(high).replace("Rs ", "")}`;
 }
 
 export interface CostEstimate {

@@ -9,6 +9,7 @@ import EmptyState from "@/components/common/EmptyState";
 import ListRow from "@/components/common/ListRow";
 import SectionHeading from "@/components/common/SectionHeading";
 import PageHeader from "@/components/layout/page-header";
+import PageBody from "@/components/layout/page-body";
 import type { UserRow } from "@/server/users/queries";
 import { cn } from "@/utils/cn";
 import { routes } from "@/utils/routes";
@@ -44,7 +45,7 @@ export default function UsersScreen({ users, currentUserId }: UsersScreenProps) 
         }
       />
 
-      <div className="space-y-4 p-4">
+      <PageBody gap={4}>
         {users.length === 0 ? (
           <EmptyState icon={UserRound} title="No accounts yet" />
         ) : (
@@ -64,7 +65,7 @@ export default function UsersScreen({ users, currentUserId }: UsersScreenProps) 
             )}
           </>
         )}
-      </div>
+      </PageBody>
 
       <UserFormSheet open={createOpen} onOpenChange={setCreateOpen} />
       <UserActionsSheet

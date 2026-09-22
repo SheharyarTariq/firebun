@@ -39,14 +39,22 @@ export default function PeriodPicker({
 
   return (
     <div className="space-y-2">
+      {/*
+        * `wrap`, not a scrolling row: at 360px seven presets pushed 343px off-screen, so
+        * "This month", "Last month" and "Custom" could not be reached at all without knowing
+        * to swipe a row that gave no sign it scrolled.
+        */}
       <Chips<PeriodPreset>
+        wrap
         aria-label="Period"
         value={preset}
         onChange={(p) => onChange(p === "custom" ? { preset: p, range: { from, to } } : { preset: p })}
         options={presets.map((p) => ({ value: p, label: LABELS[p] }))}
       />
       {preset === "custom" && (
-        <div className="flex items-end gap-2">
+        // Two date fields plus Apply on one row is far too tight on a 360px phone.
+        <div className="space-y-2">
+          <div className="flex items-end gap-2">
           <Input label="From" type="date" max={today} value={from} onChange={(e) => setFrom(e.target.value)} containerClassName="flex-1" className="h-11" />
           <Input
             label="To"
@@ -58,7 +66,9 @@ export default function PeriodPicker({
             className="h-11"
             error={from && to && from > to ? "Before “From”" : undefined}
           />
+          </div>
           <Button
+            className="w-full"
             disabled={!from || !to || from > to}
             onClick={() => onChange({ preset: "custom", range: { from, to } })}
           >

@@ -14,6 +14,8 @@ import Select from "@/components/common/Select";
 import Textarea from "@/components/common/Textarea";
 import Toggle from "@/components/common/Toggle";
 import PageHeader from "@/components/layout/page-header";
+import FloatingBar from "@/components/layout/floating-bar";
+import PageBody from "@/components/layout/page-body";
 import type { Settings } from "@/db/schema";
 import { callAction } from "@/utils/call-action";
 import { parseNumberInput } from "@/utils/helper";
@@ -145,18 +147,23 @@ export default function SettingsScreen({ settings }: SettingsScreenProps) {
         onBack={dirty ? () => setLeaveOpen(true) : undefined}
       />
 
-      <div className="space-y-4 p-4 pb-28">
-        <Card className="space-y-4">
+      {/*
+        * Sections sit two-up on a monitor, and each card keeps its fields to a readable measure.
+        * Full width is right for a list; a 1900px-wide text input is not — you lose the start of
+        * the line you are typing on.
+        */}
+      <PageBody gap={4} className="pb-28 xl:columns-2 xl:gap-4 xl:space-y-0 xl:[&>*]:mb-4 xl:[&>*]:break-inside-avoid">
+        <Card className="space-y-4 [&>*]:max-w-xl">
           <SectionHeading>Shop</SectionHeading>
           <Input label="Shop name" value={form.shopName} onChange={(e) => set("shopName", e.target.value)} error={errors.shopName} />
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-3 lg:max-w-md">
             <Input label="Phone" type="tel" inputMode="tel" value={form.phone} onChange={(e) => set("phone", e.target.value)} error={errors.phone} />
             <Input label="Phone 2" type="tel" inputMode="tel" value={form.phone2} onChange={(e) => set("phone2", e.target.value)} error={errors.phone2} />
           </div>
           <Input label="Address" value={form.address} onChange={(e) => set("address", e.target.value)} error={errors.address} hint="Printed under the shop name." />
         </Card>
 
-        <Card className="space-y-4">
+        <Card className="space-y-4 [&>*]:max-w-xl">
           <SectionHeading>Receipt</SectionHeading>
           <Textarea
             label="Header lines (one per line, up to 4)"
@@ -183,7 +190,7 @@ export default function SettingsScreen({ settings }: SettingsScreenProps) {
           />
         </Card>
 
-        <Card className="space-y-4">
+        <Card className="space-y-4 [&>*]:max-w-xl">
           <SectionHeading>Counter rules</SectionHeading>
           <Input
             label="Default delivery charge (Rs)"
@@ -218,7 +225,7 @@ export default function SettingsScreen({ settings }: SettingsScreenProps) {
             hint="Orders before this time count towards the previous day's numbers."
           />
         </Card>
-      </div>
+      </PageBody>
 
       <ConfirmSheet
         open={leaveOpen}
@@ -231,10 +238,10 @@ export default function SettingsScreen({ settings }: SettingsScreenProps) {
         onConfirm={() => router.push(routes.ui.more)}
       />
 
-      <div className="fixed inset-x-0 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-30 px-4 pb-2">
+      <FloatingBar>
         <Button
           size="lg"
-          className="mx-auto flex w-full max-w-lg shadow-md"
+          className="mx-auto flex w-full shadow-2 lg:max-w-md"
           isLoading={isPending}
           disabled={!dirty}
           startIcon={<Save className="h-5 w-5" />}
@@ -242,7 +249,7 @@ export default function SettingsScreen({ settings }: SettingsScreenProps) {
         >
           {dirty ? "Save changes" : "Saved"}
         </Button>
-      </div>
+      </FloatingBar>
     </>
   );
 }
