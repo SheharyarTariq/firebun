@@ -4,6 +4,7 @@ import { and, asc, count, eq, inArray, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
   dealSlotOptions,
+  dealSlots,
   inventoryItems,
   menuCategories,
   menuItems,
@@ -182,20 +183,41 @@ export const getMenuItemDetails = cache(async (id: number) => {
   if (!item) return null;
 
   const variantIds = item.variants.map((v) => v.id);
-  const [categories, inventory, variantChoices, recipeSources, [soldRow], [dealRow]] = await Promise.all([
+  const [categories, inventory, variantChoices, recipeSources, [soldRow], dealRow] = await Promise.all([
     listCategories(),
     listInventoryForRecipes(),
     item.kind === "deal" ? listVariantChoices() : Promise.resolve([] as VariantChoice[]),
     item.kind === "single" ? listRecipeSources() : Promise.resolve([] as RecipeSource[]),
     db.select({ n: count() }).from(orderItems).where(eq(orderItems.menuItemId, id)),
+    // Named, so a blocked delete can point at the deals rather than just counting them.
     variantIds.length > 0
-      ? db.select({ n: count() }).from(dealSlotOptions).where(inArray(dealSlotOptions.variantId, variantIds))
-      : Promise.resolve([{ n: 0 }]),
+      ? db
+          .selectDistinct({
+            dealItemId: menuItems.id,
+            dealName: menuItems.name,
+            slotLabel: dealSlots.label,
+            isLive: menuItems.isActive,
+          })
+          .from(dealSlotOptions)
+          .innerJoin(dealSlots, eq(dealSlots.id, dealSlotOptions.slotId))
+          .innerJoin(menuItemVariants, eq(menuItemVariants.id, dealSlots.dealVariantId))
+          .innerJoin(menuItems, eq(menuItems.id, menuItemVariants.menuItemId))
+          .where(inArray(dealSlotOptions.variantId, variantIds))
+          .orderBy(asc(menuItems.name))
+      : Promise.resolve([] as DealUsage[]),
   ]);
 
   // What blocks a delete (sold lines, offered inside a deal), so the sheet can explain.
-  return { item, categories, inventory, variantChoices, recipeSources, orderLines: soldRow?.n ?? 0, dealUses: dealRow?.n ?? 0 };
+  return { item, categories, inventory, variantChoices, recipeSources, orderLines: soldRow?.n ?? 0, dealUsages: dealRow };
 });
+
+/** A deal that offers one of this item's sizes — what blocks deleting it. */
+export interface DealUsage {
+  dealItemId: number;
+  dealName: string;
+  slotLabel: string;
+  isLive: boolean;
+}
 
 export type MenuItemDetails = NonNullable<Awaited<ReturnType<typeof getMenuItemDetails>>>;
 export type MenuItemFull = MenuItemDetails["item"];

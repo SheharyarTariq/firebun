@@ -9,13 +9,18 @@ import {
   deleteInventoryItemAction,
   updateInventoryItemAction,
 } from "@/app/(app)/(admin)/inventory/actions";
+import Banner from "@/components/common/Banner";
 import BottomSheet from "@/components/common/BottomSheet";
 import Button from "@/components/common/Button";
+import Card from "@/components/common/Card";
 import ConfirmSheet from "@/components/common/ConfirmSheet";
 import Input from "@/components/common/Input";
+import ListRow from "@/components/common/ListRow";
+import SectionHeading from "@/components/common/SectionHeading";
 import Select from "@/components/common/Select";
 import Toggle from "@/components/common/Toggle";
 import type { InventoryItem } from "@/db/schema";
+import type { RecipeUsage } from "@/server/inventory/queries";
 import { callAction } from "@/utils/call-action";
 import {
   DEFAULT_PACK_LABEL,
@@ -37,7 +42,7 @@ interface ItemFormSheetProps {
   /** Editing only: false once the item has movements (unit is then locked). */
   canChangeBaseUnit?: boolean;
   /** Editing only: why a delete would be refused, so the sheet can say so up front. */
-  deleteBlock?: { recipeUses: number; usedInOrders: boolean; purchases: number; movements: number };
+  deleteBlock?: { recipeUsages: RecipeUsage[]; usedInOrders: boolean; purchases: number; movements: number };
 }
 
 const BASE_UNIT_OPTIONS = [
@@ -152,12 +157,43 @@ export default function ItemFormSheet({
     });
   };
 
+  /** Archiving from the blocked sheet, so the way out is one tap instead of a hunt for the toggle. */
+  const handleArchive = () => {
+    if (!item) return;
+    startTransition(async () => {
+      const result = await callAction(
+        updateInventoryItemAction(item.id, {
+          name: item.name,
+          baseUnit: item.baseUnit,
+          displayUnit: item.displayUnit,
+          lowStockThreshold: item.lowStockThreshold,
+          packSize: item.packSize,
+          packLabel: item.packLabel,
+          isActive: false,
+        })
+      );
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success(`${item.name} archived`);
+      setConfirmDelete(false);
+      onOpenChange(false);
+      router.push(routes.ui.inventory);
+    });
+  };
+
+  const recipeUsages = deleteBlock?.recipeUsages ?? [];
+  // Menu items that can still be sold keep deducting this ingredient after it is archived.
+  const liveRecipes = recipeUsages.filter((r) => r.isLive);
+  // Orders come first: clearing the recipes would not unblock an item that has been sold, so
+  // promising "remove it from them to delete it" there would be a lie.
   const blockedReason = !deleteBlock
     ? null
-    : deleteBlock.recipeUses > 0
-      ? `Used in ${deleteBlock.recipeUses} recipe${deleteBlock.recipeUses === 1 ? "" : "s"} — remove it from those first, or switch "In use" off to archive it.`
-      : deleteBlock.usedInOrders
-        ? "Orders have used this item, so its history stays. Switch “In use” off to archive it instead."
+    : deleteBlock.usedInOrders
+      ? "Orders have already used it, so its history has to stay. Archiving keeps that history and takes it off your lists."
+      : recipeUsages.length > 0
+        ? `${recipeUsages.length === 1 ? "A recipe still uses it. Remove it from that recipe" : `${recipeUsages.length} recipes still use it. Remove it from them`} to delete it, or archive it — it stays out of your way and keeps its history.`
         : null;
   const deleteConsequence = deleteBlock
     ? [
@@ -180,10 +216,42 @@ export default function ItemFormSheet({
           (deleteConsequence ? `Its ${deleteConsequence} are deleted with it. This cannot be undone.` : "This cannot be undone.")
         }
         confirmLabel={blockedReason ? "OK" : "Delete"}
+        cancelLabel={blockedReason ? "Not now" : "Cancel"}
         destructive={!blockedReason}
         isLoading={isPending}
         onConfirm={blockedReason ? () => setConfirmDelete(false) : handleDelete}
-      />
+        alternative={blockedReason ? { label: "Archive instead", onConfirm: handleArchive, isLoading: isPending } : undefined}
+      >
+        {blockedReason && (
+          <div className="space-y-3">
+            {recipeUsages.length > 0 && (
+              <div className="space-y-1">
+                <SectionHeading>Used in</SectionHeading>
+                <Card className="divide-y divide-border p-0">
+                  {recipeUsages.map((r) => (
+                    <ListRow key={`${r.menuItemId}-${r.variantName}`} href={routes.ui.menuItemDetails(r.menuItemId)} dense trailing="chevron">
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">{r.menuItemName}</span>
+                        <span className="block text-xs text-muted">
+                          {r.variantName === "Regular" ? "Recipe" : `${r.variantName} · recipe`}
+                          {!r.isLive && " · hidden"}
+                        </span>
+                      </span>
+                    </ListRow>
+                  ))}
+                </Card>
+              </div>
+            )}
+            {liveRecipes.length > 0 && (
+              <Banner tone="warning">
+                {liveRecipes.length === 1
+                  ? `${liveRecipes[0].menuItemName} is still on the menu and uses this, so its sales will keep deducting stock after archiving.`
+                  : `${liveRecipes.length} of these are still on the menu, so their sales will keep deducting stock after archiving.`}
+              </Banner>
+            )}
+          </div>
+        )}
+      </ConfirmSheet>
     )}
     <BottomSheet
       open={open && !confirmDelete}

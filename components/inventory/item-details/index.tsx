@@ -183,7 +183,7 @@ export default function ItemDetails({ details }: ItemDetailsProps) {
         onOpenChange={(open) => setSheet(open ? "edit" : null)}
         item={item}
         canChangeBaseUnit={movements.length === 0}
-        deleteBlock={{ recipeUses: details.recipeUses, usedInOrders: details.usedInOrders, purchases: purchases.length, movements: movements.length }}
+        deleteBlock={{ recipeUsages: details.recipeUsages, usedInOrders: details.usedInOrders, purchases: purchases.length, movements: movements.length }}
       />
       <PurchaseSheet
         key={`purchase-${sheetKey}`}

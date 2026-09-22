@@ -13,12 +13,16 @@ import {
 import BottomSheet from "@/components/common/BottomSheet";
 import Button from "@/components/common/Button";
 import Chips from "@/components/common/Chips";
+import Card from "@/components/common/Card";
 import ConfirmSheet from "@/components/common/ConfirmSheet";
+import ListRow from "@/components/common/ListRow";
+import SectionHeading from "@/components/common/SectionHeading";
 import Input from "@/components/common/Input";
 import Select from "@/components/common/Select";
 import Textarea from "@/components/common/Textarea";
 import Toggle from "@/components/common/Toggle";
 import type { MenuCategory, MenuItem, MenuItemKind } from "@/db/schema";
+import type { DealUsage } from "@/server/menu/queries";
 import { callAction } from "@/utils/call-action";
 import { parseNumberInput } from "@/utils/helper";
 import { routes } from "@/utils/routes";
@@ -32,7 +36,7 @@ interface ItemFormSheetProps {
   /** Present when editing; sizes are then managed on the item page. */
   item?: MenuItem;
   /** Editing only: what would block a delete (sold lines, offered inside a deal). */
-  deleteBlock?: { orderLines: number; dealUses: number };
+  deleteBlock?: { orderLines: number; dealUsages: DealUsage[] };
 }
 
 interface VariantRow {
@@ -186,12 +190,38 @@ export default function ItemFormSheet({ open, onOpenChange, categories, item, de
     });
   };
 
+  /** Hiding from the blocked sheet, so the way out is one tap instead of a hunt for the toggle. */
+  const handleHide = () => {
+    if (!item) return;
+    startTransition(async () => {
+      const result = await callAction(
+        updateMenuItemAction(item.id, {
+          categoryId: item.categoryId,
+          name: item.name,
+          description: item.description ?? undefined,
+          isActive: false,
+          isAvailable: item.isAvailable,
+          showOnPublicMenu: item.showOnPublicMenu,
+        })
+      );
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success(`${item.name} hidden from the menu`);
+      setConfirmDelete(false);
+      onOpenChange(false);
+      router.push(routes.ui.menu);
+    });
+  };
+
+  const dealUsages = deleteBlock?.dealUsages ?? [];
   const blockedReason = !deleteBlock
     ? null
     : deleteBlock.orderLines > 0
-      ? `Sold in ${deleteBlock.orderLines} order line${deleteBlock.orderLines === 1 ? "" : "s"}, so it stays for the records. Switch “On the menu” off to hide it instead.`
-      : deleteBlock.dealUses > 0
-        ? "Offered inside a deal. Remove it from the deal first, or switch “On the menu” off to hide it."
+      ? `It has been sold ${deleteBlock.orderLines === 1 ? "once" : `${deleteBlock.orderLines} times`}, so it has to stay for the records. Hiding takes it off the counter and keeps those records.`
+      : dealUsages.length > 0
+        ? `${dealUsages.length === 1 ? "A deal offers" : `${dealUsages.length} deals offer`} it. Remove it from ${dealUsages.length === 1 ? "that deal" : "them"} to delete it, or hide it from the counter.`
         : null;
 
   return (
@@ -203,10 +233,31 @@ export default function ItemFormSheet({ open, onOpenChange, categories, item, de
         title={blockedReason ? `${item.name} can’t be deleted` : `Delete ${item.name}?`}
         description={blockedReason ?? "Its sizes, prices, recipes and deal contents are deleted with it. This cannot be undone."}
         confirmLabel={blockedReason ? "OK" : "Delete"}
+        cancelLabel={blockedReason ? "Not now" : "Cancel"}
         destructive={!blockedReason}
         isLoading={isPending}
         onConfirm={blockedReason ? () => setConfirmDelete(false) : handleDelete}
-      />
+        alternative={blockedReason ? { label: "Hide instead", onConfirm: handleHide, isLoading: isPending } : undefined}
+      >
+        {blockedReason && dealUsages.length > 0 && (
+          <div className="space-y-1">
+            <SectionHeading>Offered in</SectionHeading>
+            <Card className="divide-y divide-border p-0">
+              {dealUsages.map((d) => (
+                <ListRow key={`${d.dealItemId}-${d.slotLabel}`} href={routes.ui.menuItemDetails(d.dealItemId)} dense trailing="chevron">
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">{d.dealName}</span>
+                    <span className="block text-xs text-muted">
+                      {d.slotLabel}
+                      {!d.isLive && " · hidden"}
+                    </span>
+                  </span>
+                </ListRow>
+              ))}
+            </Card>
+          </div>
+        )}
+      </ConfirmSheet>
     )}
     <BottomSheet
       open={open && !confirmDelete}

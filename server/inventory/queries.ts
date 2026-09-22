@@ -1,8 +1,8 @@
 import "server-only";
 import { cache } from "react";
-import { asc, count, desc, eq, getTableColumns, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, getTableColumns, inArray, sql } from "drizzle-orm";
 import { getDb } from "@/db";
-import { inventoryItems, inventoryPurchases, recipes, stockMovements } from "@/db/schema";
+import { inventoryItems, inventoryPurchases, menuItems, menuItemVariants, recipes, stockMovements } from "@/db/schema";
 
 /** true when the owner set a limit and stock is at or below it. */
 const neededExpr = sql<boolean>`(${inventoryItems.lowStockThreshold} is not null and ${inventoryItems.currentQty} <= ${inventoryItems.lowStockThreshold})`;
@@ -42,7 +42,7 @@ export const getInventoryItemDetails = cache(async (id: number) => {
   });
   if (!item) return null;
 
-  const [movements, purchases, [recipeRow]] = await Promise.all([
+  const [movements, purchases, recipeUsages, [soldRow]] = await Promise.all([
     db.query.stockMovements.findMany({
       where: eq(stockMovements.inventoryItemId, id),
       orderBy: [desc(stockMovements.createdAt), desc(stockMovements.id)],
@@ -55,12 +55,31 @@ export const getInventoryItemDetails = cache(async (id: number) => {
       limit: 50,
       with: { createdByUser: { columns: { name: true } } },
     }),
-    db.select({ n: count() }).from(recipes).where(eq(recipes.inventoryItemId, id)),
+    // Named, so a blocked delete can point at the recipes instead of just counting them,
+    // and so archiving can warn when a sellable item would go on deducting this.
+    db
+      .select({
+        menuItemId: menuItems.id,
+        menuItemName: menuItems.name,
+        variantName: menuItemVariants.name,
+        isLive: sql<boolean>`(${menuItems.isActive} and ${menuItemVariants.isActive})`,
+      })
+      .from(recipes)
+      .innerJoin(menuItemVariants, eq(menuItemVariants.id, recipes.variantId))
+      .innerJoin(menuItems, eq(menuItems.id, menuItemVariants.menuItemId))
+      .where(eq(recipes.inventoryItemId, id))
+      .orderBy(asc(menuItems.name), asc(menuItemVariants.sortOrder)),
+    // Counted in the database, not from `movements` above: that list stops at 100 rows, so a
+    // busy item's older sales would drop out of it and the page would offer a delete that
+    // the server then refuses.
+    db
+      .select({ n: count() })
+      .from(stockMovements)
+      .where(and(eq(stockMovements.inventoryItemId, id), inArray(stockMovements.type, ["sale", "sale_reversal"]))),
   ]);
 
   // What blocks a delete, so the page can say so before the tap.
-  const soldRows = movements.some((m) => m.type === "sale" || m.type === "sale_reversal");
-  return { item, movements, purchases, recipeUses: recipeRow?.n ?? 0, usedInOrders: soldRows };
+  return { item, movements, purchases, recipeUsages, usedInOrders: (soldRow?.n ?? 0) > 0 };
 });
 
 export type InventoryItemDetails = NonNullable<
@@ -68,3 +87,4 @@ export type InventoryItemDetails = NonNullable<
 >;
 export type MovementRow = InventoryItemDetails["movements"][number];
 export type PurchaseRow = InventoryItemDetails["purchases"][number];
+export type RecipeUsage = InventoryItemDetails["recipeUsages"][number];

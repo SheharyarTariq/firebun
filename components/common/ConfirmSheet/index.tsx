@@ -16,6 +16,16 @@ interface ConfirmSheetProps {
   /** Blocks the confirm button, e.g. until a confirmation word has been typed. */
   confirmDisabled?: boolean;
   onConfirm: () => void | Promise<void>;
+  /**
+   * The way forward when the action itself is impossible — a delete that history blocks
+   * offering "Archive instead". It takes the primary slot and `onConfirm` is not rendered,
+   * so the sheet never shows a button that cannot do anything.
+   */
+  alternative?: {
+    label: string;
+    onConfirm: () => void | Promise<void>;
+    isLoading?: boolean;
+  };
   /** Optional extra fields (e.g. a reason input) rendered above the buttons. */
   children?: React.ReactNode;
 }
@@ -31,6 +41,7 @@ export default function ConfirmSheet({
   isLoading = false,
   confirmDisabled = false,
   onConfirm,
+  alternative,
   children,
 }: ConfirmSheetProps) {
   return (
@@ -45,19 +56,26 @@ export default function ConfirmSheet({
             variant="outline"
             size="lg"
             onClick={() => onOpenChange(false)}
-            disabled={isLoading}
+            disabled={isLoading || alternative?.isLoading}
           >
             {cancelLabel}
           </Button>
-          <Button
-            variant={destructive ? "danger" : "primary"}
-            size="lg"
-            isLoading={isLoading}
-            disabled={confirmDisabled}
-            onClick={() => void onConfirm()}
-          >
-            {confirmLabel}
-          </Button>
+          {alternative ? (
+            // Reversible, so it is the plain primary rather than the red one.
+            <Button size="lg" isLoading={alternative.isLoading} onClick={() => void alternative.onConfirm()}>
+              {alternative.label}
+            </Button>
+          ) : (
+            <Button
+              variant={destructive ? "danger" : "primary"}
+              size="lg"
+              isLoading={isLoading}
+              disabled={confirmDisabled}
+              onClick={() => void onConfirm()}
+            >
+              {confirmLabel}
+            </Button>
+          )}
         </div>
       }
     >
