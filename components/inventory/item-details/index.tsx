@@ -5,7 +5,7 @@ import { ClipboardCheck, Pencil, ShoppingCart, Trash2 } from "lucide-react";
 import Badge from "@/components/common/Badge";
 import Button from "@/components/common/Button";
 import Card from "@/components/common/Card";
-import SectionHeading from "@/components/common/SectionHeading";
+import Chips from "@/components/common/Chips";
 import PageHeader from "@/components/layout/page-header";
 import PageBody from "@/components/layout/page-body";
 import type { InventoryItemDetails } from "@/server/inventory/queries";
@@ -23,9 +23,11 @@ import ItemFormSheet from "../item-form-sheet";
 import PurchaseSheet from "../purchase-sheet";
 import StockCountSheet from "../stock-count-sheet";
 import WastageSheet from "../wastage-sheet";
-import HistoryList from "./history-list";
+import MovementList from "./movement-list";
+import PurchaseList from "./purchase-list";
 
 type Sheet = "edit" | "purchase" | "count" | "wastage" | null;
+type Tab = "ledger" | "purchases";
 
 interface ItemDetailsProps {
   details: InventoryItemDetails;
@@ -41,6 +43,7 @@ export default function ItemDetails({ details }: ItemDetailsProps) {
   const [sheet, setSheet] = useState<Sheet>(null);
   // Incremented on every open so the sheet remounts with a fresh form.
   const [sheetKey, setSheetKey] = useState(0);
+  const [tab, setTab] = useState<Tab>("ledger");
 
   const openSheet = (next: Exclude<Sheet, null>) => {
     setSheetKey((k) => k + 1);
@@ -157,10 +160,21 @@ export default function ItemDetails({ details }: ItemDetailsProps) {
           </Button>
         </div>
 
-        <section className="space-y-2">
-          <SectionHeading className="px-1">History</SectionHeading>
-          <HistoryList movements={movements} purchases={purchases} item={item} />
-        </section>
+        <Chips<Tab>
+          aria-label="History"
+          value={tab}
+          onChange={setTab}
+          options={[
+            { value: "ledger", label: "Ledger" },
+            { value: "purchases", label: "Purchases" },
+          ]}
+        />
+
+        {tab === "ledger" ? (
+          <MovementList movements={movements} baseUnit={item.baseUnit} currentQty={item.currentQty} />
+        ) : (
+          <PurchaseList purchases={purchases} item={item} />
+        )}
       </PageBody>
 
       <ItemFormSheet

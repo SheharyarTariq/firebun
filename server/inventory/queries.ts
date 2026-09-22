@@ -46,16 +46,13 @@ export const getInventoryItemDetails = cache(async (id: number) => {
     db.query.stockMovements.findMany({
       where: eq(stockMovements.inventoryItemId, id),
       orderBy: [desc(stockMovements.createdAt), desc(stockMovements.id)],
-      // One sale row per ingredient per order, so a staple burns ~1 row per order. The
-      // window has to hold a few days of trading or last week's purchase drops off the page.
-      limit: 200,
+      limit: 100,
       with: { createdByUser: { columns: { name: true } } },
     }),
     db.query.inventoryPurchases.findMany({
       where: eq(inventoryPurchases.inventoryItemId, id),
       orderBy: [desc(inventoryPurchases.purchasedAt), desc(inventoryPurchases.id)],
-      // Matches the movement window: every purchase movement shown must find its record.
-      limit: 200,
+      limit: 50,
       with: { createdByUser: { columns: { name: true } } },
     }),
     db.select({ n: count() }).from(recipes).where(eq(recipes.inventoryItemId, id)),
