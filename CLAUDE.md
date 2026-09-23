@@ -79,8 +79,18 @@ There is no test runner. Verification = typecheck + lint + build + walking throu
   (→ archive); menu items unless sold or offered in a deal (→ hide); categories only when
   empty; orders only once cancelled; staff accounts only when nothing references them
   (→ deactivate). UI: trash icon in the edit sheet footer + `ConfirmSheet`; blocked reasons
-  are computed in the details query (`recipeUses`, `usedInOrders`, `orderLines`, `dealUses`)
-  so the sheet explains before the tap.
+  are computed in the details query (`recipeUsages`, `usedInOrders`, `deleteCost`, `orderLines`,
+  `dealUses`) so the sheet explains before the tap.
+- **Archiving an inventory item needs the same clearance as deleting it**: `updateItem` refuses
+  `isActive: false` while any recipe names the item, because `placeOrder` deducts from the recipe
+  without ever reading that flag and `countInventoryAttention` only counts active items — an
+  archived-but-cooked ingredient would drain with no badge to show it. So an archived item never
+  has recipes and nothing can deduct it. `components/inventory/item-form-sheet` runs both exits
+  through one `ConfirmSheet`: recipes are listed first with a per-row **Remove**
+  (`removeRecipeLineAction`, which revalidates so the sheet turns into a real Delete/Archive),
+  "Archive instead" appears only once nothing blocks it, and the "In use" toggle opens that same
+  sheet rather than staging a save the server would refuse. Deleting an item also deletes its
+  purchases, which changes past finance reports, so the confirmation names the rupees.
 - **Menu**: `server/menu/service.ts` owns categories (reorder renumbers 0..n-1), items (slug
   auto-unique), variants (≥1 active size; delete blocked when used in orders/deals), recipes
   (upsert per variant+ingredient, `copyRecipe` between sizes) and deal slots/options (single-kind
