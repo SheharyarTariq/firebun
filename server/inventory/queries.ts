@@ -59,6 +59,7 @@ export const getInventoryItemDetails = cache(async (id: number) => {
     // and so archiving can warn when a sellable item would go on deducting this.
     db
       .select({
+        recipeId: recipes.id,
         menuItemId: menuItems.id,
         menuItemName: menuItems.name,
         variantName: menuItemVariants.name,

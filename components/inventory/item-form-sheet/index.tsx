@@ -9,6 +9,7 @@ import {
   deleteInventoryItemAction,
   updateInventoryItemAction,
 } from "@/app/(app)/(admin)/inventory/actions";
+import { removeRecipeLineAction } from "@/app/(app)/(admin)/menu/actions";
 import Banner from "@/components/common/Banner";
 import BottomSheet from "@/components/common/BottomSheet";
 import Button from "@/components/common/Button";
@@ -184,6 +185,28 @@ export default function ItemFormSheet({
   };
 
   const recipeUsages = deleteBlock?.recipeUsages ?? [];
+  /**
+   * Only worth offering when clearing the recipes would really let the delete through.
+   * For an item that has been sold, order history blocks it anyway, so removing it from a
+   * recipe would stop that menu item deducting stock and still leave the delete refused.
+   */
+  const removingUnblocks = Boolean(deleteBlock) && !deleteBlock!.usedInOrders && recipeUsages.length > 0;
+  const [removingRecipeId, setRemovingRecipeId] = useState<number | null>(null);
+
+  const handleRemoveFromRecipe = (usage: RecipeUsage) => {
+    setRemovingRecipeId(usage.recipeId);
+    startTransition(async () => {
+      const result = await callAction(removeRecipeLineAction(usage.recipeId));
+      setRemovingRecipeId(null);
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      // The action revalidates, so `deleteBlock` arrives updated and the sheet re-renders:
+      // once the last recipe goes, `blockedReason` clears and this becomes a real Delete.
+      toast.success(`Removed from ${usage.menuItemName}`);
+    });
+  };
   // Menu items that can still be sold keep deducting this ingredient after it is archived.
   const liveRecipes = recipeUsages.filter((r) => r.isLive);
   // Orders come first: clearing the recipes would not unblock an item that has been sold, so
@@ -229,7 +252,27 @@ export default function ItemFormSheet({
                 <SectionHeading>Used in</SectionHeading>
                 <Card className="divide-y divide-border p-0">
                   {recipeUsages.map((r) => (
-                    <ListRow key={`${r.menuItemId}-${r.variantName}`} href={routes.ui.menuItemDetails(r.menuItemId)} dense trailing="chevron">
+                    <ListRow
+                      key={r.recipeId}
+                      href={removingUnblocks ? undefined : routes.ui.menuItemDetails(r.menuItemId)}
+                      dense
+                      trailing={
+                        removingUnblocks ? (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-danger"
+                            isLoading={removingRecipeId === r.recipeId}
+                            disabled={isPending}
+                            onClick={() => handleRemoveFromRecipe(r)}
+                          >
+                            Remove
+                          </Button>
+                        ) : (
+                          "chevron"
+                        )
+                      }
+                    >
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-sm font-medium">{r.menuItemName}</span>
                         <span className="block text-xs text-muted">
@@ -242,7 +285,13 @@ export default function ItemFormSheet({
                 </Card>
               </div>
             )}
-            {liveRecipes.length > 0 && (
+            {removingUnblocks && (
+              <Banner tone="info">
+                Removing it means that menu item stops deducting this ingredient when it is sold. You can add it back
+                to the recipe at any time.
+              </Banner>
+            )}
+            {!removingUnblocks && liveRecipes.length > 0 && (
               <Banner tone="warning">
                 {liveRecipes.length === 1
                   ? `${liveRecipes[0].menuItemName} is still on the menu and uses this, so its sales will keep deducting stock after archiving.`
