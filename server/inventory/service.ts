@@ -247,6 +247,24 @@ export async function updateItem(id: number, input: ItemInput): Promise<Inventor
       }
     }
 
+    // Archiving takes the item off the lists and out of the ingredient picker, but it does
+    // nothing to recipes that already name it — and a sale deducts from the recipe, never
+    // checking this flag. An archived-but-cooked ingredient therefore drains invisibly:
+    // its low-stock and negative-stock alerts only count active items. So archiving waits
+    // until the recipes are clear, the same clearance a delete already asks for.
+    if (input.isActive === false && item.isActive) {
+      const [{ n: recipeUses }] = await tx
+        .select({ n: count() })
+        .from(recipes)
+        .where(eq(recipes.inventoryItemId, id));
+      if (recipeUses > 0) {
+        throw new ServiceError(
+          `${item.name} is used in ${recipeUses} recipe${recipeUses === 1 ? "" : "s"}. Remove it from ${recipeUses === 1 ? "that recipe" : "them"} before archiving it, or its sales will keep deducting stock.`,
+          { isActive: "Used in recipes" }
+        );
+      }
+    }
+
     const [updated] = await tx
       .update(inventoryItems)
       .set({
@@ -394,7 +412,8 @@ export async function deleteInventoryItem(id: number): Promise<void> {
     ]);
     if (recipeUses > 0) {
       throw new ServiceError(
-        `${item.name} is used in ${recipeUses} recipe${recipeUses === 1 ? "" : "s"}. Remove it from those recipes first, or archive it.`
+        // Not "or archive it": archiving waits for the same clearance, so recipes come first either way.
+        `${item.name} is used in ${recipeUses} recipe${recipeUses === 1 ? "" : "s"}. Remove it from ${recipeUses === 1 ? "that recipe" : "them"} first.`
       );
     }
     if (soldRows > 0) {

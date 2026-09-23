@@ -26,6 +26,12 @@ interface ConfirmSheetProps {
     onConfirm: () => void | Promise<void>;
     isLoading?: boolean;
   };
+  /**
+   * Drops the confirm button entirely, leaving cancel across the full width — for a sheet
+   * whose only real actions live in `children` (e.g. "Remove" on each blocking row), where
+   * a confirm button could do nothing but close.
+   */
+  confirmHidden?: boolean;
   /** Optional extra fields (e.g. a reason input) rendered above the buttons. */
   children?: React.ReactNode;
 }
@@ -42,8 +48,10 @@ export default function ConfirmSheet({
   confirmDisabled = false,
   onConfirm,
   alternative,
+  confirmHidden = false,
   children,
 }: ConfirmSheetProps) {
+  const showConfirm = !confirmHidden || Boolean(alternative);
   return (
     <BottomSheet
       open={open}
@@ -51,7 +59,7 @@ export default function ConfirmSheet({
       title={title}
       description={description}
       footer={
-        <div className="grid grid-cols-2 gap-3">
+        <div className={showConfirm ? "grid grid-cols-2 gap-3" : "grid grid-cols-1"}>
           <Button
             variant="outline"
             size="lg"
@@ -65,7 +73,7 @@ export default function ConfirmSheet({
             <Button size="lg" isLoading={alternative.isLoading} onClick={() => void alternative.onConfirm()}>
               {alternative.label}
             </Button>
-          ) : (
+          ) : showConfirm ? (
             <Button
               variant={destructive ? "danger" : "primary"}
               size="lg"
@@ -75,7 +83,7 @@ export default function ConfirmSheet({
             >
               {confirmLabel}
             </Button>
-          )}
+          ) : null}
         </div>
       }
     >

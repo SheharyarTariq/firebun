@@ -1,6 +1,6 @@
 import "server-only";
 import { cache } from "react";
-import { and, asc, count, desc, eq, getTableColumns, inArray, sql } from "drizzle-orm";
+import { asc, count, desc, eq, getTableColumns, sql, sum } from "drizzle-orm";
 import { getDb } from "@/db";
 import { inventoryItems, inventoryPurchases, menuItems, menuItemVariants, recipes, stockMovements } from "@/db/schema";
 
@@ -42,7 +42,7 @@ export const getInventoryItemDetails = cache(async (id: number) => {
   });
   if (!item) return null;
 
-  const [movements, purchases, recipeUsages, [soldRow]] = await Promise.all([
+  const [movements, purchases, recipeUsages, [movementStats], [purchaseStats]] = await Promise.all([
     db.query.stockMovements.findMany({
       where: eq(stockMovements.inventoryItemId, id),
       orderBy: [desc(stockMovements.createdAt), desc(stockMovements.id)],
@@ -70,17 +70,40 @@ export const getInventoryItemDetails = cache(async (id: number) => {
       .innerJoin(menuItems, eq(menuItems.id, menuItemVariants.menuItemId))
       .where(eq(recipes.inventoryItemId, id))
       .orderBy(asc(menuItems.name), asc(menuItemVariants.sortOrder)),
-    // Counted in the database, not from `movements` above: that list stops at 100 rows, so a
-    // busy item's older sales would drop out of it and the page would offer a delete that
-    // the server then refuses.
+    // Counted in the database, not from the lists above: those stop at 100 and 50 rows, so a
+    // busy item's older sales would drop out and the page would offer a delete that the
+    // server then refuses — or quote a smaller bill than the delete actually erases.
     db
-      .select({ n: count() })
+      .select({
+        total: count(),
+        sold: count(sql`case when ${stockMovements.type} in ('sale', 'sale_reversal') then 1 end`),
+      })
       .from(stockMovements)
-      .where(and(eq(stockMovements.inventoryItemId, id), inArray(stockMovements.type, ["sale", "sale_reversal"]))),
+      .where(eq(stockMovements.inventoryItemId, id)),
+    db
+      .select({
+        total: count(),
+        // Voided purchases are already out of the finance reports, so only live ones are money
+        // that would vanish from a past period.
+        spend: sum(sql`case when ${inventoryPurchases.voidedAt} is null then ${inventoryPurchases.totalCost} else 0 end`),
+      })
+      .from(inventoryPurchases)
+      .where(eq(inventoryPurchases.inventoryItemId, id)),
   ]);
 
-  // What blocks a delete, so the page can say so before the tap.
-  return { item, movements, purchases, recipeUsages, usedInOrders: (soldRow?.n ?? 0) > 0 };
+  // What blocks a delete and what it would destroy, so the page can say so before the tap.
+  return {
+    item,
+    movements,
+    purchases,
+    recipeUsages,
+    usedInOrders: (movementStats?.sold ?? 0) > 0,
+    deleteCost: {
+      purchases: purchaseStats?.total ?? 0,
+      purchaseSpend: Number(purchaseStats?.spend ?? 0),
+      movements: movementStats?.total ?? 0,
+    },
+  };
 });
 
 export type InventoryItemDetails = NonNullable<

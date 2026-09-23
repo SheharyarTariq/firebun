@@ -26,6 +26,7 @@ import { callAction } from "@/utils/call-action";
 import {
   DEFAULT_PACK_LABEL,
   DISPLAY_UNITS_FOR_BASE,
+  formatMoney,
   fromBaseQty,
   unitFactor,
   type BaseUnit,
@@ -42,9 +43,19 @@ interface ItemFormSheetProps {
   item?: InventoryItem;
   /** Editing only: false once the item has movements (unit is then locked). */
   canChangeBaseUnit?: boolean;
-  /** Editing only: why a delete would be refused, so the sheet can say so up front. */
-  deleteBlock?: { recipeUsages: RecipeUsage[]; usedInOrders: boolean; purchases: number; movements: number };
+  /** Editing only: what stands in the way of a delete or an archive, and what a delete costs. */
+  deleteBlock?: {
+    recipeUsages: RecipeUsage[];
+    usedInOrders: boolean;
+    purchases: number;
+    /** Rupees of live (non-voided) purchases — money a delete takes out of past reports. */
+    purchaseSpend: number;
+    movements: number;
+  };
 }
+
+/** Which way out the owner asked for; both run into the same blockers, so both use one sheet. */
+type Intent = "delete" | "archive";
 
 const BASE_UNIT_OPTIONS = [
   { value: "g", label: "Weight — grams / kg (cheese, flour)" },
@@ -68,7 +79,7 @@ export default function ItemFormSheet({
 }: ItemFormSheetProps) {
   const router = useRouter();
   const isEdit = Boolean(item);
-  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [intent, setIntent] = useState<Intent | null>(null);
 
   const [name, setName] = useState(item?.name ?? "");
   const [baseUnit, setBaseUnit] = useState<BaseUnit>(item?.baseUnit ?? "pcs");
@@ -112,20 +123,25 @@ export default function ItemFormSheet({
     clearError("displayUnit");
   };
 
-  const handleSubmit = async () => {
+  /** The form as the server wants it. `active` lets Archive save the typed edits too. */
+  const buildValues = (active = isActive): InventoryItemFormInput => {
     // Threshold and pack size are typed in the display unit; the server stores base units.
     const factor = unitFactor(displayUnit);
     const thresholdValue = toNumberOrNull(threshold);
     const packSizeValue = toNumberOrNull(packSize);
-    const values: InventoryItemFormInput = {
+    return {
       name,
       baseUnit,
       displayUnit,
       lowStockThreshold: thresholdValue === null ? null : thresholdValue * factor,
       packSize: packSizeValue === null ? null : packSizeValue * factor,
       packLabel: packSizeValue === null ? null : packLabel.trim() || DEFAULT_PACK_LABEL,
-      isActive,
+      isActive: active,
     };
+  };
+
+  const handleSubmit = async () => {
+    const values = buildValues();
     if (!(await validateAndSetErrors(inventoryItemSchema, values, setErrors))) return;
 
     startTransition(async () => {
@@ -149,7 +165,7 @@ export default function ItemFormSheet({
       const result = await callAction(deleteInventoryItemAction(item.id));
       if (!result.ok) {
         toast.error(result.error);
-        setConfirmDelete(false);
+        setIntent(null);
         return;
       }
       toast.success(`${item.name} deleted`);
@@ -158,27 +174,26 @@ export default function ItemFormSheet({
     });
   };
 
-  /** Archiving from the blocked sheet, so the way out is one tap instead of a hunt for the toggle. */
-  const handleArchive = () => {
+  /**
+   * Archiving in one tap, whether it was asked for by the toggle or offered as the way out of a
+   * blocked delete. It saves the form as it stands, so edits typed just before are not dropped.
+   */
+  const handleArchive = async () => {
     if (!item) return;
+    const values = buildValues(false);
+    if (!(await validateAndSetErrors(inventoryItemSchema, values, setErrors))) {
+      setIntent(null);
+      return;
+    }
     startTransition(async () => {
-      const result = await callAction(
-        updateInventoryItemAction(item.id, {
-          name: item.name,
-          baseUnit: item.baseUnit,
-          displayUnit: item.displayUnit,
-          lowStockThreshold: item.lowStockThreshold,
-          packSize: item.packSize,
-          packLabel: item.packLabel,
-          isActive: false,
-        })
-      );
+      const result = await callAction(updateInventoryItemAction(item.id, values));
       if (!result.ok) {
+        if (result.fieldErrors) setErrors(result.fieldErrors);
         toast.error(result.error);
         return;
       }
-      toast.success(`${item.name} archived`);
-      setConfirmDelete(false);
+      toast.success(`${values.name.trim()} archived`);
+      setIntent(null);
       onOpenChange(false);
       router.push(routes.ui.inventory);
     });
@@ -186,11 +201,11 @@ export default function ItemFormSheet({
 
   const recipeUsages = deleteBlock?.recipeUsages ?? [];
   /**
-   * Only worth offering when clearing the recipes would really let the delete through.
-   * For an item that has been sold, order history blocks it anyway, so removing it from a
-   * recipe would stop that menu item deducting stock and still leave the delete refused.
+   * Recipes block both ways out, so clearing them always achieves something: a delete for an
+   * item that was never sold, an archive for one that was. That is why the Remove buttons are
+   * offered whenever a recipe is in the way, and why the toggle cannot skip past them.
    */
-  const removingUnblocks = Boolean(deleteBlock) && !deleteBlock!.usedInOrders && recipeUsages.length > 0;
+  const recipesBlock = recipeUsages.length > 0;
   const [removingRecipeId, setRemovingRecipeId] = useState<number | null>(null);
 
   const handleRemoveFromRecipe = (usage: RecipeUsage) => {
@@ -203,21 +218,28 @@ export default function ItemFormSheet({
         return;
       }
       // The action revalidates, so `deleteBlock` arrives updated and the sheet re-renders:
-      // once the last recipe goes, `blockedReason` clears and this becomes a real Delete.
+      // once the last recipe goes, the blocker clears and this becomes a real Delete or Archive.
       toast.success(`Removed from ${usage.menuItemName}`);
     });
   };
-  // Menu items that can still be sold keep deducting this ingredient after it is archived.
-  const liveRecipes = recipeUsages.filter((r) => r.isLive);
-  // Orders come first: clearing the recipes would not unblock an item that has been sold, so
-  // promising "remove it from them to delete it" there would be a lie.
+
+  /**
+   * Recipes are named first whenever there are any, because that is the blocker the owner can
+   * actually clear; order history is only mentioned as what waits behind it.
+   */
+  const recipeStep = `${recipeUsages.length === 1 ? "A recipe still uses it. Remove it from that recipe" : `${recipeUsages.length} recipes still use it. Remove it from them`}`;
   const blockedReason = !deleteBlock
     ? null
-    : deleteBlock.usedInOrders
-      ? "Orders have already used it, so its history has to stay. Archiving keeps that history and takes it off your lists."
-      : recipeUsages.length > 0
-        ? `${recipeUsages.length === 1 ? "A recipe still uses it. Remove it from that recipe" : `${recipeUsages.length} recipes still use it. Remove it from them`} to delete it, or archive it — it stays out of your way and keeps its history.`
+    : recipesBlock
+      ? intent === "archive"
+        ? `${recipeStep} and you can archive it.`
+        : deleteBlock.usedInOrders
+          ? `${recipeStep} first. It has been sold, so after that you can archive it — the history stays.`
+          : `${recipeStep} and you can delete it.`
+      : deleteBlock.usedInOrders && intent === "delete"
+        ? "Orders have already used it, so its history has to stay. Archiving keeps that history and takes it off your lists."
         : null;
+
   const deleteConsequence = deleteBlock
     ? [
         deleteBlock.purchases > 0 ? `${deleteBlock.purchases} purchase${deleteBlock.purchases === 1 ? "" : "s"}` : null,
@@ -226,38 +248,63 @@ export default function ItemFormSheet({
         .filter(Boolean)
         .join(" and ")
     : "";
+  // Finance adds purchases up by date, so deleting them quietly lowers the spend and raises the
+  // profit of a month that has already been read. Worth saying before the tap, not after.
+  const spendWarning =
+    deleteBlock && deleteBlock.purchaseSpend > 0
+      ? ` That removes ${formatMoney(deleteBlock.purchaseSpend)} of spending from your finance reports for those dates.`
+      : "";
+
+  /** Title, body and buttons for whichever of the two exits is open. */
+  const confirmTitle = !item
+    ? ""
+    : blockedReason
+      ? intent === "archive"
+        ? `${item.name} can’t be archived yet`
+        : `${item.name} can’t be deleted`
+      : intent === "archive"
+        ? `Archive ${item.name}?`
+        : `Delete ${item.name}?`;
+  const confirmDescription =
+    blockedReason ??
+    (intent === "archive"
+      ? "It is hidden from your lists and can’t be added to recipes. Its stock and history stay, and you can switch it back on whenever you like."
+      : deleteConsequence
+        ? `Its ${deleteConsequence} are deleted with it.${spendWarning} This cannot be undone.`
+        : "This cannot be undone.");
+  // Archiving is only offered once nothing is in the way of it; otherwise the sheet would put
+  // forward a button the server is about to refuse.
+  const canOfferArchive = Boolean(blockedReason) && intent === "delete" && !recipesBlock;
 
   return (
     <>
     {item && (
       <ConfirmSheet
-        open={confirmDelete}
-        onOpenChange={(next) => !next && setConfirmDelete(false)}
-        title={blockedReason ? `${item.name} can’t be deleted` : `Delete ${item.name}?`}
-        description={
-          blockedReason ??
-          (deleteConsequence ? `Its ${deleteConsequence} are deleted with it. This cannot be undone.` : "This cannot be undone.")
-        }
-        confirmLabel={blockedReason ? "OK" : "Delete"}
+        open={intent !== null}
+        onOpenChange={(next) => !next && setIntent(null)}
+        title={confirmTitle}
+        description={confirmDescription}
+        confirmLabel={intent === "archive" ? "Archive" : "Delete"}
         cancelLabel={blockedReason ? "Not now" : "Cancel"}
-        destructive={!blockedReason}
+        destructive={!blockedReason && intent === "delete"}
         isLoading={isPending}
-        onConfirm={blockedReason ? () => setConfirmDelete(false) : handleDelete}
-        alternative={blockedReason ? { label: "Archive instead", onConfirm: handleArchive, isLoading: isPending } : undefined}
+        // Every way forward is a Remove button in the list, so no confirm button is offered.
+        confirmHidden={Boolean(blockedReason)}
+        onConfirm={intent === "archive" ? handleArchive : handleDelete}
+        alternative={canOfferArchive ? { label: "Archive instead", onConfirm: handleArchive, isLoading: isPending } : undefined}
       >
         {blockedReason && (
           <div className="space-y-3">
-            {recipeUsages.length > 0 && (
+            {recipesBlock && (
               <div className="space-y-1">
                 <SectionHeading>Used in</SectionHeading>
                 <Card className="divide-y divide-border p-0">
                   {recipeUsages.map((r) => (
                     <ListRow
                       key={r.recipeId}
-                      href={removingUnblocks ? undefined : routes.ui.menuItemDetails(r.menuItemId)}
                       dense
                       trailing={
-                        removingUnblocks ? (
+                        (
                           <Button
                             size="sm"
                             variant="ghost"
@@ -268,8 +315,6 @@ export default function ItemFormSheet({
                           >
                             Remove
                           </Button>
-                        ) : (
-                          "chevron"
                         )
                       }
                     >
@@ -285,17 +330,10 @@ export default function ItemFormSheet({
                 </Card>
               </div>
             )}
-            {removingUnblocks && (
+            {recipesBlock && (
               <Banner tone="info">
                 Removing it means that menu item stops deducting this ingredient when it is sold. You can add it back
                 to the recipe at any time.
-              </Banner>
-            )}
-            {!removingUnblocks && liveRecipes.length > 0 && (
-              <Banner tone="warning">
-                {liveRecipes.length === 1
-                  ? `${liveRecipes[0].menuItemName} is still on the menu and uses this, so its sales will keep deducting stock after archiving.`
-                  : `${liveRecipes.length} of these are still on the menu, so their sales will keep deducting stock after archiving.`}
               </Banner>
             )}
           </div>
@@ -303,7 +341,7 @@ export default function ItemFormSheet({
       </ConfirmSheet>
     )}
     <BottomSheet
-      open={open && !confirmDelete}
+      open={open && intent === null}
       onOpenChange={onOpenChange}
       guardUnsaved
       title={isEdit ? "Edit item" : "New inventory item"}
@@ -315,7 +353,7 @@ export default function ItemFormSheet({
       footer={
         <div className="flex gap-2">
           {isEdit && (
-            <Button variant="outline" size="lg" aria-label="Delete item" className="px-4 text-danger" onClick={() => setConfirmDelete(true)}>
+            <Button variant="outline" size="lg" aria-label="Delete item" className="px-4 text-danger" onClick={() => setIntent("delete")}>
               <Trash2 className="h-5 w-5" />
             </Button>
           )}
@@ -411,9 +449,15 @@ export default function ItemFormSheet({
         {isEdit && (
           <Toggle
             label="In use"
-            description="Switch off to archive: hidden from lists and recipes, history kept."
+            description={
+              recipesBlock
+                ? `Used in ${recipeUsages.length} recipe${recipeUsages.length === 1 ? "" : "s"} — remove it from ${recipeUsages.length === 1 ? "that one" : "them"} to archive it, or its sales will keep deducting stock.`
+                : "Switch off to archive: hidden from lists and recipes, history kept."
+            }
             checked={isActive}
-            onChange={setIsActive}
+            // Switching off while a recipe still names it opens the same blockers sheet rather
+            // than staging a save the server would refuse.
+            onChange={(next) => (!next && recipesBlock ? setIntent("archive") : setIsActive(next))}
           />
         )}
       </div>
