@@ -52,7 +52,7 @@ export default function ChangePasswordSheet() {
     <>
       <Button
         variant="outline"
-        className="w-full"
+        className="w-full lg:max-w-md"
         startIcon={<KeyRound className="h-4 w-4" />}
         onClick={() => setOpen(true)}
       >

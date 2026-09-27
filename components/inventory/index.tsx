@@ -95,6 +95,7 @@ export default function InventoryScreen({ items }: InventoryScreenProps) {
         <Input
           type="search"
           placeholder="Search items"
+          containerClassName="lg:max-w-md"
           startIcon={<Search className="h-5 w-5" />}
           value={query}
           onChange={(e) => setQuery(e.target.value)}

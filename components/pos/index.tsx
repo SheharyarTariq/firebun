@@ -196,6 +196,7 @@ export default function PosScreen({ catalog: serverCatalog, settings, user, busi
         <Input
           type="search"
           placeholder="Search menu"
+          containerClassName="lg:max-w-md"
           startIcon={<Search className="h-5 w-5" />}
           endIcon={
             query !== "" && (

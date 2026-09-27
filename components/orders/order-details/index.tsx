@@ -222,7 +222,7 @@ export default function OrderDetails({ order, viewer, canCancel, cancelBlockedRe
         )}
 
         {order.status === "pending" && (
-          <Button size="lg" className="w-full" startIcon={<Wallet className="h-5 w-5" />} onClick={() => setSheet("paid")}>
+          <Button size="lg" className="w-full lg:max-w-md" startIcon={<Wallet className="h-5 w-5" />} onClick={() => setSheet("paid")}>
             Mark as paid · {formatMoney(order.total)}
           </Button>
         )}
@@ -284,7 +284,7 @@ export default function OrderDetails({ order, viewer, canCancel, cancelBlockedRe
           * they used to sit 4px under Repeat as three identical centred ghost buttons, which is
           * a mis-tap waiting to happen on a phone.
           */}
-        <Button variant="outline" size="lg" className="w-full" startIcon={<RotateCcw className="h-4 w-4" />} onClick={handleRepeat}>
+        <Button variant="outline" size="lg" className="w-full lg:max-w-md" startIcon={<RotateCcw className="h-4 w-4" />} onClick={handleRepeat}>
           Repeat this order
         </Button>
 

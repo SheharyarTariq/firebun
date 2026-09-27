@@ -116,27 +116,26 @@ export default function CategoryManagerSheet({ open, onOpenChange, categories }:
         description="Tap a category to rename, reorder or hide it. This order is the counter's order."
       >
         <div className="space-y-4">
-          <div className="flex items-end gap-2">
-            <Input
-              label="New category"
-              placeholder="e.g. Desserts"
-              autoComplete="off"
-              autoCapitalize="words"
-              value={newName}
-              onChange={(e) => {
-                setNewName(e.target.value);
-                if (errors.name) setErrors({});
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") void handleCreate();
-              }}
-              error={errors.name}
-              containerClassName="flex-1"
-            />
-            <Button className="h-12 shrink-0" isLoading={pendingAction === "create"} startIcon={<Plus className="h-4 w-4" />} onClick={handleCreate}>
-              Add
-            </Button>
-          </div>
+          <Input
+            label="New category"
+            placeholder="e.g. Desserts"
+            autoComplete="off"
+            autoCapitalize="words"
+            value={newName}
+            onChange={(e) => {
+              setNewName(e.target.value);
+              if (errors.name) setErrors({});
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void handleCreate();
+            }}
+            error={errors.name}
+            action={
+              <Button className="h-12 shrink-0" isLoading={pendingAction === "create"} startIcon={<Plus className="h-4 w-4" />} onClick={handleCreate}>
+                Add
+              </Button>
+            }
+          />
 
           <ul className="divide-y divide-border rounded-card border border-border">
             {categories.map((category, index) => (
@@ -185,32 +184,31 @@ export default function CategoryManagerSheet({ open, onOpenChange, categories }:
       >
         {selected && (
           <div className="space-y-4">
-            <div className="flex items-end gap-2">
-              <Input
-                label="Name"
-                autoComplete="off"
-                autoCapitalize="words"
-                value={editName}
-                onChange={(e) => {
-                  setEditName(e.target.value);
-                  if (errors.name) setErrors({});
-                }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") void handleRename();
-                }}
-                error={errors.name}
-                containerClassName="flex-1"
-              />
-              <Button
-                className="h-12 shrink-0"
-                variant="secondary"
-                disabled={editName.trim() === selected.name || pendingAction !== null}
-                isLoading={pendingAction === "rename"}
-                onClick={handleRename}
-              >
-                Save
-              </Button>
-            </div>
+            <Input
+              label="Name"
+              autoComplete="off"
+              autoCapitalize="words"
+              value={editName}
+              onChange={(e) => {
+                setEditName(e.target.value);
+                if (errors.name) setErrors({});
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void handleRename();
+              }}
+              error={errors.name}
+              action={
+                <Button
+                  className="h-12 shrink-0"
+                  variant="secondary"
+                  disabled={editName.trim() === selected.name || pendingAction !== null}
+                  isLoading={pendingAction === "rename"}
+                  onClick={handleRename}
+                >
+                  Save
+                </Button>
+              }
+            />
 
             <div className="grid grid-cols-2 gap-2">
               <Button

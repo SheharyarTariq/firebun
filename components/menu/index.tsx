@@ -105,6 +105,7 @@ export default function MenuScreen({ categories }: MenuScreenProps) {
         <Input
           type="search"
           placeholder="Search menu"
+          containerClassName="lg:max-w-md"
           startIcon={<Search className="h-5 w-5" />}
           value={query}
           onChange={(e) => setQuery(e.target.value)}

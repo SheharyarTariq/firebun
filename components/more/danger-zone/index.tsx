@@ -65,7 +65,7 @@ export default function DangerZone() {
             </p>
           </div>
         </div>
-        <Button variant="danger" size="lg" className="w-full" startIcon={<Trash2 className="h-5 w-5" />} onClick={() => setOpen(true)}>
+        <Button variant="danger" size="lg" className="w-full lg:max-w-md" startIcon={<Trash2 className="h-5 w-5" />} onClick={() => setOpen(true)}>
           Clear all data
         </Button>
       </Card>

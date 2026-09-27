@@ -52,28 +52,36 @@ export default function PeriodPicker({
         options={presets.map((p) => ({ value: p, label: LABELS[p] }))}
       />
       {preset === "custom" && (
-        // Two date fields plus Apply on one row is far too tight on a 360px phone.
-        <div className="space-y-2">
-          <div className="flex items-end gap-2">
-          <Input label="From" type="date" max={today} value={from} onChange={(e) => setFrom(e.target.value)} containerClassName="flex-1" className="h-11" />
+        /*
+         * Phone: From and To side by side, Apply full width under them. From `sm` all three sit
+         * on one capped row — full-width date fields on a monitor were ~950px each.
+         * `items-start`, not `items-end`: an error under one field used to lift that field and
+         * its label out of line with the other.
+         */
+        <div className="grid grid-cols-2 items-start gap-2 sm:max-w-xl sm:grid-cols-[1fr_1fr_auto]">
+          <Input label="From" type="date" max={today} value={from} onChange={(e) => setFrom(e.target.value)} />
           <Input
             label="To"
             type="date"
             max={today}
             value={to}
             onChange={(e) => setTo(e.target.value)}
-            containerClassName="flex-1"
-            className="h-11"
             error={from && to && from > to ? "Before “From”" : undefined}
           />
+          <div className="col-span-2 sm:col-span-1">
+            {/* Stands in for a label so Apply lines up with the fields beside it. */}
+            <span aria-hidden className="mb-1.5 hidden text-sm font-medium sm:block">
+              &nbsp;
+            </span>
+            <Button
+              size="lg"
+              className="w-full"
+              disabled={!from || !to || from > to}
+              onClick={() => onChange({ preset: "custom", range: { from, to } })}
+            >
+              Apply
+            </Button>
           </div>
-          <Button
-            className="w-full"
-            disabled={!from || !to || from > to}
-            onClick={() => onChange({ preset: "custom", range: { from, to } })}
-          >
-            Apply
-          </Button>
         </div>
       )}
     </div>

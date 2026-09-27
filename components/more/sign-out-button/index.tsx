@@ -25,7 +25,7 @@ export default function SignOutButton({ action }: { action: () => Promise<void> 
         <Button
           type="button"
           variant="ghost"
-          className="w-full text-muted"
+          className="w-full text-muted lg:max-w-md"
           startIcon={<LogOut className="h-4 w-4" />}
           onClick={() => setConfirming(true)}
         >

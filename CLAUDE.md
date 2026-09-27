@@ -166,6 +166,10 @@ There is no test runner. Verification = typecheck + lint + build + walking throu
   each open.
 - **Dev server**: only one `next dev` per folder (Next 16 refuses a second); check pages against the
   running one with a forged `fb_session` JWT (`jose`, `AUTH_SECRET`, sub = user id, tv = 0).
+- **Field rows**: a button beside a field goes in `Input`'s `action` prop, and rows of labelled
+  fields use `items-start`, never `items-end` — an error or hint under one field used to lift it
+  out of line with its neighbour. Controls on a page (not in a sheet) cap at `lg:max-w-md`.
+  Filled buttons go grey when disabled (not faded); a loading button keeps its colour.
 - **UI**: Tailwind v4 tokens in `app/globals.css`, hand-built primitives in `components/common`,
   `vaul` bottom sheets, `lucide-react` icons, `react-hot-toast`. See `web-best-practices`.
 - **Dates/money**: helpers in `utils/helper` (Asia/Karachi via `@date-fns/tz`, PKR formatting,

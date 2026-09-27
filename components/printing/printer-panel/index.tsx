@@ -147,7 +147,7 @@ export default function PrinterPanel({ onReady, hideTestPrint = false }: Printer
         <Button
           variant="outline"
           size="lg"
-          className="w-full"
+          className="w-full lg:max-w-md"
           startIcon={<Printer className="h-5 w-5" />}
           disabled={!printer.isConfigured || printer.needsPairing}
           isLoading={printer.busy}
@@ -157,7 +157,7 @@ export default function PrinterPanel({ onReady, hideTestPrint = false }: Printer
         </Button>
       )}
       {!hideTestPrint && (!printer.isConfigured || printer.needsPairing) && (
-        <p className="-mt-2 text-center text-xs text-muted">
+        <p className="-mt-2 text-center text-xs text-muted lg:max-w-md">
           {!printer.isConfigured ? "Choose how this phone prints to enable a test print." : "Pair the printer first to enable a test print."}
         </p>
       )}
