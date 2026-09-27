@@ -12,7 +12,7 @@ interface PageProps {
 
 export default async function FinancePage({ searchParams }: PageProps) {
   const [query, today] = await Promise.all([searchParams, getTodayBusinessDate()]);
-  const { range } = resolvePeriod(query, today, FINANCE_PRESETS, "today");
+  const { preset, range } = resolvePeriod(query, today, FINANCE_PRESETS, "today");
   const report = await getFinanceReport(range);
-  return <FinanceReportView report={report} />;
+  return <FinanceReportView report={report} preset={preset} />;
 }

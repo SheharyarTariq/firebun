@@ -65,7 +65,7 @@ export function BarList({ data, format, tone = "income", limit }: BarChartProps)
 }
 
 interface ColumnChartProps {
-  data: { date: string; label: string; short: string; value: number; orders: number }[];
+  data: { date: string; label: string; short: string; tick: string; tickTop?: string; value: number; orders: number }[];
   format: (value: number) => string;
   /** What one column covers — "day" or "week". */
   unit: string;
@@ -77,6 +77,8 @@ interface ColumnChartProps {
  */
 export function DayColumns({ data, format, unit }: ColumnChartProps) {
   const series = data;
+  // Up to two weeks every column gets its own label; past that they would overlap on a phone.
+  const labelEach = series.length <= 14;
   const max = Math.max(...series.map((d) => d.value), 0);
   const total = series.reduce((n, d) => n + d.value, 0);
   const best = series.reduce((a, b) => (b.value > a.value ? b : a), series[0]);
@@ -100,19 +102,40 @@ export function DayColumns({ data, format, unit }: ColumnChartProps) {
           </div>
         ))}
       </div>
-      {/*
-        * Only the ends and the best day get a label — a number under every column is unreadable
-        * at 30 days on a phone, and these three are the ones that answer "how did it go".
-        */}
-      <div className="flex items-baseline justify-between gap-2 text-label text-muted">
-        <span className="shrink-0">{series[0]?.short}</span>
-        {best && best.value > 0 && (
-          <span className="truncate text-foreground">
-            Best {best.short} · <span className="money">{format(best.value)}</span>
-          </span>
-        )}
-        <span className="shrink-0">{series[series.length - 1]?.short}</span>
-      </div>
+      {labelEach ? (
+        <>
+          <div aria-hidden className="-mt-1 flex justify-between gap-px">
+            {series.map((d) => (
+              <span
+                key={d.date}
+                className={cn("min-w-0 flex-1 text-center text-caption tracking-normal", d === best && d.value > 0 ? "text-foreground" : "text-muted")}
+              >
+                {d.tickTop && <span className="block truncate">{d.tickTop}</span>}
+                <span className="block truncate">{d.tick}</span>
+              </span>
+            ))}
+          </div>
+          {best && best.value > 0 && (
+            <p className="text-label">
+              Best {best.label} · <span className="money">{format(best.value)}</span>
+            </p>
+          )}
+        </>
+      ) : (
+        /*
+         * Only the ends and the best day get a label — a number under every column is unreadable
+         * at 30 days on a phone, and these three are the ones that answer "how did it go".
+         */
+        <div className="flex items-baseline justify-between gap-2 text-label text-muted">
+          <span className="shrink-0">{series[0]?.short}</span>
+          {best && best.value > 0 && (
+            <span className="truncate text-foreground">
+              Best {best.short} · <span className="money">{format(best.value)}</span>
+            </span>
+          )}
+          <span className="shrink-0">{series[series.length - 1]?.short}</span>
+        </div>
+      )}
       <p className="sr-only">
         {series.map((d) => `${d.label}: ${format(d.value)}, ${d.orders} orders`).join(". ")}
       </p>

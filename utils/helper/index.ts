@@ -21,6 +21,12 @@ export function formatMoney(amount: number | string | null | undefined): string 
   return `${config.currencySymbol} ${moneyFormatter.format(value)}`;
 }
 
+/** "− Rs 1,250" for a loss — the sign leads, the way every deduction on Finance reads. */
+export function formatSignedMoney(amount: number | string | null | undefined): string {
+  const value = toNumber(amount);
+  return value < 0 ? `− ${formatMoney(-value)}` : formatMoney(value);
+}
+
 /** "Rs 0.45" — for per-unit costs and averages. */
 export function formatMoneyExact(amount: number | string | null | undefined): string {
   const value = toNumber(amount);
@@ -175,6 +181,20 @@ export function resolvePeriod(
     return { preset, range: rangeForPreset(fallback, today) };
   }
   return { preset, range: rangeForPreset(preset, today) };
+}
+
+/**
+ * "?period=last7" (or "?period=custom&from=…&to=…"), plus any `extra` params — so a link to
+ * another tab or page keeps the period the screen is showing.
+ */
+export function periodSearch(preset: PeriodPreset, range: DateRange, extra?: Record<string, string>): string {
+  const query = new URLSearchParams({ period: preset });
+  if (preset === "custom") {
+    query.set("from", range.from);
+    query.set("to", range.to);
+  }
+  for (const [key, value] of Object.entries(extra ?? {})) query.set(key, value);
+  return `?${query.toString()}`;
 }
 
 export function isIsoDate(value: string | undefined | null): value is string {

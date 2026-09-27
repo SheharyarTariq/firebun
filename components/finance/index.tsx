@@ -1,10 +1,11 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import PeriodPicker from "@/components/common/PeriodPicker";
+import TabLinks from "@/components/common/TabLinks";
 import PageHeader from "@/components/layout/page-header";
 import PageBody from "@/components/layout/page-body";
-import { FINANCE_PRESETS, formatBusinessDate, rangeDays, resolvePeriod, type DateRange, type PeriodPreset } from "@/utils/helper";
+import { FINANCE_PRESETS, formatBusinessDate, periodSearch, rangeDays, resolvePeriod, type DateRange, type PeriodPreset } from "@/utils/helper";
 import { routes } from "@/utils/routes";
 
 interface FinanceShellProps {
@@ -13,9 +14,20 @@ interface FinanceShellProps {
   children: React.ReactNode;
 }
 
-/** Lives in the route layout so the header and period chips stay put between periods. */
+const TABS = [
+  { href: routes.ui.finance, label: "Summary" },
+  { href: routes.ui.financeOrders, label: "Orders" },
+  { href: routes.ui.financePurchases, label: "Purchases" },
+  { href: routes.ui.financeExpenses, label: "Expenses" },
+];
+
+/**
+ * Lives in the route layout so the header, period chips and tabs stay put between periods and
+ * tabs. The period is in the URL, so every tab reads the same one.
+ */
 export default function FinanceShell({ today, children }: FinanceShellProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const params = useSearchParams();
   const { preset, range } = resolvePeriod(
     { period: params.get("period"), from: params.get("from"), to: params.get("to") },
@@ -25,13 +37,9 @@ export default function FinanceShell({ today, children }: FinanceShellProps) {
   );
   const days = rangeDays(range);
 
+  // Stay on the current tab; a new period also starts again from page 1.
   const navigate = (next: { preset: PeriodPreset; range?: DateRange }) => {
-    const query = new URLSearchParams({ period: next.preset });
-    if (next.preset === "custom" && next.range) {
-      query.set("from", next.range.from);
-      query.set("to", next.range.to);
-    }
-    router.push(`${routes.ui.finance}?${query.toString()}`);
+    router.push(`${pathname}${periodSearch(next.preset, next.range ?? range)}`);
   };
 
   const subtitle =
@@ -44,6 +52,10 @@ export default function FinanceShell({ today, children }: FinanceShellProps) {
       <PageHeader title="Finance" subtitle={subtitle} backHref={routes.ui.more} />
       <PageBody gap={4}>
         <PeriodPicker key={preset} preset={preset} range={range} today={today} onChange={navigate} />
+        <TabLinks
+          aria-label="Finance views"
+          tabs={TABS.map((tab) => ({ ...tab, href: `${tab.href}${periodSearch(preset, range)}`, active: pathname === tab.href }))}
+        />
         {children}
       </PageBody>
     </>

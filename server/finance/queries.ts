@@ -159,7 +159,8 @@ export async function getFinanceReport(range: DateRange): Promise<FinanceReport>
       .innerJoin(orders, eq(orders.id, orderItems.orderId))
       .where(and(completed, isNull(orderItems.parentOrderItemId)))
       .groupBy(orderItems.nameSnapshot, orderItems.variantNameSnapshot)
-      .orderBy(desc(sum(orderItems.quantity)), desc(sum(orderItems.lineTotal)))
+      // By revenue: the bars are drawn by revenue, so ranking by quantity made them look shuffled.
+      .orderBy(desc(sum(orderItems.lineTotal)), desc(sum(orderItems.quantity)))
       .limit(10),
     db
       .select({
@@ -177,7 +178,8 @@ export async function getFinanceReport(range: DateRange): Promise<FinanceReport>
       .innerJoin(inventoryItems, eq(inventoryItems.id, inventoryPurchases.inventoryItemId))
       .where(and(gte(inventoryPurchases.purchaseDate, range.from), lte(inventoryPurchases.purchaseDate, range.to)))
       .orderBy(desc(inventoryPurchases.purchasedAt), desc(inventoryPurchases.id))
-      .limit(50),
+      // A preview; the Purchases tab lists the whole period.
+      .limit(5),
     getPeriodTotals(prior),
   ]);
 
@@ -225,22 +227,35 @@ export async function getFinanceReport(range: DateRange): Promise<FinanceReport>
   };
 }
 
-/** Rows for CSV export (admin). */
-export async function exportOrders(range: DateRange) {
+/**
+ * The rows behind the Finance tabs and the CSV export — one loader each, so the table on screen
+ * and the downloaded file can never disagree. Pass `page` for one screenful; omit it for all rows.
+ */
+export interface PageWindow {
+  limit: number;
+  offset: number;
+}
+
+export async function exportOrders(range: DateRange, page?: PageWindow) {
   return getDb().query.orders.findMany({
     where: and(gte(orders.businessDate, range.from), lte(orders.businessDate, range.to)),
     orderBy: [orders.businessDate, orders.dailySeq],
     with: { createdByUser: { columns: { name: true } } },
+    limit: page?.limit,
+    offset: page?.offset,
   });
 }
 
-export async function exportPurchases(range: DateRange) {
-  return getDb()
+export async function exportPurchases(range: DateRange, page?: PageWindow) {
+  const query = getDb()
     .select({
+      id: inventoryPurchases.id,
+      itemId: inventoryPurchases.inventoryItemId,
       date: inventoryPurchases.purchaseDate,
       item: inventoryItems.name,
       enteredQty: inventoryPurchases.enteredQty,
       enteredUnit: inventoryPurchases.enteredUnit,
+      packLabel: inventoryItems.packLabel,
       quantityBase: inventoryPurchases.quantityBase,
       baseUnit: inventoryItems.baseUnit,
       totalCost: inventoryPurchases.totalCost,
@@ -251,13 +266,68 @@ export async function exportPurchases(range: DateRange) {
     .from(inventoryPurchases)
     .innerJoin(inventoryItems, eq(inventoryItems.id, inventoryPurchases.inventoryItemId))
     .where(and(gte(inventoryPurchases.purchaseDate, range.from), lte(inventoryPurchases.purchaseDate, range.to)))
-    .orderBy(inventoryPurchases.purchaseDate, inventoryPurchases.id);
+    .orderBy(inventoryPurchases.purchaseDate, inventoryPurchases.id)
+    .$dynamic();
+  return page ? query.limit(page.limit).offset(page.offset) : query;
 }
 
-export async function exportExpenses(range: DateRange) {
+export async function exportExpenses(range: DateRange, page?: PageWindow) {
   return getDb().query.expenses.findMany({
     where: and(gte(expenses.expenseDate, range.from), lte(expenses.expenseDate, range.to)),
     orderBy: [expenses.expenseDate, expenses.id],
     with: { createdByUser: { columns: { name: true } } },
+    limit: page?.limit,
+    offset: page?.offset,
   });
+}
+
+export type OrderExportRow = Awaited<ReturnType<typeof exportOrders>>[number];
+export type PurchaseExportRow = Awaited<ReturnType<typeof exportPurchases>>[number];
+export type ExpenseExportRow = Awaited<ReturnType<typeof exportExpenses>>[number];
+
+/** Row count and totals for a whole period, for the header and footer of the Orders tab. */
+export async function getOrdersSummary(range: DateRange) {
+  const [row] = await getDb()
+    .select({
+      rows: count(),
+      paid: sql<number>`count(*) filter (where ${orders.status} = 'completed')::int`,
+      pending: sql<number>`count(*) filter (where ${orders.status} = 'pending')::int`,
+      cancelled: sql<number>`count(*) filter (where ${orders.status} = 'cancelled')::int`,
+      subtotal: sql<string>`coalesce(sum(${orders.subtotal}) filter (where ${orders.status} = 'completed'), 0)`,
+      discount: sql<string>`coalesce(sum(${orders.discountAmount}) filter (where ${orders.status} = 'completed'), 0)`,
+      delivery: sql<string>`coalesce(sum(${orders.deliveryCharge}) filter (where ${orders.status} = 'completed'), 0)`,
+      total: sql<string>`coalesce(sum(${orders.total}) filter (where ${orders.status} = 'completed'), 0)`,
+    })
+    .from(orders)
+    .where(and(gte(orders.businessDate, range.from), lte(orders.businessDate, range.to)));
+  return {
+    rows: row?.rows ?? 0,
+    paid: n(row?.paid),
+    pending: n(row?.pending),
+    cancelled: n(row?.cancelled),
+    subtotal: n(row?.subtotal),
+    discount: n(row?.discount),
+    delivery: n(row?.delivery),
+    total: n(row?.total),
+  };
+}
+
+export async function getPurchasesSummary(range: DateRange) {
+  const [row] = await getDb()
+    .select({
+      rows: count(),
+      voided: sql<number>`count(*) filter (where ${inventoryPurchases.voidedAt} is not null)::int`,
+      total: sql<string>`coalesce(sum(${inventoryPurchases.totalCost}) filter (where ${inventoryPurchases.voidedAt} is null), 0)`,
+    })
+    .from(inventoryPurchases)
+    .where(and(gte(inventoryPurchases.purchaseDate, range.from), lte(inventoryPurchases.purchaseDate, range.to)));
+  return { rows: row?.rows ?? 0, voided: n(row?.voided), total: n(row?.total) };
+}
+
+export async function getExpensesSummary(range: DateRange) {
+  const [row] = await getDb()
+    .select({ rows: count(), total: sum(expenses.amount) })
+    .from(expenses)
+    .where(and(gte(expenses.expenseDate, range.from), lte(expenses.expenseDate, range.to)));
+  return { rows: row?.rows ?? 0, total: n(row?.total) };
 }

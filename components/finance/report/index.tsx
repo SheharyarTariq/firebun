@@ -1,25 +1,37 @@
-import { Download, TrendingDown, TrendingUp } from "lucide-react";
+import Link from "next/link";
+import { ChevronRight, TrendingDown, TrendingUp } from "lucide-react";
 import Banner from "@/components/common/Banner";
 import Card from "@/components/common/Card";
 import SectionHeading from "@/components/common/SectionHeading";
 import { BarList, DayColumns } from "@/components/finance/charts";
 import type { FinanceReport } from "@/server/finance/queries";
 import { cn } from "@/utils/cn";
-import { formatBusinessDate, formatMoney, rangeDays, shiftIsoDate } from "@/utils/helper";
+import {
+  formatBusinessDate,
+  formatMoney,
+  formatSignedMoney,
+  periodSearch,
+  rangeDays,
+  shiftIsoDate,
+  type PeriodPreset,
+} from "@/utils/helper";
 import { routes } from "@/utils/routes";
 
 interface FinanceReportViewProps {
   report: FinanceReport;
+  /** Keeps the period on the links into the Orders / Purchases / Expenses tabs. */
+  preset: PeriodPreset;
 }
 
 /** The numbers for one period. Rendered on the server; no interactivity needed. */
-export default function FinanceReportView({ report }: FinanceReportViewProps) {
+export default function FinanceReportView({ report, preset }: FinanceReportViewProps) {
   const { range, sales, purchases, expenses, pending, previous } = report;
   const days = rangeDays(range);
   const grossMargin = sales.income > 0 ? Math.round(((sales.income - report.ingredientCost) / sales.income) * 100) : null;
   const profitMargin = sales.income > 0 ? Math.round((report.profit / sales.income) * 100) : null;
   const previousLabel = days === 1 ? "yesterday" : days === 7 ? "the week before" : `the ${days} days before`;
   const buckets = buildBuckets(report.byDay, range.from, range.to, days);
+  const tab = (path: string) => `${path}${periodSearch(preset, range)}`;
 
   return (
     <>
@@ -34,7 +46,7 @@ export default function FinanceReportView({ report }: FinanceReportViewProps) {
         />
         <Tile
           label="Profit (est.)"
-          value={formatMoney(report.profit)}
+          value={formatSignedMoney(report.profit)}
           hint={profitMargin === null ? "Income − ingredients − expenses" : `${profitMargin}% of income`}
           tone={report.profit >= 0 ? "success" : "danger"}
           delta={<Delta now={report.profit} before={previous.profit} label={previousLabel} />}
@@ -57,7 +69,13 @@ export default function FinanceReportView({ report }: FinanceReportViewProps) {
         <Row label={`Cash out for stock (${purchases.count})`} value={`− ${formatMoney(purchases.total)}`} />
         <Row label={`Expenses (${expenses.count})`} value={`− ${formatMoney(expenses.total)}`} />
         <div className="border-t border-border" />
-        <Row label="Net cash" value={formatMoney(report.net)} hint="What the till gained or lost, counting stock when it was bought" strong />
+        <Row
+          label="Net cash"
+          value={formatSignedMoney(report.net)}
+          hint="What the till gained or lost, counting stock when it was bought"
+          strong
+          tone={report.net < 0 ? "danger" : undefined}
+        />
         {days === 1 && <Row label="Cash sales today" value={formatMoney(sales.cash)} muted hint={`plus ${formatMoney(sales.online)} online / transfer`} />}
       </Card>
 
@@ -76,6 +94,9 @@ export default function FinanceReportView({ report }: FinanceReportViewProps) {
         <Row label="Online / transfer" value={formatMoney(sales.online)} muted />
         {report.cancelled > 0 && <Row label="Cancelled orders" value={String(report.cancelled)} muted />}
         <Row label="Average order" value={formatMoney(sales.average)} muted />
+        <CardLink href={tab(routes.ui.financeOrders)}>
+          View {sales.orders + pending.orders + report.cancelled} order{sales.orders + pending.orders + report.cancelled === 1 ? "" : "s"}
+        </CardLink>
       </Card>
 
       {expenses.byCategory.length > 0 && (
@@ -87,6 +108,9 @@ export default function FinanceReportView({ report }: FinanceReportViewProps) {
             format={formatMoney}
             data={expenses.byCategory.map((c) => ({ key: c.category, label: c.category, value: c.total }))}
           />
+          <CardLink href={tab(routes.ui.financeExpenses)}>
+            View {expenses.count} expense{expenses.count === 1 ? "" : "s"}
+          </CardLink>
         </Card>
       )}
 
@@ -116,10 +140,9 @@ export default function FinanceReportView({ report }: FinanceReportViewProps) {
 
       {report.recentPurchases.length > 0 && (
         <Card className="space-y-2">
-          <SectionHeading>Stock purchases</SectionHeading>
+          <SectionHeading>Latest stock purchases</SectionHeading>
           <ul className="divide-y divide-border">
-            {/* Up to 50 rows used to render in full, burying everything below them. */}
-            {report.recentPurchases.slice(0, 8).map((p) => (
+            {report.recentPurchases.map((p) => (
               <li key={p.id} className={cn("flex items-center gap-3 py-2 text-sm", p.voided && "opacity-50 line-through")}>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate">{p.item}</span>
@@ -132,31 +155,28 @@ export default function FinanceReportView({ report }: FinanceReportViewProps) {
               </li>
             ))}
           </ul>
-          {report.recentPurchases.length > 8 && (
-            <p className="pt-1 text-label text-muted">
-              + {report.recentPurchases.length - 8} more in the period · {formatMoney(purchases.total)} in total
-            </p>
-          )}
+          {/* The full list lives on its own tab; this card is only a glance. */}
+          <CardLink href={tab(routes.ui.financePurchases)}>
+            View all {purchases.count} purchase{purchases.count === 1 ? "" : "s"} · {formatMoney(purchases.total)}
+          </CardLink>
         </Card>
       )}
 
       </div>
-
-      <Card className="space-y-2">
-        <SectionHeading>Export (CSV)</SectionHeading>
-        <div className="grid grid-cols-3 gap-2 sm:max-w-md">
-          {(["orders", "purchases", "expenses"] as const).map((type) => (
-            <a
-              key={type}
-              href={routes.api.financeExport(type, range.from, range.to)}
-              className="flex h-11 items-center justify-center gap-1.5 rounded-field border border-border text-sm font-medium capitalize transition-colors active:bg-surface-2"
-            >
-              <Download className="h-4 w-4" /> {type}
-            </a>
-          ))}
-        </div>
-      </Card>
     </>
+  );
+}
+
+/** "View 12 orders ›" at the foot of a card — from a total to the rows behind it. */
+function CardLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <Link
+      href={href}
+      className="-mx-4 -mb-4 flex min-h-11 items-center justify-between gap-2 rounded-b-card border-t border-border px-4 text-label font-semibold text-brand-text active:bg-surface-2 md:hover:bg-surface-2"
+    >
+      {children}
+      <ChevronRight className="h-4 w-4 shrink-0" />
+    </Link>
   );
 }
 
@@ -198,9 +218,33 @@ function Delta({ now, before, label }: { now: number; before: number; label: str
   );
 }
 
-function Row({ label, value, muted, indent, hint, strong }: { label: string; value: string; muted?: boolean; indent?: boolean; hint?: string; strong?: boolean }) {
+function Row({
+  label,
+  value,
+  muted,
+  indent,
+  hint,
+  strong,
+  tone,
+}: {
+  label: string;
+  value: string;
+  muted?: boolean;
+  indent?: boolean;
+  hint?: string;
+  strong?: boolean;
+  tone?: "danger";
+}) {
   return (
-    <div className={cn("flex items-baseline justify-between gap-3 text-sm", muted && "text-muted", indent && "pl-4", strong && "text-base font-semibold")}>
+    <div
+      className={cn(
+        "flex items-baseline justify-between gap-3 text-sm",
+        muted && "text-muted",
+        indent && "pl-4",
+        strong && "text-base font-semibold",
+        tone === "danger" && "text-danger"
+      )}
+    >
       <span className="min-w-0">
         {label}
         {hint && <span className="block text-xs font-normal text-muted">{hint}</span>}
@@ -237,15 +281,18 @@ function buildBuckets(
       unit: "day",
       data: daily.map((d) => ({
         date: d.date,
-        label: formatBusinessDate(d.date),
+        label: formatBusinessDate(d.date, "EEE d MMM"),
         short: short(d.date),
+        // Weekday over day number for a week; past that only the day number fits a column.
+        tick: formatBusinessDate(d.date, "d"),
+        tickTop: days <= 7 ? formatBusinessDate(d.date, "EEE") : undefined,
         value: d.income,
         orders: d.orders,
       })),
     };
   }
 
-  const weeks: { date: string; label: string; short: string; value: number; orders: number }[] = [];
+  const weeks: { date: string; label: string; short: string; tick: string; tickTop?: string; value: number; orders: number }[] = [];
   for (let i = 0; i < daily.length; i += 7) {
     const week = daily.slice(i, i + 7);
     const start = week[0].date;
@@ -254,6 +301,7 @@ function buildBuckets(
       date: start,
       label: `${short(start)} – ${short(end)}`,
       short: short(start),
+      tick: short(start),
       value: week.reduce((n, d) => n + d.income, 0),
       orders: week.reduce((n, d) => n + d.orders, 0),
     });

@@ -115,7 +115,12 @@ There is no test runner. Verification = typecheck + lint + build + walking throu
   (cash basis over inclusive business-date ranges: income from completed orders, spend = non-voided
   purchases + expenses, pending COD shown separately, ingredient cost from `sale` movement cost
   snapshots, top sellers from parent lines only). Period presets live in `utils/helper`
-  (`rangeForPreset`, `PeriodPicker` component). CSV export: `GET /api/finance/export` (admin).
+  (`rangeForPreset`, `PeriodPicker` component). Finance has four tabs under one layout —
+  `/finance` (summary), `/finance/orders`, `/finance/purchases`, `/finance/expenses` — sharing the
+  period in the URL (`periodSearch` in `utils/helper`); the tabs page 50 rows (`?page=`) through
+  `DataTable` (`components/common`). Each tab and `GET /api/finance/export` (admin) read the same
+  loaders (`exportOrders`/`exportPurchases`/`exportExpenses`), and the CSV columns live in
+  `server/finance/exports.ts`, so the table and the file never disagree.
 - **Cart**: `components/pos/cart-store.ts` (zustand, persisted to `localStorage` with a 3-hour
   expiry, one `clientId` per cart). Render cart-dependent UI only after `useHydrated()` is true.
   Placing an order keeps the cashier on the counter (`PlacedBar` with Print / Open); single-price

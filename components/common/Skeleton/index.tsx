@@ -37,6 +37,22 @@ export function ListSkeleton({ rows = 6 }: { rows?: number }) {
   );
 }
 
+/** A total-and-download card over a table of rows (the Finance tabs). */
+export function TableSkeleton() {
+  return (
+    <>
+      <Card className="flex items-center gap-3">
+        <div className="flex-1 space-y-2">
+          <Skeleton className="h-6 w-1/3" />
+          <Skeleton className="h-3 w-1/4" />
+        </div>
+        <Skeleton className="h-11 w-20 rounded-field" />
+      </Card>
+      <ListSkeleton rows={8} />
+    </>
+  );
+}
+
 /** The counter's 2-column item grid. */
 export function GridSkeleton({ cards = 8 }: { cards?: number }) {
   return (
