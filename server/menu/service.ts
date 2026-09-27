@@ -346,16 +346,16 @@ export async function deleteVariant(id: number) {
       .where(and(eq(menuItemVariants.menuItemId, variant.menuItemId), ne(menuItemVariants.id, id)));
     if (siblings === 0) throw new ServiceError("An item needs at least one size.");
 
-    const [[{ n: inOrders }], [{ n: inDeals }]] = await Promise.all([
-      tx.select({ n: count() }).from(orderItems).where(eq(orderItems.variantId, id)),
-      tx.select({ n: count() }).from(dealSlotOptions).where(eq(dealSlotOptions.variantId, id)),
-    ]);
-    if (inOrders > 0 || inDeals > 0) {
-      throw new ServiceError(
-        inDeals > 0
-          ? "This size is offered in a deal. Remove it from the deal first, or deactivate it."
-          : "This size appears in past orders. Deactivate it instead of deleting."
-      );
+    // Past orders no longer stand in the way: `order_items` keeps its own name, size and price
+    // snapshots, and the FK is ON DELETE SET NULL, so those bills and every finance figure
+    // survive the size going. A deal is different — it is live configuration, and
+    // `assertOptionsValid` will not let a slot end up with no options.
+    const [{ n: inDeals }] = await tx
+      .select({ n: count() })
+      .from(dealSlotOptions)
+      .where(eq(dealSlotOptions.variantId, id));
+    if (inDeals > 0) {
+      throw new ServiceError("This size is offered in a deal. Remove it from the deal first, or hide it.");
     }
 
     await tx.delete(menuItemVariants).where(eq(menuItemVariants.id, id)); // recipes cascade

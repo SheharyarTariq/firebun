@@ -115,9 +115,12 @@ export const orderItems = pgTable(
     menuItemId: integer()
       .notNull()
       .references(() => menuItems.id, { onDelete: "restrict" }),
-    variantId: integer()
-      .notNull()
-      .references(() => menuItemVariants.id, { onDelete: "restrict" }),
+    /**
+     * Null once that size has been deleted from the menu. The three snapshots below are the
+     * real record of what was sold, so a bill, the orders list and every finance figure stay
+     * correct without it; only "Repeat order" needs the size to still exist.
+     */
+    variantId: integer().references(() => menuItemVariants.id, { onDelete: "set null" }),
     /** Snapshots so bills stay correct after the menu changes. */
     nameSnapshot: text().notNull(),
     variantNameSnapshot: text().notNull(),

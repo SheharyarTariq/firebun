@@ -211,7 +211,6 @@ export default function MenuItemDetails({ details }: MenuItemDetailsProps) {
                 soldLines: soldLinesByVariant.get(sheet.variant.id) ?? 0,
                 dealUsages: variantDealUsages.filter((d) => d.variantId === sheet.variant!.id),
                 activeSiblings: item.variants.filter((v) => v.id !== sheet.variant!.id && v.isActive).length,
-                totalSiblings: item.variants.length - 1,
               }
             : undefined
         }

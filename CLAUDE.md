@@ -76,11 +76,22 @@ There is no test runner. Verification = typecheck + lint + build + walking throu
   no "opening stock" form: starting stock is entered with Count (no cost) or Purchase.
 - **Deleting records** (admin only, every rule lives in the service): purchases and manual
   ledger rows always; inventory items unless a recipe uses them or orders consumed them
-  (→ archive); menu items unless sold or offered in a deal (→ hide); categories only when
-  empty; orders only once cancelled; staff accounts only when nothing references them
+  (→ archive); menu items unless sold or offered in a deal (→ hide); **sizes always, unless a
+  deal offers one or it is the item's last** — past orders do not block, see below; categories
+  only when empty; orders only once cancelled; staff accounts only when nothing references them
   (→ deactivate). UI: trash icon in the edit sheet footer + `ConfirmSheet`; blocked reasons
   are computed in the details query (`recipeUsages`, `usedInOrders`, `deleteCost`, `orderLines`,
-  `dealUses`) so the sheet explains before the tap.
+  `dealUses`, `soldLinesByVariant`, `variantDealUsages`) so the sheet explains before the tap.
+- **A sold size can be deleted; the order line is the record**: `order_items.variant_id` is
+  nullable with `ON DELETE SET NULL`, and `name_snapshot` / `variant_name_snapshot` /
+  `unit_price_snapshot` on the row are what bills, the orders list and every finance figure
+  actually read — verified by deleting a sold size and watching income and top sellers stay
+  identical. NULL there means "that size was deleted". The one thing that needs the size to
+  still exist is **Repeat order**, so `repeatOrder` (`components/orders/order-details`) leaves
+  those lines out and names them; it must, because every deleted size shares the id `null` and
+  the cart's bad-line lookup (`String(l.variantId) === badId`) would otherwise blame the wrong
+  line. A **sole size** shows no delete control at all — that sheet is the item's price, so
+  deleting belongs to the item.
 - **Archiving an inventory item needs the same clearance as deleting it**: `updateItem` refuses
   `isActive: false` while any recipe names the item, because `placeOrder` deducts from the recipe
   without ever reading that flag and `countInventoryAttention` only counts active items — an
@@ -92,7 +103,7 @@ There is no test runner. Verification = typecheck + lint + build + walking throu
   sheet rather than staging a save the server would refuse. Deleting an item also deletes its
   purchases, which changes past finance reports, so the confirmation names the rupees.
 - **Menu**: `server/menu/service.ts` owns categories (reorder renumbers 0..n-1), items (slug
-  auto-unique), variants (≥1 active size; delete blocked when used in orders/deals), recipes
+  auto-unique), variants (≥1 active size; delete blocked only by a deal, never by past orders), recipes
   (upsert per variant+ingredient, `copyRecipe` between sizes) and deal slots/options (single-kind
   variants only). `setItemAvailability` is the sold-out toggle staff will also use from the POS.
 - **Orders**: `server/orders/service.ts#placeOrder` is one transaction: idempotent by `clientId`,

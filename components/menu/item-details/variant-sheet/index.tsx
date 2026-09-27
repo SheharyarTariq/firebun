@@ -34,15 +34,15 @@ interface VariantSheetProps {
   /** The item has only this size, so "Regular" is just "the price". */
   sole: boolean;
   /**
-   * Editing only: which of `deleteVariant`'s three rules would refuse this size, so the sheet
-   * can name the one that applies instead of listing all three and hoping.
+   * Editing only: what a delete would cost and the one thing that can still refuse it. Sold
+   * lines no longer block — they keep their own snapshots — so they are stated as the
+   * consequence instead; a deal is live configuration and does block.
    */
   deleteBlock?: {
     soldLines: number;
     dealUsages: VariantDealUsage[];
-    /** Other sizes still on the menu — hiding needs one, and so does deleting. */
+    /** Other sizes still on the menu: `updateVariant` refuses to hide the last active one. */
     activeSiblings: number;
-    totalSiblings: number;
   };
 }
 
@@ -130,21 +130,25 @@ export default function VariantSheet({
   };
 
   const dealUsages = deleteBlock?.dealUsages ?? [];
-  // Same order `deleteVariant` applies its rules, so the sheet never names a blocker that the
-  // server would not have reached. The last-size rule is permanent — hiding is refused too.
-  const isLastSize = deleteBlock?.totalSiblings === 0;
-  const blockedReason = !deleteBlock || !variant
-    ? null
-    : isLastSize
-      ? "An item needs at least one size. Add another size first, or delete the whole item."
-      : dealUsages.length > 0
-        ? `${dealUsages.length === 1 ? "A deal offers this size" : `${dealUsages.length} deals offer this size`}. Take it out of ${dealUsages.length === 1 ? "that deal" : "them"} to delete it, or hide it — it stays out of the counter and keeps its history.`
-        : deleteBlock.soldLines > 0
-          ? `It has been sold in ${deleteBlock.soldLines} order line${deleteBlock.soldLines === 1 ? "" : "s"}, so its history has to stay. Hiding keeps that history and takes it off the counter.`
-          : null;
-  // Hiding the only active size is refused by `updateVariant` as well, so it is not offered.
-  const canOfferHide = Boolean(blockedReason) && !isLastSize && (deleteBlock?.activeSiblings ?? 0) > 0;
+  // A deal is the only thing left that can refuse a delete: it is live configuration, and a
+  // slot cannot be left with no options. Past orders no longer block anything — they keep
+  // their own name, size and price, so they survive the size being deleted.
+  const blockedReason =
+    !deleteBlock || !variant || dealUsages.length === 0
+      ? null
+      : `${dealUsages.length === 1 ? "A deal offers this size" : `${dealUsages.length} deals offer this size`}. Take it out of ${dealUsages.length === 1 ? "that deal" : "them"} to delete it, or hide it — it comes off the counter and keeps its history.`;
+  // Hiding the only active size is refused by `updateVariant`, so it is not offered there.
+  const canOfferHide = Boolean(blockedReason) && (deleteBlock?.activeSiblings ?? 0) > 0;
   const recipeCount = variant?.recipes.length ?? 0;
+  const soldLines = deleteBlock?.soldLines ?? 0;
+  // Deleting is permanent, and a sold size is exactly where the owner needs to know what does
+  // and does not survive it.
+  const deleteConsequence = [
+    soldLines > 0
+      ? `It has been sold in ${soldLines} order line${soldLines === 1 ? "" : "s"}. Those bills keep their name and price`
+      : null,
+    recipeCount > 0 ? `its recipe (${recipeCount} ingredient${recipeCount === 1 ? "" : "s"}) goes with it` : null,
+  ].filter(Boolean);
 
   return (
     <>
@@ -155,8 +159,8 @@ export default function VariantSheet({
         title={blockedReason ? `“${variant.name}” can’t be deleted` : `Delete size “${variant.name}”?`}
         description={
           blockedReason ??
-          (recipeCount > 0
-            ? `Its recipe (${recipeCount} ingredient${recipeCount === 1 ? "" : "s"}) is deleted with it. This cannot be undone.`
+          (deleteConsequence.length > 0
+            ? `${deleteConsequence.join(", but ")}. This cannot be undone.`
             : "This cannot be undone.")
         }
         confirmLabel="Delete"
@@ -242,14 +246,25 @@ export default function VariantSheet({
               checked={isActive}
               onChange={setIsActive}
             />
-            <Button
-              variant="ghost"
-              className="w-full text-danger"
-              startIcon={<Trash2 className="h-4 w-4" />}
-              onClick={() => setConfirmDelete(true)}
-            >
-              Delete size
-            </Button>
+            {/*
+              With one size there is no size to delete — this sheet is the item's price, which
+              is why it hides the name field above. Deleting belongs to the item itself, so the
+              control is not offered here rather than offered and then refused.
+            */}
+            {sole ? (
+              <p className="text-center text-xs text-muted">
+                This is the item’s only size. To remove it, delete the whole item from Edit.
+              </p>
+            ) : (
+              <Button
+                variant="ghost"
+                className="w-full text-danger"
+                startIcon={<Trash2 className="h-4 w-4" />}
+                onClick={() => setConfirmDelete(true)}
+              >
+                Delete size
+              </Button>
+            )}
           </>
         )}
       </div>

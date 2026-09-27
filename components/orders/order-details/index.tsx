@@ -120,15 +120,31 @@ export default function OrderDetails({ order, viewer, canCancel, cancelBlockedRe
     else toast.dismiss(id);
   };
 
+  /** "Pizza (M)" — how a dropped line is named back to the cashier. */
+  const describeLine = (line: OrderLine) =>
+    line.variantNameSnapshot && line.variantNameSnapshot !== "Regular"
+      ? `${line.nameSnapshot} (${line.variantNameSnapshot})`
+      : line.nameSnapshot;
+
   const repeatOrder = () => {
-    const lines: Omit<CartLine, "key">[] = parents.map((p) => {
+    const lines: Omit<CartLine, "key">[] = [];
+    const dropped: string[] = [];
+
+    for (const p of parents) {
       const kids = childrenOf(p.id);
+      // `variantId` is null once that size has been deleted from the menu. Such a line cannot
+      // go back into a cart, and a deal whose chosen size is gone cannot be rebuilt honestly,
+      // so it is left out here rather than failing at "Place order" with a customer waiting.
+      if (p.variantId === null || kids.some((k) => k.variantId === null)) {
+        dropped.push(describeLine(p));
+        continue;
+      }
       const slots = new Map<number, OrderLine[]>();
       for (const k of kids) {
         if (k.dealSlotId === null) continue;
         slots.set(k.dealSlotId, [...(slots.get(k.dealSlotId) ?? []), k]);
       }
-      return {
+      lines.push({
         menuItemId: p.menuItemId,
         variantId: p.variantId,
         kind: kids.length > 0 ? "deal" : "single",
@@ -140,15 +156,33 @@ export default function OrderDetails({ order, viewer, canCancel, cancelBlockedRe
         dealChoices: [...slots.entries()].map(([slotId, rows]) => ({
           slotId,
           label: "",
-          choices: rows.map((r) => ({
-            variantId: r.variantId,
-            itemName: r.nameSnapshot,
-            variantName: r.variantNameSnapshot,
-            quantity: Math.max(1, Math.round(r.quantity / p.quantity)),
-          })),
+          choices: rows.flatMap((r) =>
+            r.variantId === null
+              ? []
+              : [
+                  {
+                    variantId: r.variantId,
+                    itemName: r.nameSnapshot,
+                    variantName: r.variantNameSnapshot,
+                    quantity: Math.max(1, Math.round(r.quantity / p.quantity)),
+                  },
+                ]
+          ),
         })),
-      };
-    });
+      });
+    }
+
+    const leftOut =
+      dropped.length === 0
+        ? ""
+        : ` — ${dropped.length <= 2 ? dropped.join(" and ") : `${dropped.length} items`} left out, no longer on the menu`;
+
+    if (lines.length === 0) {
+      setSheet(null);
+      toast.error("Nothing to repeat — none of these items are on the menu any more.");
+      return;
+    }
+
     replaceLines(lines, {
       orderType: order.orderType,
       customerName: order.customerName ?? "",
@@ -156,7 +190,11 @@ export default function OrderDetails({ order, viewer, canCancel, cancelBlockedRe
       deliveryAddress: order.deliveryAddress ?? "",
     });
     setSheet(null);
-    toast.success("Copied to a new cart — prices are checked again when you place it");
+    toast.success(
+      dropped.length > 0
+        ? `Copied to a new cart${leftOut}`
+        : "Copied to a new cart — prices are checked again when you place it"
+    );
     router.push(routes.ui.pos);
   };
 
