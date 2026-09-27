@@ -116,13 +116,13 @@ export default function DealSheet({ open, onOpenChange, item: itemProp, onAvaila
       Back on sale
     </Button>
   ) : slots.length === 0 ? undefined : (
-    <Button size="lg" className="w-full" onClick={handleAdd} disabled={missing > 0}>
+    <Button type="submit" size="lg" className="w-full" disabled={missing > 0}>
       {missing > 0 ? `Pick ${missing} more` : `Add ${quantity > 1 ? `${quantity} ` : ""}· ${formatMoney(variant.price * quantity)}`}
     </Button>
   );
 
   return (
-    <BottomSheet open={open} onOpenChange={onOpenChange} title={item.name} description={item.description ?? undefined} footer={footer}>
+    <BottomSheet open={open} onOpenChange={onOpenChange} onSubmit={item.isAvailable && slots.length > 0 ? handleAdd : undefined} title={item.name} description={item.description ?? undefined} footer={footer}>
       <div className="space-y-5">
         {!item.isAvailable && (
           <Banner tone="danger">

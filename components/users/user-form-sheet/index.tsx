@@ -61,6 +61,7 @@ export default function UserFormSheet({ open, onOpenChange }: UserFormSheetProps
 
   return (
     <BottomSheet
+      onSubmit={handleSubmit}
       open={open}
       onOpenChange={(next) => {
         if (!next) reset();
@@ -69,7 +70,7 @@ export default function UserFormSheet({ open, onOpenChange }: UserFormSheetProps
       title="New account"
       description="Share the email and password with the staff member."
       footer={
-        <Button size="lg" className="w-full" isLoading={isPending} onClick={handleSubmit}>
+        <Button size="lg" className="w-full" isLoading={isPending} type="submit">
           Create account
         </Button>
       }

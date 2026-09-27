@@ -341,6 +341,7 @@ export default function ItemFormSheet({
       </ConfirmSheet>
     )}
     <BottomSheet
+      onSubmit={handleSubmit}
       open={open && intent === null}
       onOpenChange={onOpenChange}
       guardUnsaved
@@ -357,7 +358,7 @@ export default function ItemFormSheet({
               <Trash2 className="h-5 w-5" />
             </Button>
           )}
-          <Button size="lg" className="flex-1" isLoading={isPending} onClick={handleSubmit}>
+          <Button size="lg" className="flex-1" isLoading={isPending} type="submit">
             {isEdit ? "Save" : "Add item"}
           </Button>
         </div>

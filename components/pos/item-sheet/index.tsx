@@ -100,11 +100,12 @@ export default function ItemSheet({ open, onOpenChange, item: itemProp, initialV
     <BottomSheet
       open={open}
       onOpenChange={onOpenChange}
+      onSubmit={item.isAvailable ? handleAdd : undefined}
       title={item.name}
       description={item.description ?? undefined}
       footer={
         item.isAvailable ? (
-          <Button size="lg" className="w-full" onClick={handleAdd}>
+          <Button type="submit" size="lg" className="w-full">
             Add {quantity > 1 ? `${quantity} ` : ""}· {formatMoney(total)}
           </Button>
         ) : (

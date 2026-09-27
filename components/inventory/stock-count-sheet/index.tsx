@@ -64,13 +64,14 @@ export default function StockCountSheet({ open, onOpenChange, item }: StockCount
 
   return (
     <BottomSheet
+      onSubmit={handleSubmit}
       open={open}
       onOpenChange={onOpenChange}
       guardUnsaved
       title="Stock count"
       description={`${item.name} · currently ${formatQty(item.currentQty, item.baseUnit)}`}
       footer={
-        <Button size="lg" className="w-full" isLoading={isPending} onClick={handleSubmit}>
+        <Button size="lg" className="w-full" isLoading={isPending} type="submit">
           {countedNumber !== null && Number.isFinite(countedNumber) && countedNumber >= 0
             ? `Set stock to ${formatQty(entryQtyToBase(item, countedNumber, unit), item.baseUnit)}`
             : "Save"}

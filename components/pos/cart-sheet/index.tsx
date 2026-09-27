@@ -150,7 +150,7 @@ export default function CartSheet({ open, onOpenChange, settings, role, onPlaced
           {blockReason}
         </p>
       )}
-      <Button size="lg" className="w-full" isLoading={isPending} disabled={!canPlace} onClick={handlePlace}>
+      <Button size="lg" className="w-full" isLoading={isPending} disabled={!canPlace} type="submit">
         Place order · {formatMoney(totals.total)}
       </Button>
     </div>
@@ -350,13 +350,23 @@ export default function CartSheet({ open, onOpenChange, settings, role, onPlaced
             {totals.count} item{totals.count === 1 ? "" : "s"}
           </p>
         </div>
-        <div className="flex-1 overflow-y-auto px-4 py-4">{body}</div>
-        <div className="shrink-0 border-t border-border p-4">{footer}</div>
+        <form
+          noValidate
+          className="flex min-h-0 flex-1 flex-col"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void handlePlace();
+          }}
+        >
+          <div className="flex-1 overflow-y-auto px-4 py-4">{body}</div>
+          <div className="shrink-0 border-t border-border p-4">{footer}</div>
+        </form>
       </aside>
     ) : (
       <BottomSheet
         open={open && !confirmClear}
         onOpenChange={onOpenChange}
+        onSubmit={() => void handlePlace()}
         title="Cart"
         description={`${totals.count} item${totals.count === 1 ? "" : "s"}`}
         footer={footer}
@@ -434,7 +444,11 @@ function CartRow({
             setEditingNote(false);
           }}
           onKeyDown={(e) => {
-            if (e.key === "Enter") e.currentTarget.blur();
+            // Finishes the note only; it must not submit the cart form around it.
+            if (e.key === "Enter") {
+              e.preventDefault();
+              e.currentTarget.blur();
+            }
           }}
         />
       )}

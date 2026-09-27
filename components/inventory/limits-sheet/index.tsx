@@ -52,13 +52,14 @@ export default function LimitsSheet({ open, onOpenChange, items }: LimitsSheetPr
 
   return (
     <BottomSheet
+      onSubmit={handleSave}
       open={open}
       onOpenChange={onOpenChange}
       guardUnsaved
       title="Low-stock limits"
       description="An item shows as “Needed” when stock is at or below its limit. Leave empty for no alert."
       footer={
-        <Button size="lg" className="w-full" isLoading={isPending} disabled={changed.length === 0} onClick={handleSave}>
+        <Button size="lg" className="w-full" isLoading={isPending} disabled={changed.length === 0} type="submit">
           {changed.length === 0 ? "Save" : `Save ${changed.length} change${changed.length === 1 ? "" : "s"}`}
         </Button>
       }

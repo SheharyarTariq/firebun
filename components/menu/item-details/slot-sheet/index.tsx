@@ -147,6 +147,7 @@ export default function SlotSheet({ open, onOpenChange, dealVariantId, slot, cho
       />
     )}
     <BottomSheet
+      onSubmit={handleSubmit}
       open={open && !confirmDelete}
       onOpenChange={onOpenChange}
       guardUnsaved
@@ -165,7 +166,7 @@ export default function SlotSheet({ open, onOpenChange, dealVariantId, slot, cho
               <Trash2 className="h-5 w-5" />
             </Button>
           )}
-          <Button size="lg" className="flex-1" isLoading={isPending} onClick={handleSubmit}>
+          <Button size="lg" className="flex-1" isLoading={isPending} type="submit">
             {slot ? "Save" : "Add slot"} · {selectedIds.size} option{selectedIds.size === 1 ? "" : "s"}
           </Button>
         </div>

@@ -341,6 +341,7 @@ export default function OrderDetails({ order, viewer, canCancel, cancelBlockedRe
       <BottomSheet
         open={sheet === "cancel"}
         onOpenChange={(open) => !open && setSheet(null)}
+        onSubmit={handleCancel}
         title={`Cancel order ${formatOrderNumber(order.dailySeq)}?`}
         description="Cancelled orders are not counted as income."
         footer={
@@ -348,7 +349,7 @@ export default function OrderDetails({ order, viewer, canCancel, cancelBlockedRe
             <Button size="lg" variant="outline" disabled={isPending} onClick={() => setSheet(null)}>
               Keep order
             </Button>
-            <Button size="lg" variant="danger" isLoading={isPending} onClick={handleCancel}>
+            <Button size="lg" variant="danger" isLoading={isPending} type="submit">
               Cancel order
             </Button>
           </div>

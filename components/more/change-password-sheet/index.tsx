@@ -60,6 +60,7 @@ export default function ChangePasswordSheet() {
       </Button>
 
       <BottomSheet
+        onSubmit={handleSubmit}
         open={open}
         onOpenChange={(next) => {
           if (!next) reset();
@@ -68,7 +69,7 @@ export default function ChangePasswordSheet() {
         title="Change password"
         description="Other devices signed in to your account will be signed out."
         footer={
-          <Button size="lg" className="w-full" isLoading={isPending} onClick={handleSubmit}>
+          <Button size="lg" className="w-full" isLoading={isPending} type="submit">
             Save password
           </Button>
         }

@@ -147,6 +147,15 @@ export default function SettingsScreen({ settings }: SettingsScreenProps) {
         onBack={dirty ? () => setLeaveOpen(true) : undefined}
       />
 
+      {/* `contents` keeps the page layout as it was; the form is only there so Enter saves. */}
+      <form
+        noValidate
+        className="contents"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (dirty) void handleSave();
+        }}
+      >
       {/*
         * Sections sit two-up on a monitor, and each card keeps its fields to a readable measure.
         * Full width is right for a list; a 1900px-wide text input is not — you lose the start of
@@ -245,11 +254,12 @@ export default function SettingsScreen({ settings }: SettingsScreenProps) {
           isLoading={isPending}
           disabled={!dirty}
           startIcon={<Save className="h-5 w-5" />}
-          onClick={handleSave}
+          type="submit"
         >
           {dirty ? "Save changes" : "Saved"}
         </Button>
       </FloatingBar>
+      </form>
     </>
   );
 }

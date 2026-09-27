@@ -100,12 +100,13 @@ export default function VariantSheet({
       />
     )}
     <BottomSheet
+      onSubmit={handleSubmit}
       open={open && !confirmDelete}
       onOpenChange={onOpenChange}
       guardUnsaved
       title={isDealPrice ? "Deal price" : hideName ? "Edit price" : variant ? `Edit ${variant.name}` : "New size"}
       footer={
-        <Button size="lg" className="w-full" isLoading={isPending} onClick={handleSubmit}>
+        <Button size="lg" className="w-full" isLoading={isPending} type="submit">
           {variant ? "Save" : "Add size"}
         </Button>
       }

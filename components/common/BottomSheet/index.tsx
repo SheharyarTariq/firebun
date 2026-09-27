@@ -21,6 +21,12 @@ interface BottomSheetProps {
    * a new `key` on each open (the "edited" flag is not reset otherwise).
    */
   guardUnsaved?: boolean;
+  /**
+   * Form sheets: wraps the body and footer in a `<form>` so Enter in a field submits. Give the
+   * primary footer button `type="submit"` (instead of `onClick`); while it is disabled or
+   * loading, Enter does nothing, so there is no double submit.
+   */
+  onSubmit?: () => void;
 }
 
 interface SheetProps extends Omit<BottomSheetProps, "guardUnsaved"> {
@@ -29,8 +35,28 @@ interface SheetProps extends Omit<BottomSheetProps, "guardUnsaved"> {
 }
 
 /** The plain vaul sheet; `BottomSheet` wraps it with the unsaved-changes guard. */
-function Sheet({ open, onOpenChange, title, description, children, footer, className, onEdit }: SheetProps) {
+function Sheet({ open, onOpenChange, title, description, children, footer, className, onEdit, onSubmit }: SheetProps) {
   const contentRef = useRef<HTMLDivElement>(null);
+
+  const body = (
+    <>
+      {/* Search boxes filter a list; typing in one is not an edit worth guarding. */}
+      <div
+        className="flex-1 overflow-y-auto px-5 py-4"
+        onInput={(e) => (e.target as HTMLInputElement).type !== "search" && onEdit?.()}
+        onChange={(e) => (e.target as HTMLInputElement).type !== "search" && onEdit?.()}
+      >
+        {children}
+      </div>
+
+      {footer && (
+        <div className="shrink-0 border-t border-border bg-surface px-5 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
+          {footer}
+        </div>
+      )}
+      {!footer && <div className="pb-safe" />}
+    </>
+  );
 
   return (
     <Drawer.Root
@@ -70,21 +96,23 @@ function Sheet({ open, onOpenChange, title, description, children, footer, class
             )}
           </div>
 
-          {/* Search boxes filter a list; typing in one is not an edit worth guarding. */}
-          <div
-            className="flex-1 overflow-y-auto px-5 py-4"
-            onInput={(e) => (e.target as HTMLInputElement).type !== "search" && onEdit?.()}
-            onChange={(e) => (e.target as HTMLInputElement).type !== "search" && onEdit?.()}
-          >
-            {children}
-          </div>
-
-          {footer && (
-            <div className="shrink-0 border-t border-border bg-surface px-5 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
-              {footer}
-            </div>
+          {onSubmit ? (
+            <form
+              noValidate
+              className="flex min-h-0 flex-1 flex-col"
+              onSubmit={(e) => {
+                e.preventDefault();
+                // A sheet opened from inside another sheet is portaled, but React still bubbles
+                // its submit to the outer sheet's form.
+                e.stopPropagation();
+                onSubmit();
+              }}
+            >
+              {body}
+            </form>
+          ) : (
+            body
           )}
-          {!footer && <div className="pb-safe" />}
         </Drawer.Content>
       </Drawer.Portal>
     </Drawer.Root>

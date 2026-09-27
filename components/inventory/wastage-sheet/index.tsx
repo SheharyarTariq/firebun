@@ -51,6 +51,7 @@ export default function WastageSheet({ open, onOpenChange, item }: WastageSheetP
 
   return (
     <BottomSheet
+      onSubmit={handleSubmit}
       open={open}
       onOpenChange={onOpenChange}
       guardUnsaved
@@ -62,7 +63,7 @@ export default function WastageSheet({ open, onOpenChange, item }: WastageSheetP
           variant="danger"
           className="w-full"
           isLoading={isPending}
-          onClick={handleSubmit}
+          type="submit"
         >
           Record wastage
         </Button>

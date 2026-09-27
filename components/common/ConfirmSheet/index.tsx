@@ -52,10 +52,13 @@ export default function ConfirmSheet({
   children,
 }: ConfirmSheetProps) {
   const showConfirm = !confirmHidden || Boolean(alternative);
+  // Enter in a field (a reason, a typed confirmation word) presses the primary button.
+  const submit = alternative ? alternative.onConfirm : showConfirm ? onConfirm : undefined;
   return (
     <BottomSheet
       open={open}
       onOpenChange={onOpenChange}
+      onSubmit={submit && (() => void submit())}
       title={title}
       description={description}
       footer={
@@ -70,7 +73,7 @@ export default function ConfirmSheet({
           </Button>
           {alternative ? (
             // Reversible, so it is the plain primary rather than the red one.
-            <Button size="lg" isLoading={alternative.isLoading} onClick={() => void alternative.onConfirm()}>
+            <Button type="submit" size="lg" isLoading={alternative.isLoading}>
               {alternative.label}
             </Button>
           ) : showConfirm ? (
@@ -79,7 +82,7 @@ export default function ConfirmSheet({
               size="lg"
               isLoading={isLoading}
               disabled={confirmDisabled}
-              onClick={() => void onConfirm()}
+              type="submit"
             >
               {confirmLabel}
             </Button>

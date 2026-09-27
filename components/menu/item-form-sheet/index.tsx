@@ -260,6 +260,7 @@ export default function ItemFormSheet({ open, onOpenChange, categories, item, de
       </ConfirmSheet>
     )}
     <BottomSheet
+      onSubmit={handleSubmit}
       open={open && !confirmDelete}
       onOpenChange={onOpenChange}
       guardUnsaved
@@ -271,7 +272,7 @@ export default function ItemFormSheet({ open, onOpenChange, categories, item, de
               <Trash2 className="h-5 w-5" />
             </Button>
           )}
-          <Button size="lg" className="flex-1" isLoading={isPending} onClick={handleSubmit}>
+          <Button size="lg" className="flex-1" isLoading={isPending} type="submit">
             {isEdit ? "Save" : "Add to menu"}
           </Button>
         </div>

@@ -128,7 +128,7 @@ export default function IngredientSheet({
           <Trash2 className="h-5 w-5" />
         </Button>
       )}
-      <Button size="lg" className="flex-1" isLoading={isPending} onClick={handleSubmit}>
+      <Button type="submit" size="lg" className="flex-1" isLoading={isPending}>
         {line ? "Save" : "Add to recipe"}
       </Button>
     </div>
@@ -148,7 +148,7 @@ export default function IngredientSheet({
         onRemoved={() => onOpenChange(false)}
       />
     )}
-    <BottomSheet open={open && !confirmRemove} onOpenChange={onOpenChange} title={title} description={`For one ${sizeLabel}`} footer={footer}>
+    <BottomSheet open={open && !confirmRemove} onOpenChange={onOpenChange} onSubmit={selected ? handleSubmit : undefined} title={title} description={`For one ${sizeLabel}`} footer={footer}>
       {!selected ? (
         <div className="space-y-3">
           {added.length > 0 && (

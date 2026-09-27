@@ -88,13 +88,14 @@ export default function PurchaseSheet({ open, onOpenChange, item, suppliers = []
 
   return (
     <BottomSheet
+      onSubmit={handleSubmit}
       open={open}
       onOpenChange={onOpenChange}
       guardUnsaved
       title="Record purchase"
       description={item.name}
       footer={
-        <Button size="lg" className="w-full" isLoading={isPending} onClick={handleSubmit}>
+        <Button size="lg" className="w-full" isLoading={isPending} type="submit">
           {showPreview ? `Save purchase · ${formatMoney(total)}` : "Save purchase"}
         </Button>
       }

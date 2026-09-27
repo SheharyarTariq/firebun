@@ -150,10 +150,11 @@ export default function UserActionsSheet({ user, isSelf, onOpenChange }: UserAct
       <BottomSheet
         open={step === "reset"}
         onOpenChange={backOrClose}
+        onSubmit={handleReset}
         title={`Reset password — ${user.name}`}
         description="They will be signed out on other devices."
         footer={
-          <Button size="lg" className="w-full" isLoading={isPending} onClick={handleReset}>
+          <Button size="lg" className="w-full" isLoading={isPending} type="submit">
             Save
           </Button>
         }

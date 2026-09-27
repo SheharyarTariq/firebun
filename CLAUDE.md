@@ -135,6 +135,10 @@ There is no test runner. Verification = typecheck + lint + build + walking throu
 - **Sheets**: mark the field to focus with `data-autofocus="true"` (focused after vaul's
   slide-in). Confirm steps render beside the form sheet (`open={open && !confirm}`), never by
   swapping the tree. `Button variant="header"` for buttons inside the dark header.
+  Enter submits: form sheets pass `onSubmit={handleSubmit}` to `BottomSheet` (it wraps body +
+  footer in a `<form>`) and the primary footer button is `type="submit"` with no `onClick`; a
+  disabled/loading button blocks Enter. `ConfirmSheet` does this itself. Raw `<button>`s need
+  `type="button"`, and an input that handles Enter itself must `preventDefault()`.
 - **PWA**: `public/sw.js` (app shell + `/offline` fallback, registered by
   `components/pwa/register-sw` in production), `InstallCard` on More via `beforeinstallprompt`.
   `/offline` and `/sw.js` bypass the auth proxy.
