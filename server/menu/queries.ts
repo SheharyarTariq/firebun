@@ -183,32 +183,65 @@ export const getMenuItemDetails = cache(async (id: number) => {
   if (!item) return null;
 
   const variantIds = item.variants.map((v) => v.id);
-  const [categories, inventory, variantChoices, recipeSources, [soldRow], dealRow] = await Promise.all([
-    listCategories(),
-    listInventoryForRecipes(),
-    item.kind === "deal" ? listVariantChoices() : Promise.resolve([] as VariantChoice[]),
-    item.kind === "single" ? listRecipeSources() : Promise.resolve([] as RecipeSource[]),
-    db.select({ n: count() }).from(orderItems).where(eq(orderItems.menuItemId, id)),
-    // Named, so a blocked delete can point at the deals rather than just counting them.
-    variantIds.length > 0
-      ? db
-          .selectDistinct({
-            dealItemId: menuItems.id,
-            dealName: menuItems.name,
-            slotLabel: dealSlots.label,
-            isLive: menuItems.isActive,
-          })
-          .from(dealSlotOptions)
-          .innerJoin(dealSlots, eq(dealSlots.id, dealSlotOptions.slotId))
-          .innerJoin(menuItemVariants, eq(menuItemVariants.id, dealSlots.dealVariantId))
-          .innerJoin(menuItems, eq(menuItems.id, menuItemVariants.menuItemId))
-          .where(inArray(dealSlotOptions.variantId, variantIds))
-          .orderBy(asc(menuItems.name))
-      : Promise.resolve([] as DealUsage[]),
-  ]);
+  const [categories, inventory, variantChoices, recipeSources, [soldRow], soldByVariant, dealRows] =
+    await Promise.all([
+      listCategories(),
+      listInventoryForRecipes(),
+      item.kind === "deal" ? listVariantChoices() : Promise.resolve([] as VariantChoice[]),
+      item.kind === "single" ? listRecipeSources() : Promise.resolve([] as RecipeSource[]),
+      db.select({ n: count() }).from(orderItems).where(eq(orderItems.menuItemId, id)),
+      // Per size as well as per item: deleting one size is blocked by that size's own history,
+      // not the item's, so the sheet has to know which of them was actually sold.
+      variantIds.length > 0
+        ? db
+            .select({ variantId: orderItems.variantId, n: count() })
+            .from(orderItems)
+            .where(inArray(orderItems.variantId, variantIds))
+            .groupBy(orderItems.variantId)
+        : Promise.resolve([] as { variantId: number; n: number }[]),
+      // Named, so a blocked delete can point at the deals rather than just counting them.
+      variantIds.length > 0
+        ? db
+            .selectDistinct({
+              variantId: dealSlotOptions.variantId,
+              dealItemId: menuItems.id,
+              dealName: menuItems.name,
+              slotLabel: dealSlots.label,
+              isLive: menuItems.isActive,
+            })
+            .from(dealSlotOptions)
+            .innerJoin(dealSlots, eq(dealSlots.id, dealSlotOptions.slotId))
+            .innerJoin(menuItemVariants, eq(menuItemVariants.id, dealSlots.dealVariantId))
+            .innerJoin(menuItems, eq(menuItems.id, menuItemVariants.menuItemId))
+            .where(inArray(dealSlotOptions.variantId, variantIds))
+            .orderBy(asc(menuItems.name))
+        : Promise.resolve([] as VariantDealUsage[]),
+    ]);
+
+  const soldLinesByVariant = new Map(soldByVariant.map((r) => [r.variantId, r.n]));
+  // The item-level list drops the size, so a deal slot offering two sizes of this item would
+  // otherwise appear twice in the menu-item sheet.
+  const dealUsages: DealUsage[] = [
+    ...new Map(
+      dealRows.map((r) => [
+        `${r.dealItemId}-${r.slotLabel}`,
+        { dealItemId: r.dealItemId, dealName: r.dealName, slotLabel: r.slotLabel, isLive: r.isLive },
+      ])
+    ).values(),
+  ];
 
   // What blocks a delete (sold lines, offered inside a deal), so the sheet can explain.
-  return { item, categories, inventory, variantChoices, recipeSources, orderLines: soldRow?.n ?? 0, dealUsages: dealRow };
+  return {
+    item,
+    categories,
+    inventory,
+    variantChoices,
+    recipeSources,
+    orderLines: soldRow?.n ?? 0,
+    dealUsages,
+    soldLinesByVariant,
+    variantDealUsages: dealRows,
+  };
 });
 
 /** A deal that offers one of this item's sizes — what blocks deleting it. */
@@ -217,6 +250,11 @@ export interface DealUsage {
   dealName: string;
   slotLabel: string;
   isLive: boolean;
+}
+
+/** The same, but keeping the size it applies to, for deleting one size rather than the item. */
+export interface VariantDealUsage extends DealUsage {
+  variantId: number;
 }
 
 export type MenuItemDetails = NonNullable<Awaited<ReturnType<typeof getMenuItemDetails>>>;

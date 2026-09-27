@@ -10,12 +10,16 @@ import {
 } from "@/app/(app)/(admin)/menu/actions";
 import BottomSheet from "@/components/common/BottomSheet";
 import Button from "@/components/common/Button";
+import Card from "@/components/common/Card";
 import ConfirmSheet from "@/components/common/ConfirmSheet";
 import Input from "@/components/common/Input";
+import ListRow from "@/components/common/ListRow";
+import SectionHeading from "@/components/common/SectionHeading";
 import Toggle from "@/components/common/Toggle";
-import type { VariantFull } from "@/server/menu/queries";
+import type { VariantDealUsage, VariantFull } from "@/server/menu/queries";
 import { callAction } from "@/utils/call-action";
 import { parseNumberInput } from "@/utils/helper";
+import { routes } from "@/utils/routes";
 import { validateAndSetErrors } from "@/utils/validation";
 import { variantSchema } from "../../schema";
 
@@ -29,6 +33,17 @@ interface VariantSheetProps {
   isDealPrice: boolean;
   /** The item has only this size, so "Regular" is just "the price". */
   sole: boolean;
+  /**
+   * Editing only: which of `deleteVariant`'s three rules would refuse this size, so the sheet
+   * can name the one that applies instead of listing all three and hoping.
+   */
+  deleteBlock?: {
+    soldLines: number;
+    dealUsages: VariantDealUsage[];
+    /** Other sizes still on the menu — hiding needs one, and so does deleting. */
+    activeSiblings: number;
+    totalSiblings: number;
+  };
 }
 
 /** Parents remount this with a new `key` on each open so the form starts fresh. */
@@ -39,6 +54,7 @@ export default function VariantSheet({
   variant,
   isDealPrice,
   sole,
+  deleteBlock,
 }: VariantSheetProps) {
   // A lone size named something else keeps its field so it can be renamed back.
   const hideName = isDealPrice || (sole && variant?.name === "Regular");
@@ -53,8 +69,15 @@ export default function VariantSheet({
     if (errors[field]) setErrors((prev) => ({ ...prev, [field]: "" }));
   };
 
+  /** The form as the server wants it. `active` lets Hide save the typed edits too. */
+  const buildValues = (active = isActive) => ({
+    name: hideName ? "Regular" : name,
+    price: parseNumberInput(price),
+    isActive: active,
+  });
+
   const handleSubmit = async () => {
-    const values = { name: hideName ? "Regular" : name, price: parseNumberInput(price), isActive };
+    const values = buildValues();
     if (!(await validateAndSetErrors(variantSchema, values, setErrors))) return;
     startTransition(async () => {
       const result = variant
@@ -85,19 +108,91 @@ export default function VariantSheet({
     });
   };
 
+  /** The way out when history blocks the delete: keep the size, take it off the menu. */
+  const handleHide = async () => {
+    if (!variant) return;
+    const values = buildValues(false);
+    if (!(await validateAndSetErrors(variantSchema, values, setErrors))) {
+      setConfirmDelete(false);
+      return;
+    }
+    startTransition(async () => {
+      const result = await callAction(updateVariantAction(variant.id, values));
+      if (!result.ok) {
+        if (result.fieldErrors) setErrors(result.fieldErrors);
+        toast.error(result.error);
+        return;
+      }
+      toast.success(`${variant.name === "Regular" ? "Price" : variant.name} hidden`);
+      setConfirmDelete(false);
+      onOpenChange(false);
+    });
+  };
+
+  const dealUsages = deleteBlock?.dealUsages ?? [];
+  // Same order `deleteVariant` applies its rules, so the sheet never names a blocker that the
+  // server would not have reached. The last-size rule is permanent — hiding is refused too.
+  const isLastSize = deleteBlock?.totalSiblings === 0;
+  const blockedReason = !deleteBlock || !variant
+    ? null
+    : isLastSize
+      ? "An item needs at least one size. Add another size first, or delete the whole item."
+      : dealUsages.length > 0
+        ? `${dealUsages.length === 1 ? "A deal offers this size" : `${dealUsages.length} deals offer this size`}. Take it out of ${dealUsages.length === 1 ? "that deal" : "them"} to delete it, or hide it — it stays out of the counter and keeps its history.`
+        : deleteBlock.soldLines > 0
+          ? `It has been sold in ${deleteBlock.soldLines} order line${deleteBlock.soldLines === 1 ? "" : "s"}, so its history has to stay. Hiding keeps that history and takes it off the counter.`
+          : null;
+  // Hiding the only active size is refused by `updateVariant` as well, so it is not offered.
+  const canOfferHide = Boolean(blockedReason) && !isLastSize && (deleteBlock?.activeSiblings ?? 0) > 0;
+  const recipeCount = variant?.recipes.length ?? 0;
+
   return (
     <>
     {variant && (
       <ConfirmSheet
         open={confirmDelete}
         onOpenChange={(next) => !next && setConfirmDelete(false)}
-        title={`Delete size “${variant.name}”?`}
-        description="Its recipe is deleted too. Sizes used in past orders or deals cannot be deleted — hide them instead."
+        title={blockedReason ? `“${variant.name}” can’t be deleted` : `Delete size “${variant.name}”?`}
+        description={
+          blockedReason ??
+          (recipeCount > 0
+            ? `Its recipe (${recipeCount} ingredient${recipeCount === 1 ? "" : "s"}) is deleted with it. This cannot be undone.`
+            : "This cannot be undone.")
+        }
         confirmLabel="Delete"
-        destructive
+        cancelLabel={blockedReason ? "Not now" : "Cancel"}
+        destructive={!blockedReason}
         isLoading={isPending}
+        // Nothing here can be cleared from inside this sheet, so a blocked delete with no
+        // alternative leaves only the way back.
+        confirmHidden={Boolean(blockedReason)}
         onConfirm={handleDelete}
-      />
+        alternative={canOfferHide ? { label: "Hide instead", onConfirm: handleHide, isLoading: isPending } : undefined}
+      >
+        {blockedReason && dealUsages.length > 0 && (
+          <div className="space-y-1">
+            <SectionHeading>Offered in</SectionHeading>
+            <Card className="divide-y divide-border p-0">
+              {dealUsages.map((d) => (
+                <ListRow
+                  key={`${d.dealItemId}-${d.slotLabel}`}
+                  href={routes.ui.menuItemDetails(d.dealItemId)}
+                  dense
+                  trailing="chevron"
+                >
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">{d.dealName}</span>
+                    <span className="block text-xs text-muted">
+                      {d.slotLabel}
+                      {!d.isLive && " · hidden"}
+                    </span>
+                  </span>
+                </ListRow>
+              ))}
+            </Card>
+          </div>
+        )}
+      </ConfirmSheet>
     )}
     <BottomSheet
       onSubmit={handleSubmit}

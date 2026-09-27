@@ -40,7 +40,8 @@ interface MenuItemDetailsProps {
 }
 
 export default function MenuItemDetails({ details }: MenuItemDetailsProps) {
-  const { item, categories, inventory, variantChoices, recipeSources, orderLines, dealUsages } = details;
+  const { item, categories, inventory, variantChoices, recipeSources, orderLines, dealUsages, soldLinesByVariant, variantDealUsages } =
+    details;
   const isDeal = item.kind === "deal";
   const [sheet, setSheet] = useState<Sheet>(null);
   const [sheetKey, setSheetKey] = useState(0);
@@ -204,6 +205,16 @@ export default function MenuItemDetails({ details }: MenuItemDetailsProps) {
         variant={sheet?.type === "variant" ? sheet.variant : undefined}
         isDealPrice={isDeal}
         sole={item.variants.length === 1}
+        deleteBlock={
+          sheet?.type === "variant" && sheet.variant
+            ? {
+                soldLines: soldLinesByVariant.get(sheet.variant.id) ?? 0,
+                dealUsages: variantDealUsages.filter((d) => d.variantId === sheet.variant!.id),
+                activeSiblings: item.variants.filter((v) => v.id !== sheet.variant!.id && v.isActive).length,
+                totalSiblings: item.variants.length - 1,
+              }
+            : undefined
+        }
       />
       <IngredientSheet
         key={`ingredient-${sheetKey}`}
