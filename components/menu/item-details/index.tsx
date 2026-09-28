@@ -245,6 +245,11 @@ export default function MenuItemDetails({ details }: MenuItemDetailsProps) {
         dealVariantId={sheet?.type === "slot" ? sheet.dealVariantId : undefined}
         slot={sheet?.type === "slot" ? sheet.slot : undefined}
         choices={variantChoices}
+        siblingSlots={
+          sheet?.type === "slot" && sheet.slot
+            ? (item.variants.find((v) => v.id === sheet.dealVariantId)?.dealSlots.length ?? 1) - 1
+            : 0
+        }
       />
     </>
   );

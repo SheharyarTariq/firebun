@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Ban, Phone, Plus, Printer, RotateCcw, Trash2, Wallet } from "lucide-react";
+import { Ban, Phone, Plus, Printer, Trash2, Wallet } from "lucide-react";
 import toast from "react-hot-toast";
 import { cancelOrderAction, deleteOrderAction, markOrderPaidAction } from "@/app/(app)/orders/actions";
 import Badge from "@/components/common/Badge";
@@ -19,10 +19,9 @@ import FloatingBar from "@/components/layout/floating-bar";
 import PageBody from "@/components/layout/page-body";
 import type { PaymentMethod } from "@/db/schema/orders";
 import type { UserRole } from "@/db/schema/users";
-import { useCart, useHydrated, type CartLine } from "@/components/pos/cart-store";
 import PrinterSheet from "@/components/printing/printer-sheet";
 import { usePrinter } from "@/components/printing/use-printer";
-import type { OrderDetails as OrderDetailsData, OrderLine } from "@/server/orders/queries";
+import type { OrderDetails as OrderDetailsData } from "@/server/orders/queries";
 import { callAction } from "@/utils/call-action";
 import { formatDateTime, formatMoney, formatOrderNumber } from "@/utils/helper";
 import { routes } from "@/utils/routes";
@@ -40,13 +39,10 @@ interface OrderDetailsProps {
   printKitchenCopy: boolean;
 }
 
-type Sheet = "paid" | "cancel" | "printer" | "repeat" | "delete" | null;
+type Sheet = "paid" | "cancel" | "printer" | "delete" | null;
 
 export default function OrderDetails({ order, viewer, canCancel, cancelBlockedReason, printKitchenCopy }: OrderDetailsProps) {
   const router = useRouter();
-  const hydrated = useHydrated();
-  const cartCount = useCart((s) => s.lines.length);
-  const replaceLines = useCart((s) => s.replaceLines);
   const printer = usePrinter();
   const [sheet, setSheet] = useState<Sheet>(null);
   // No default: taking a payment is a decision, and "Cash" pre-picked hides a wrong tap.
@@ -118,94 +114,6 @@ export default function OrderDetails({ order, viewer, canCancel, cancelBlockedRe
     const ok = await printer.print(order.id, { kitchenCopy: printKitchenCopy, quiet: true });
     if (ok) toast.success("Bill printed", { id });
     else toast.dismiss(id);
-  };
-
-  /** "Pizza (M)" — how a dropped line is named back to the cashier. */
-  const describeLine = (line: OrderLine) =>
-    line.variantNameSnapshot && line.variantNameSnapshot !== "Regular"
-      ? `${line.nameSnapshot} (${line.variantNameSnapshot})`
-      : line.nameSnapshot;
-
-  const repeatOrder = () => {
-    const lines: Omit<CartLine, "key">[] = [];
-    const dropped: string[] = [];
-
-    for (const p of parents) {
-      const kids = childrenOf(p.id);
-      // Null once that size — or the whole item — has been deleted from the menu. Such a line
-      // cannot go back into a cart, and a deal whose chosen size is gone cannot be rebuilt
-      // honestly, so it is left out here rather than failing at "Place order" with a customer
-      // waiting. Deleting an item removes its sizes first, so both ids go null together.
-      if (
-        p.variantId === null ||
-        p.menuItemId === null ||
-        kids.some((k) => k.variantId === null || k.menuItemId === null)
-      ) {
-        dropped.push(describeLine(p));
-        continue;
-      }
-      const slots = new Map<number, OrderLine[]>();
-      for (const k of kids) {
-        if (k.dealSlotId === null) continue;
-        slots.set(k.dealSlotId, [...(slots.get(k.dealSlotId) ?? []), k]);
-      }
-      lines.push({
-        menuItemId: p.menuItemId,
-        variantId: p.variantId,
-        kind: kids.length > 0 ? "deal" : "single",
-        name: p.nameSnapshot,
-        variantName: p.variantNameSnapshot,
-        unitPrice: p.unitPriceSnapshot,
-        quantity: p.quantity,
-        note: p.note,
-        dealChoices: [...slots.entries()].map(([slotId, rows]) => ({
-          slotId,
-          label: "",
-          choices: rows.flatMap((r) =>
-            r.variantId === null
-              ? []
-              : [
-                  {
-                    variantId: r.variantId,
-                    itemName: r.nameSnapshot,
-                    variantName: r.variantNameSnapshot,
-                    quantity: Math.max(1, Math.round(r.quantity / p.quantity)),
-                  },
-                ]
-          ),
-        })),
-      });
-    }
-
-    const leftOut =
-      dropped.length === 0
-        ? ""
-        : ` — ${dropped.length <= 2 ? dropped.join(" and ") : `${dropped.length} items`} left out, no longer on the menu`;
-
-    if (lines.length === 0) {
-      setSheet(null);
-      toast.error("Nothing to repeat — none of these items are on the menu any more.");
-      return;
-    }
-
-    replaceLines(lines, {
-      orderType: order.orderType,
-      customerName: order.customerName ?? "",
-      customerPhone: order.customerPhone ?? "",
-      deliveryAddress: order.deliveryAddress ?? "",
-    });
-    setSheet(null);
-    toast.success(
-      dropped.length > 0
-        ? `Copied to a new cart${leftOut}`
-        : "Copied to a new cart — prices are checked again when you place it"
-    );
-    router.push(routes.ui.pos);
-  };
-
-  const handleRepeat = () => {
-    if (hydrated && cartCount > 0) setSheet("repeat");
-    else repeatOrder();
   };
 
   return (
@@ -284,15 +192,9 @@ export default function OrderDetails({ order, viewer, canCancel, cancelBlockedRe
         )}
 
         {/*
-          * Repeat is benign and frequent, so it sits with the other everyday actions and gets a
-          * real button. Cancel and Delete are separated below a rule with room between them —
-          * they used to sit 4px under Repeat as three identical centred ghost buttons, which is
-          * a mis-tap waiting to happen on a phone.
+          * Cancel and Delete sit below a rule with room between them — they used to be centred
+          * ghost buttons 4px apart, which is a mis-tap waiting to happen on a phone.
           */}
-        <Button variant="outline" size="lg" className="w-full lg:max-w-md" startIcon={<RotateCcw className="h-4 w-4" />} onClick={handleRepeat}>
-          Repeat this order
-        </Button>
-
         {(canCancel || canDelete || (cancelBlockedReason && order.status !== "cancelled")) && (
           <div className="space-y-3 pt-4">
             <div className="border-t border-border" />
@@ -350,15 +252,6 @@ export default function OrderDetails({ order, viewer, canCancel, cancelBlockedRe
         destructive
         isLoading={isPending}
         onConfirm={handleDelete}
-      />
-
-      <ConfirmSheet
-        open={sheet === "repeat"}
-        onOpenChange={(open) => !open && setSheet(null)}
-        title="Replace the current cart?"
-        description={`The cart already has ${cartCount} item${cartCount === 1 ? "" : "s"}. Repeating this order will replace them.`}
-        confirmLabel="Replace cart"
-        onConfirm={repeatOrder}
       />
 
       <BottomSheet

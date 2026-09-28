@@ -48,11 +48,6 @@ export interface CartState {
   paymentMethod: PaymentMethod | null;
 
   addLine: (line: Omit<CartLine, "key">) => void;
-  /** Starts a fresh cart with these lines; `details` carries over order type / customer (repeat order). */
-  replaceLines: (
-    lines: Omit<CartLine, "key">[],
-    details?: Partial<Pick<CartState, "orderType" | "customerName" | "customerPhone" | "deliveryAddress">>
-  ) => void;
   setQuantity: (key: string, quantity: number) => void;
   /** Takes one unit off the newest line of an item (the grid's "−"); removes the line at 0. With `variantId`, only that size's lines count. */
   decrementItem: (menuItemId: number, variantId?: number) => void;
@@ -113,15 +108,6 @@ export const useCart = create<CartState>()(
             };
           }
           return { lines: [...state.lines, { ...line, key: newId() }] };
-        }),
-
-      replaceLines: (lines, details) =>
-        set({
-          ...emptyOrder(),
-          ...details,
-          // Same rule as setOrderType: delivery is paid on delivery, counter orders now.
-          ...(details?.orderType === "delivery" ? { paymentMethod: null } : {}),
-          lines: lines.map((l) => ({ ...l, key: newId() })),
         }),
 
       setQuantity: (key, quantity) =>

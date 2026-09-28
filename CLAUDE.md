@@ -77,7 +77,9 @@ There is no test runner. Verification = typecheck + lint + build + walking throu
 - **Deleting records** (admin only, every rule lives in the service): purchases and manual
   ledger rows always; inventory items unless a recipe uses them or orders consumed them
   (→ archive); menu items unless a deal offers one of their sizes (→ hide); **sizes always, unless a
-  deal offers one or it is the item's last** — past orders do not block, see below; categories
+  deal offers one or it is the item's last** — past orders do not block, see below; **deal slots
+  always, unless it is the deal's last** (a deal with nothing in it cannot be sold, so
+  `placeOrder` would refuse it on the counter); categories
   only when empty; orders only once cancelled; staff accounts only when nothing references them
   (→ deactivate). UI: trash icon in the edit sheet footer + `ConfirmSheet`; blocked reasons
   are computed in the details query (`recipeUsages`, `usedInOrders`, `deleteCost`, `orderLines`,
@@ -93,12 +95,17 @@ There is no test runner. Verification = typecheck + lint + build + walking throu
   nullable with `ON DELETE SET NULL`, and `name_snapshot` / `variant_name_snapshot` /
   `unit_price_snapshot` on the row are what bills, the orders list and every finance figure
   actually read — verified by deleting a sold size and watching income and top sellers stay
-  identical. NULL there means "that size was deleted". The one thing that needs the size to
-  still exist is **Repeat order**, so `repeatOrder` (`components/orders/order-details`) leaves
-  those lines out and names them; it must, because every deleted size shares the id `null` and
-  the cart's bad-line lookup (`String(l.variantId) === badId`) would otherwise blame the wrong
-  line. A **sole size** shows no delete control at all — that sheet is the item's price, so
-  deleting belongs to the item.
+  identical. NULL there means "that size was deleted". A **sole size** shows no delete control
+  at all — that sheet is the item's price, so deleting belongs to the item.
+- **A placed order depends on nothing in the menu.** `menu_item_id`, `variant_id` and
+  `deal_slot_id` on `order_items` are kept (nullable, `SET NULL`) for future per-item analytics,
+  but **no code reads them** — bills, the orders list, finance, ingredient cost and top sellers
+  all read the snapshots on the row. **Repeat order was removed on 2026-09-28** for exactly this
+  reason: it was the single thing tying an order to the live menu, and every deletion rule above
+  needed a guard that existed only so Repeat could not rebuild a broken cart. Do not reintroduce
+  it without accepting those guards back. The cart's own bad-line lookup
+  (`String(l.variantId) === badId` in `components/pos/cart-sheet`) stays — a cart sitting in
+  localStorage can still go stale while an item is deleted.
 - **Archiving an inventory item needs the same clearance as deleting it**: `updateItem` refuses
   `isActive: false` while any recipe names the item, because `placeOrder` deducts from the recipe
   without ever reading that flag and `countInventoryAttention` only counts active items — an

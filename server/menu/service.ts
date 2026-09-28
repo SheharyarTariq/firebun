@@ -8,7 +8,6 @@ import {
   menuCategories,
   menuItems,
   menuItemVariants,
-  orderItems,
   recipes,
   type MenuItemKind,
 } from "@/db/schema";
@@ -488,9 +487,21 @@ export async function updateDealSlot(slotId: number, input: DealSlotInput) {
 
 export async function deleteDealSlot(slotId: number) {
   await getDb().transaction(async (tx) => {
-    const [{ n }] = await tx.select({ n: count() }).from(orderItems).where(eq(orderItems.dealSlotId, slotId));
-    if (n > 0) throw new ServiceError("This slot appears in past orders and cannot be deleted.");
-    const [row] = await tx.delete(dealSlots).where(eq(dealSlots.id, slotId)).returning({ id: dealSlots.id });
-    if (!row) throw new ServiceError("Slot not found.");
+    const [slot] = await tx.select().from(dealSlots).where(eq(dealSlots.id, slotId)).for("update");
+    if (!slot) throw new ServiceError("Slot not found.");
+
+    // Past orders used to block this, which was odd once the whole deal became deletable.
+    // `order_items.deal_slot_id` is ON DELETE SET NULL and the bill reads its own snapshots,
+    // so the history is safe. What must not happen is a live deal left with nothing in it:
+    // `placeOrder` refuses such a deal, so it would sit on the counter and fail on tap.
+    const [{ n: siblings }] = await tx
+      .select({ n: count() })
+      .from(dealSlots)
+      .where(and(eq(dealSlots.dealVariantId, slot.dealVariantId), ne(dealSlots.id, slotId)));
+    if (siblings === 0) {
+      throw new ServiceError("A deal needs at least one thing in it. Add the replacement first, or delete the whole deal.");
+    }
+
+    await tx.delete(dealSlots).where(eq(dealSlots.id, slotId)); // options cascade
   });
 }

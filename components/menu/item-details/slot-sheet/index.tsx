@@ -27,12 +27,17 @@ interface SlotSheetProps {
   dealVariantId?: number;
   slot?: DealSlotFull;
   choices: VariantChoice[];
+  /**
+   * Other slots in this deal. Removing the last one would leave a deal with nothing in it,
+   * which `placeOrder` refuses — so the sheet says so instead of offering the tap.
+   */
+  siblingSlots?: number;
 }
 
 const ANY = "any";
 
 /** Parents remount this with a new `key` on each open so the form starts fresh. */
-export default function SlotSheet({ open, onOpenChange, dealVariantId, slot, choices }: SlotSheetProps) {
+export default function SlotSheet({ open, onOpenChange, dealVariantId, slot, choices, siblingSlots = 0 }: SlotSheetProps) {
   const [label, setLabel] = useState(slot?.label ?? "");
   const [quantity, setQuantity] = useState(slot?.quantity ?? 1);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(
@@ -138,11 +143,17 @@ export default function SlotSheet({ open, onOpenChange, dealVariantId, slot, cho
       <ConfirmSheet
         open={confirmDelete}
         onOpenChange={(next) => !next && setConfirmDelete(false)}
-        title={`Remove “${slot.label}” from this deal?`}
-        description="Customers will no longer get this with the deal. Past orders are not affected."
+        title={siblingSlots === 0 ? `“${slot.label}” can’t be removed` : `Remove “${slot.label}” from this deal?`}
+        description={
+          siblingSlots === 0
+            ? "It is the only thing in this deal, and a deal with nothing in it cannot be sold. Add the replacement first, or delete the whole deal."
+            : "Customers will no longer get this with the deal. Past orders are not affected."
+        }
         confirmLabel="Remove"
-        destructive
+        cancelLabel={siblingSlots === 0 ? "Not now" : "Cancel"}
+        destructive={siblingSlots > 0}
         isLoading={isPending}
+        confirmHidden={siblingSlots === 0}
         onConfirm={handleDelete}
       />
     )}
