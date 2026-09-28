@@ -132,10 +132,15 @@ export default function OrderDetails({ order, viewer, canCancel, cancelBlockedRe
 
     for (const p of parents) {
       const kids = childrenOf(p.id);
-      // `variantId` is null once that size has been deleted from the menu. Such a line cannot
-      // go back into a cart, and a deal whose chosen size is gone cannot be rebuilt honestly,
-      // so it is left out here rather than failing at "Place order" with a customer waiting.
-      if (p.variantId === null || kids.some((k) => k.variantId === null)) {
+      // Null once that size — or the whole item — has been deleted from the menu. Such a line
+      // cannot go back into a cart, and a deal whose chosen size is gone cannot be rebuilt
+      // honestly, so it is left out here rather than failing at "Place order" with a customer
+      // waiting. Deleting an item removes its sizes first, so both ids go null together.
+      if (
+        p.variantId === null ||
+        p.menuItemId === null ||
+        kids.some((k) => k.variantId === null || k.menuItemId === null)
+      ) {
         dropped.push(describeLine(p));
         continue;
       }

@@ -111,10 +111,14 @@ export const orderItems = pgTable(
     parentOrderItemId: integer().references((): AnyPgColumn => orderItems.id, {
       onDelete: "restrict",
     }),
-    dealSlotId: integer().references(() => dealSlots.id, { onDelete: "restrict" }),
-    menuItemId: integer()
-      .notNull()
-      .references(() => menuItems.id, { onDelete: "restrict" }),
+    /**
+     * Also nulled when the deal itself is deleted: its sizes go, `deal_slots` cascade from
+     * them, and RESTRICT here would take the whole delete down with a bare FK error. Only
+     * "Repeat order" reads it — the bill groups a deal's parts by `parentOrderItemId`.
+     */
+    dealSlotId: integer().references(() => dealSlots.id, { onDelete: "set null" }),
+    /** Null once the item has been deleted from the menu, like `variantId` below. */
+    menuItemId: integer().references(() => menuItems.id, { onDelete: "set null" }),
     /**
      * Null once that size has been deleted from the menu. The three snapshots below are the
      * real record of what was sold, so a bill, the orders list and every finance figure stay

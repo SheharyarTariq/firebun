@@ -76,12 +76,19 @@ There is no test runner. Verification = typecheck + lint + build + walking throu
   no "opening stock" form: starting stock is entered with Count (no cost) or Purchase.
 - **Deleting records** (admin only, every rule lives in the service): purchases and manual
   ledger rows always; inventory items unless a recipe uses them or orders consumed them
-  (→ archive); menu items unless sold or offered in a deal (→ hide); **sizes always, unless a
+  (→ archive); menu items unless a deal offers one of their sizes (→ hide); **sizes always, unless a
   deal offers one or it is the item's last** — past orders do not block, see below; categories
   only when empty; orders only once cancelled; staff accounts only when nothing references them
   (→ deactivate). UI: trash icon in the edit sheet footer + `ConfirmSheet`; blocked reasons
   are computed in the details query (`recipeUsages`, `usedInOrders`, `deleteCost`, `orderLines`,
   `dealUses`, `soldLinesByVariant`, `variantDealUsages`) so the sheet explains before the tap.
+- **A sold menu item can be deleted too**, on the same basis. `order_items.menu_item_id` is
+  nullable `SET NULL` alongside `variant_id`, and **`deal_slot_id` is `SET NULL` as well** —
+  deleting a deal removes its sizes, `deal_slots` cascade from those, and RESTRICT there would
+  take the whole delete down with a bare FK error. `getOrderDetails` joins no menu table at
+  all, so bills are unaffected; verified by deleting a sold item and a sold deal and watching
+  income, ingredient cost and top sellers stay identical. A deal that offers the item still
+  blocks (→ hide), and the confirmation counts the sizes and recipe lines that go with it.
 - **A sold size can be deleted; the order line is the record**: `order_items.variant_id` is
   nullable with `ON DELETE SET NULL`, and `name_snapshot` / `variant_name_snapshot` /
   `unit_price_snapshot` on the row are what bills, the orders list and every finance figure

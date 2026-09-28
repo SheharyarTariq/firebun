@@ -316,15 +316,14 @@ export async function deleteMenuItem(id: number) {
       await tx.select({ id: menuItemVariants.id }).from(menuItemVariants).where(eq(menuItemVariants.menuItemId, id))
     ).map((v) => v.id);
 
-    const [[{ n: sold }], [{ n: inDeals }]] = await Promise.all([
-      tx.select({ n: count() }).from(orderItems).where(eq(orderItems.menuItemId, id)),
+    // Past orders do not block: `order_items` keeps its own name, size and price snapshots,
+    // and menu_item_id / variant_id / deal_slot_id are all ON DELETE SET NULL, so bills and
+    // every finance figure survive. A deal that offers this item is live configuration and
+    // does block — `assertOptionsValid` will not let a slot end up with no options.
+    const [{ n: inDeals }] =
       variantIds.length > 0
-        ? tx.select({ n: count() }).from(dealSlotOptions).where(inArray(dealSlotOptions.variantId, variantIds))
-        : Promise.resolve([{ n: 0 }]),
-    ]);
-    if (sold > 0) {
-      throw new ServiceError(`${item.name} appears in ${sold} order line${sold === 1 ? "" : "s"}, so it cannot be deleted. Hide it from the menu instead.`);
-    }
+        ? await tx.select({ n: count() }).from(dealSlotOptions).where(inArray(dealSlotOptions.variantId, variantIds))
+        : [{ n: 0 }];
     if (inDeals > 0) {
       throw new ServiceError(`${item.name} is offered inside a deal. Remove it from the deal first, or hide it.`);
     }

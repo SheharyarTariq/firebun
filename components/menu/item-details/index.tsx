@@ -195,7 +195,12 @@ export default function MenuItemDetails({ details }: MenuItemDetailsProps) {
         onOpenChange={(open) => !open && closeSheet()}
         categories={categories}
         item={item}
-        deleteBlock={{ orderLines, dealUsages }}
+        deleteBlock={{
+          orderLines,
+          dealUsages,
+          sizes: item.variants.length,
+          recipeLines: item.variants.reduce((n, v) => n + v.recipes.length, 0),
+        }}
       />
       <VariantSheet
         key={`variant-${sheetKey}`}

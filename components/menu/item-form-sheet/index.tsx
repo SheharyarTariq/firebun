@@ -35,8 +35,12 @@ interface ItemFormSheetProps {
   categories: MenuCategory[];
   /** Present when editing; sizes are then managed on the item page. */
   item?: MenuItem;
-  /** Editing only: what would block a delete (sold lines, offered inside a deal). */
-  deleteBlock?: { orderLines: number; dealUsages: DealUsage[] };
+  /**
+   * Editing only: what a delete costs, and the one thing that still refuses it. Sold lines no
+   * longer block — they keep their own snapshots — so they are stated as a consequence; a deal
+   * offering this item is live configuration and does block.
+   */
+  deleteBlock?: { orderLines: number; dealUsages: DealUsage[]; sizes: number; recipeLines: number };
 }
 
 interface VariantRow {
@@ -218,11 +222,30 @@ export default function ItemFormSheet({ open, onOpenChange, categories, item, de
   const dealUsages = deleteBlock?.dealUsages ?? [];
   const blockedReason = !deleteBlock
     ? null
-    : deleteBlock.orderLines > 0
-      ? `It has been sold ${deleteBlock.orderLines === 1 ? "once" : `${deleteBlock.orderLines} times`}, so it has to stay for the records. Hiding takes it off the counter and keeps those records.`
-      : dealUsages.length > 0
-        ? `${dealUsages.length === 1 ? "A deal offers" : `${dealUsages.length} deals offer`} it. Remove it from ${dealUsages.length === 1 ? "that deal" : "them"} to delete it, or hide it from the counter.`
-        : null;
+    : dealUsages.length > 0
+      ? `${dealUsages.length === 1 ? "A deal offers" : `${dealUsages.length} deals offer`} it. Remove it from ${dealUsages.length === 1 ? "that deal" : "them"} to delete it, or hide it from the counter.`
+      : null;
+
+  // Deleting an item is far bigger than deleting one size, so the confirmation counts what
+  // goes with it and says plainly what past orders keep. Built as whole sentences: an item
+  // that was never sold, or has no recipe, must still read properly.
+  const goesWithIt = [
+    deleteBlock && deleteBlock.sizes > 0 ? `${deleteBlock.sizes} size${deleteBlock.sizes === 1 ? "" : "s"}` : null,
+    deleteBlock && deleteBlock.recipeLines > 0
+      ? `${deleteBlock.recipeLines} recipe line${deleteBlock.recipeLines === 1 ? "" : "s"}`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(" and ");
+  const deleteDescription = [
+    deleteBlock && deleteBlock.orderLines > 0
+      ? `It has been sold ${deleteBlock.orderLines === 1 ? "once" : `${deleteBlock.orderLines} times`} — those bills keep their name and price.`
+      : null,
+    goesWithIt ? `Its ${goesWithIt} are deleted with it.` : null,
+    "This cannot be undone.",
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
     <>
@@ -231,7 +254,7 @@ export default function ItemFormSheet({ open, onOpenChange, categories, item, de
         open={confirmDelete}
         onOpenChange={(next) => !next && setConfirmDelete(false)}
         title={blockedReason ? `${item.name} can’t be deleted` : `Delete ${item.name}?`}
-        description={blockedReason ?? "Its sizes, prices, recipes and deal contents are deleted with it. This cannot be undone."}
+        description={blockedReason ?? deleteDescription}
         confirmLabel={blockedReason ? "OK" : "Delete"}
         cancelLabel={blockedReason ? "Not now" : "Cancel"}
         destructive={!blockedReason}
