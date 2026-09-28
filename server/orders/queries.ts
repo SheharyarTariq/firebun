@@ -8,6 +8,7 @@ import {
   menuItemVariants,
   orderItems,
   orders,
+  users,
   type OrderStatus,
 } from "@/db/schema";
 
@@ -178,6 +179,43 @@ export async function countPendingOrders(): Promise<number> {
     .from(orders)
     .where(eq(orders.status, "pending"));
   return row?.n ?? 0;
+}
+
+/**
+ * Everything still owed, oldest first — deliberately **not** filtered by business date.
+ * `countPendingOrders` above has always counted across all time for the tab badge, while the
+ * orders screen only ever loads one day, so an unpaid order from Tuesday was counted but
+ * unreachable. Credit makes that the common case, so this is the screen that answers the badge.
+ */
+export async function listUnpaidOrders() {
+  return getDb()
+    .select({
+      id: orders.id,
+      dailySeq: orders.dailySeq,
+      businessDate: orders.businessDate,
+      createdAt: orders.createdAt,
+      orderType: orders.orderType,
+      total: orders.total,
+      customerId: orders.customerId,
+      customerName: orders.customerName,
+      customerPhone: orders.customerPhone,
+      createdByName: users.name,
+    })
+    .from(orders)
+    .innerJoin(users, eq(users.id, orders.createdBy))
+    .where(eq(orders.status, "pending"))
+    .orderBy(asc(orders.createdAt));
+}
+
+export type UnpaidOrderRow = Awaited<ReturnType<typeof listUnpaidOrders>>[number];
+
+/** Headline for the unpaid screen: how many and how much. */
+export async function getUnpaidSummary(): Promise<{ orders: number; amount: number }> {
+  const [row] = await getDb()
+    .select({ n: count(), amount: sum(orders.total) })
+    .from(orders)
+    .where(eq(orders.status, "pending"));
+  return { orders: row?.n ?? 0, amount: Number(row?.amount ?? 0) };
 }
 
 export interface DaySummary {

@@ -41,6 +41,8 @@ export interface CartState {
   discountAmount: number;
   /** null = use the shop default when delivery. */
   deliveryCharge: number | null;
+  /** Set when the cashier picked someone already on file; null for a walk-in or a new name. */
+  customerId: number | null;
   customerName: string;
   customerPhone: string;
   deliveryAddress: string;
@@ -56,7 +58,7 @@ export interface CartState {
   setOrderType: (orderType: OrderType) => void;
   setDiscount: (amount: number) => void;
   setDeliveryCharge: (charge: number | null) => void;
-  setCustomer: (patch: Partial<Pick<CartState, "customerName" | "customerPhone" | "deliveryAddress">>) => void;
+  setCustomer: (patch: Partial<Pick<CartState, "customerId" | "customerName" | "customerPhone" | "deliveryAddress">>) => void;
   setNote: (note: string) => void;
   setPaymentMethod: (method: PaymentMethod | null) => void;
   clear: () => void;
@@ -76,6 +78,7 @@ const emptyOrder = () => ({
   orderType: "takeaway" as OrderType,
   discountAmount: 0,
   deliveryCharge: null as number | null,
+  customerId: null,
   customerName: "",
   customerPhone: "",
   deliveryAddress: "",
@@ -171,6 +174,7 @@ export const useCart = create<CartState>()(
         orderType: state.orderType,
         discountAmount: state.discountAmount,
         deliveryCharge: state.deliveryCharge,
+        customerId: state.customerId,
         customerName: state.customerName,
         customerPhone: state.customerPhone,
         deliveryAddress: state.deliveryAddress,

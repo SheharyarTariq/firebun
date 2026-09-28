@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { MessageSquarePlus, Percent, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
 import { placeOrderAction } from "@/app/(app)/pos/actions";
+import CustomerBlock from "../customer-block";
 import BottomSheet from "@/components/common/BottomSheet";
 import Button from "@/components/common/Button";
 import Chips from "@/components/common/Chips";
@@ -108,19 +109,21 @@ export default function CartSheet({ open, onOpenChange, settings, role, onPlaced
       })),
       discountAmount: cart.discountAmount,
       deliveryCharge: isDelivery ? cart.deliveryCharge : null,
+      customerId: cart.customerId,
       customerName: cart.customerName || null,
       customerPhone: cart.customerPhone || null,
       deliveryAddress: cart.deliveryAddress || null,
       note: cart.note || null,
-      paymentMethod: isDelivery ? cart.paymentMethod : (cart.paymentMethod ?? "cash"),
+      // `null` is now a real answer on any order type: it means "not paid yet".
+      paymentMethod: cart.paymentMethod,
     };
     if (!(await validateAndSetErrors(placeOrderSchema, input, setErrors))) {
       toast.error("Check the highlighted fields");
       return;
     }
-    if (isDelivery && !input.customerPhone) {
-      setErrors({ customerPhone: "Needed for delivery" });
-      toast.error("Add the customer's phone number");
+    if (!input.customerName && !input.customerPhone) {
+      setErrors({ customerName: "Name or phone", customerPhone: "Name or phone" });
+      toast.error("Add the customer's name or phone number");
       scrollToDelivery();
       return;
     }
@@ -193,62 +196,28 @@ export default function CartSheet({ open, onOpenChange, settings, role, onPlaced
           />
         </div>
 
+        {/* Who the order is for — the same block on every order type, as the owner asked. */}
+        <div ref={deliveryRef}>
+          <CustomerBlock errors={errors} clearError={clearError} />
+        </div>
+
+        {/* The delivery charge is not a customer detail, so it stays on its own. */}
         {isDelivery && (
-          <div ref={deliveryRef} className="space-y-3 rounded-field border border-border p-3">
-            <Input
-              label="Customer phone"
-              type="tel"
-              inputMode="tel"
-              placeholder="03xx xxxxxxx"
-              autoComplete="off"
-              value={cart.customerPhone}
-              onChange={(e) => {
-                cart.setCustomer({ customerPhone: e.target.value });
-                clearError("customerPhone");
-              }}
-              error={errors.customerPhone}
-            />
-            <Input
-              label="Address"
-              placeholder="Street, block, landmark"
-              autoComplete="off"
-              maxLength={200}
-              value={cart.deliveryAddress}
-              onChange={(e) => {
-                cart.setCustomer({ deliveryAddress: e.target.value });
-                clearError("deliveryAddress");
-              }}
-              error={errors.deliveryAddress}
-            />
-            <div className="grid grid-cols-2 gap-3">
-              <Input
-                label="Name (optional)"
-                autoComplete="off"
-                autoCapitalize="words"
-                maxLength={60}
-                value={cart.customerName}
-                onChange={(e) => {
-                  cart.setCustomer({ customerName: e.target.value });
-                  clearError("customerName");
-                }}
-                error={errors.customerName}
-              />
-              <Input
-                label="Delivery (Rs)"
-                inputMode="decimal"
-                // Left blank, the shop's default charge applies.
-                placeholder={String(settings.defaultDeliveryCharge)}
-                value={deliveryText}
-                onChange={(e) => {
-                  setDeliveryText(e.target.value);
-                  const n = Number(e.target.value);
-                  cart.setDeliveryCharge(e.target.value.trim() === "" ? null : Number.isFinite(n) ? n : null);
-                  clearError("deliveryCharge");
-                }}
-                error={errors.deliveryCharge}
-              />
-            </div>
-          </div>
+          <Input
+            label="Delivery (Rs)"
+            inputMode="decimal"
+            containerClassName="sm:max-w-[12rem]"
+            // Left blank, the shop's default charge applies.
+            placeholder={String(settings.defaultDeliveryCharge)}
+            value={deliveryText}
+            onChange={(e) => {
+              setDeliveryText(e.target.value);
+              const n = Number(e.target.value);
+              cart.setDeliveryCharge(e.target.value.trim() === "" ? null : Number.isFinite(n) ? n : null);
+              clearError("deliveryCharge");
+            }}
+            error={errors.deliveryCharge}
+          />
         )}
 
         <div className="space-y-1">
@@ -263,13 +232,20 @@ export default function CartSheet({ open, onOpenChange, settings, role, onPlaced
               ...(isDelivery ? [{ value: "cod" as const, label: "Pay on delivery" }] : []),
               { value: "cash", label: "Cash" },
               { value: "online", label: "Online / transfer" },
+              // Credit on a counter order: the food goes out, the money comes later.
+              ...(isDelivery ? [] : [{ value: "cod" as const, label: "Pay later" }]),
             ]}
           />
           {errors.paymentMethod && <p className="text-xs text-danger">{errors.paymentMethod}</p>}
-          {isDelivery && payChoice === "cod" && (
-            <p className="text-xs text-muted">Stays “pending” until you mark it paid when the rider returns.</p>
+          {payChoice === "cod" && (
+            <p className="text-xs text-muted">
+              {isDelivery
+                ? "Stays unpaid until you mark it paid when the rider returns."
+                : "Goes on their tab. Find it any day under Orders → Unpaid."}
+            </p>
           )}
         </div>
+
 
         {(!showDiscount || !showNote) && (
           <div className="flex flex-wrap gap-2">

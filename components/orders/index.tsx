@@ -9,6 +9,7 @@ import Card from "@/components/common/Card";
 import Chips from "@/components/common/Chips";
 import EmptyState from "@/components/common/EmptyState";
 import ListRow from "@/components/common/ListRow";
+import Link from "next/link";
 import PageHeader from "@/components/layout/page-header";
 import PageBody from "@/components/layout/page-body";
 import HeroStat from "@/components/layout/page-header/hero-stat";
@@ -25,12 +26,14 @@ interface OrdersScreenProps {
   /** Every order of the day; the status chips filter locally. */
   orders: OrderListRow[];
   summary: DaySummary;
+  /** Across every day, not just this one — the tab badge counts the same way. */
+  unpaid: { orders: number; amount: number };
   businessDate: string;
   todayBusinessDate: string;
   initialStatus: Filter;
 }
 
-export default function OrdersScreen({ orders, summary, businessDate, todayBusinessDate, initialStatus }: OrdersScreenProps) {
+export default function OrdersScreen({ orders, summary, unpaid, businessDate, todayBusinessDate, initialStatus }: OrdersScreenProps) {
   const router = useRouter();
   const [status, setStatus] = useState<Filter>(initialStatus);
   const isToday = businessDate === todayBusinessDate;
@@ -109,11 +112,17 @@ export default function OrdersScreen({ orders, summary, businessDate, todayBusin
           ]}
         />
 
-        {summary.pending > 0 && status === "all" && (
-          <Banner tone="warning" compact onClick={() => setStatus("pending")}>
-            {summary.pending} delivery order{summary.pending === 1 ? "" : "s"} waiting for payment ·{" "}
-            {formatMoney(summary.pendingAmount)}
-          </Banner>
+        {/*
+          * Deliberately the all-time figure, not this day's: a tab taken on Tuesday is still
+          * owed on Friday, and the day view can never show it. The link is the only way to
+          * reach those, and it is what the tab badge has always been counting.
+          */}
+        {unpaid.orders > 0 && (
+          <Link href={routes.ui.unpaid} className="block">
+            <Banner tone="warning" compact>
+              {unpaid.orders} unpaid order{unpaid.orders === 1 ? "" : "s"} · {formatMoney(unpaid.amount)} owed — view
+            </Banner>
+          </Link>
         )}
 
         {visible.length === 0 ? (

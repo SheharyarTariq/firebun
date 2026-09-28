@@ -356,6 +356,43 @@ export function titleCaseName(value: string): string {
   return value.trim().replace(/(^|[\s([/&+-])([a-z])/g, (_, before: string, letter: string) => before + letter.toUpperCase());
 }
 
+/**
+ * One phone number, one customer. "0301-1234567", "0301 1234567", "+92 301 1234567" and
+ * "92 3011234567" all reduce to "03011234567", so the unique index can do its job — without
+ * this, one person who owes money becomes three, each owing part of it.
+ *
+ * Only Pakistani country-code forms are folded to the local 03xx spelling; anything else is
+ * just stripped to digits, which still makes the comparison stable.
+ */
+export function normalisePhone(value: string): string {
+  const digits = value.replace(/\D/g, "");
+  if (digits.startsWith("0092")) return `0${digits.slice(4)}`;
+  if (digits.startsWith("92") && digits.length >= 12) return `0${digits.slice(2)}`;
+  return digits;
+}
+
+/** "03011234567" → "0301 1234567". Stored normalised, shown the way it is dialled. */
+export function formatPhone(value: string): string {
+  const digits = normalisePhone(value);
+  return digits.length === 11 && digits.startsWith("0")
+    ? `${digits.slice(0, 4)} ${digits.slice(4)}`
+    : value;
+}
+
+/**
+ * What to call a customer. The name is optional — a shop often knows a regular only by their
+ * number — so a nameless one reads as their number rather than as an empty row.
+ */
+export function customerLabel(customer: { name: string | null; phone: string }): string {
+  return customer.name?.trim() || formatPhone(customer.phone);
+}
+
+/** Digits only, so "not a phone number" is caught before it reaches the database. */
+export function isPhoneLike(value: string): boolean {
+  const digits = normalisePhone(value);
+  return digits.length >= 7 && digits.length <= 15;
+}
+
 /** "#042" style daily order number for bills and lists. */
 export function formatOrderNumber(dailySeq: number): string {
   return `#${String(dailySeq).padStart(3, "0")}`;

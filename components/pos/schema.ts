@@ -36,6 +36,7 @@ export const placeOrderSchema = yup.object({
     .required(),
   discountAmount: money("Discount").required(),
   deliveryCharge: money("Delivery charge").nullable().notRequired(),
+  customerId: yup.number().integer().positive().nullable().notRequired(),
   customerName: yup.string().trim().max(60).nullable().notRequired(),
   customerPhone: yup.string().trim().max(20).nullable().notRequired(),
   deliveryAddress: yup.string().trim().max(200).nullable().notRequired(),

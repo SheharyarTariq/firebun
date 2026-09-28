@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import {
   ChevronRight,
+  Contact,
   Printer,
   Settings,
   TrendingUp,
@@ -63,6 +64,12 @@ const ADMIN_LINKS: MoreLink[] = [
 ];
 
 const COMMON_LINKS: MoreLink[] = [
+  {
+    href: routes.ui.customers,
+    label: "Customers",
+    description: "Who is on file, and who still owes money",
+    icon: Contact,
+  },
   {
     href: routes.ui.printer,
     label: "Printer",

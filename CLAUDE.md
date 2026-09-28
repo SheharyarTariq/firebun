@@ -123,9 +123,28 @@ There is no test runner. Verification = typecheck + lint + build + walking throu
 - **Orders**: `server/orders/service.ts#placeOrder` is one transaction: idempotent by `clientId`,
   re-prices from the DB, enforces the staff discount cap, expands deal slot choices into child
   lines (price 0), numbers per business day via `daily_counters`, and deducts stock with
-  `applyMovement("sale", unitCost: "current")`. Counter orders are `completed`; delivery with
-  "pay on delivery" is `pending` until `markOrderPaid`. `cancelOrder` optionally restocks with
-  `sale_reversal` rows; `cancelDenialReason` holds the staff/admin rule (also used by the page).
+  `applyMovement("sale", unitCost: "current")`. A null `paymentMethod` means **not paid yet** on
+  any order type — delivery COD, or food taken on credit — and the order is `pending` until
+  `markOrderPaid`. `cancelOrder` optionally restocks with `sale_reversal` rows;
+  `cancelDenialReason` holds the staff/admin rule (also used by the page).
+- **Credit (udhaar) and the customer book**: **every order needs a name or a phone** — one rule
+  for all order types, paid now or later — and `placeOrder` files the customer by phone
+  (`findOrCreateCustomer`) whenever one is given, so ordinary orders build the book too. A name
+  with no number has nothing to file it under, so that order keeps its snapshot and joins no
+  customer row; `customers.name` is nullable for the reverse case, a regular known only by their
+  number, rendered through `customerLabel`. `components/pos/customer-block` is the one customer
+  form for every order type (find, name, phone, optional address); its picker loads the book once
+  (`listCustomersForPicker` — named A–Z, number-only last) and filters in the browser, so typing
+  costs no round trips. **The phone is the identity** —
+  `normalisePhone` (`utils/helper`) folds `0301-1234567` / `+92 301 1234567` / `0092…` to one
+  key behind a unique index, and the order's own `customer_phone` snapshot is normalised the same
+  way so the two always match. `orders.customer_id` is nullable `SET NULL`; the name and phone
+  snapshots on the order are its record, so deleting a customer loses no history — but
+  `deleteCustomer` still refuses while they owe, or the balance would vanish.
+  **`/orders/unpaid` (`listUnpaidOrders`) has no date filter on purpose**: `countPendingOrders`
+  drives the tab badge across all time while the orders screen loads one business day, so before
+  this an unpaid order from Tuesday was counted but unreachable. Finance already excluded pending
+  orders from income — that is the correct cash basis and needed no change.
 - **Printing**: `utils/printing/receipt.ts` is pure (model → ESC/POS via
   `@point-of-sale/receipt-printer-encoder` v4, and → HTML for the print dialog); ASCII only
   (`toAscii`), 32 columns, plain-dash rules. `GET /api/orders/[id]/receipt?format=json|html`

@@ -1,4 +1,5 @@
 import { relations } from "drizzle-orm";
+import { customers } from "./customers";
 import { expenses } from "./expenses";
 import { inventoryItems, inventoryPurchases, stockMovements } from "./inventory";
 import {
@@ -102,8 +103,16 @@ export const stockMovementsRelations = relations(stockMovements, ({ one }) => ({
   }),
 }));
 
+export const customersRelations = relations(customers, ({ many }) => ({
+  orders: many(orders),
+}));
+
 export const ordersRelations = relations(orders, ({ one, many }) => ({
   items: many(orderItems),
+  customer: one(customers, {
+    fields: [orders.customerId],
+    references: [customers.id],
+  }),
   createdByUser: one(users, {
     fields: [orders.createdBy],
     references: [users.id],

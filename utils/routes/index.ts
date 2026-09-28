@@ -13,6 +13,10 @@ export const routes = {
     pos: "/pos",
     orders: "/orders",
     orderDetails: (id: string | number) => `/orders/${id}`,
+    /** Everything still owed, any day — the tab badge counts across all time. */
+    unpaid: "/orders/unpaid",
+    customers: "/customers",
+    customerDetails: (id: string | number) => `/customers/${id}`,
     expenses: "/expenses",
     more: "/more",
     printer: "/printer",

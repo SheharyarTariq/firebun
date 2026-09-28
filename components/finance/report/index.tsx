@@ -79,9 +79,10 @@ export default function FinanceReportView({ report, preset }: FinanceReportViewP
         {days === 1 && <Row label="Cash sales today" value={formatMoney(sales.cash)} muted hint={`plus ${formatMoney(sales.online)} online / transfer`} />}
       </Card>
 
+      {/* No longer delivery-only: a counter order taken on credit lands here too. */}
       {pending.orders > 0 && (
         <Banner tone="warning" compact>
-          {pending.orders} unpaid delivery order{pending.orders === 1 ? "" : "s"} worth {formatMoney(pending.amount)} not counted yet.
+          {pending.orders} unpaid order{pending.orders === 1 ? "" : "s"} worth {formatMoney(pending.amount)} not counted yet.
         </Banner>
       )}
 

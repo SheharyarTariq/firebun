@@ -12,6 +12,7 @@ import {
   type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import { createdAt, id, money, timestampTz } from "./_columns";
+import { customers } from "./customers";
 import { dealSlots, menuItems, menuItemVariants } from "./menu";
 import { users } from "./users";
 
@@ -41,6 +42,12 @@ export const orders = pgTable(
     status: text({ enum: ORDER_STATUSES }).notNull().default("completed"),
     orderType: text({ enum: ORDER_TYPES }).notNull().default("takeaway"),
 
+    /**
+     * Who this was for, when they are on file. Nullable and `SET NULL`: the two snapshots
+     * below are the order's own record, so a bill still names the customer after the
+     * customer row is edited or deleted — the same rule as the menu ids above.
+     */
+    customerId: integer().references(() => customers.id, { onDelete: "set null" }),
     customerName: text(),
     customerPhone: text(),
     deliveryAddress: text(),
@@ -72,6 +79,7 @@ export const orders = pgTable(
     index("orders_business_date_status_idx").on(t.businessDate, t.status),
     index("orders_created_by_time_idx").on(t.createdBy, t.createdAt),
     index("orders_pending_idx").on(t.createdAt).where(sql`${t.status} = 'pending'`),
+    index("orders_customer_idx").on(t.customerId, t.createdAt),
     check("orders_status_check", sql`${t.status} in ('pending', 'completed', 'cancelled')`),
     check(
       "orders_type_check",

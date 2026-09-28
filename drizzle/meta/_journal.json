@@ -36,6 +36,20 @@
       "when": 1790553176406,
       "tag": "0004_deletable_menu_items",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790584242044,
+      "tag": "0005_customers",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790588478452,
+      "tag": "0006_optional_customer_name",
+      "breakpoints": true
     }
   ]
 }

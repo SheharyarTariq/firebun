@@ -121,12 +121,16 @@ export function buildReceiptModel(
     note: p.note,
   }));
 
+  // An unpaid counter order is credit, not a delivery waiting on its rider — the slip is the
+  // customer's copy of the debt, so it has to say which it is.
   const paymentLine =
     order.status === "cancelled"
       ? "CANCELLED"
       : order.paymentMethod
         ? `Paid: ${PAYMENT_LABELS[order.paymentMethod]}`
-        : "PAY ON DELIVERY";
+        : order.orderType === "delivery"
+          ? "PAY ON DELIVERY"
+          : "UNPAID - PAY LATER";
 
   const customerLines = [
     order.customerName,

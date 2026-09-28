@@ -16,10 +16,11 @@ import {
   type PaymentMethod,
 } from "@/db/schema";
 import type { CurrentUser } from "@/server/auth/dal";
+import { findOrCreateCustomer } from "@/server/customers/service";
 import { ServiceError } from "@/server/errors";
 import { applyMovement, recomputeItem } from "@/server/inventory/service";
 import { getSettings } from "@/server/settings/queries";
-import { businessDateFor, formatQty, roundMoney, titleCaseName } from "@/utils/helper";
+import { businessDateFor, formatQty, normalisePhone, roundMoney, titleCaseName } from "@/utils/helper";
 
 // ---------------------------------------------------------------------------
 // Input
@@ -55,8 +56,10 @@ export interface PlaceOrderInput {
   customerPhone?: string | null;
   deliveryAddress?: string | null;
   note?: string | null;
-  /** null = pay on delivery → order stays pending until settled. */
+  /** null = not paid yet (delivery COD, or food taken on credit) → order stays pending. */
   paymentMethod: PaymentMethod | null;
+  /** An existing customer chosen at the counter; otherwise one is matched or made by phone. */
+  customerId?: number | null;
 }
 
 export interface PlaceOrderResult {
@@ -242,14 +245,27 @@ export async function placeOrder(input: PlaceOrderInput, user: CurrentUser): Pro
     const total = roundMoney(subtotal - discount + deliveryCharge);
 
     // 4. Payment / status
-    if (input.orderType !== "delivery" && !input.paymentMethod) {
-      throw new ServiceError("Choose how the customer paid.", { paymentMethod: "Required" });
-    }
-    if (input.orderType === "delivery" && !input.customerPhone?.trim()) {
-      throw new ServiceError("Delivery orders need the customer's phone number.", { customerPhone: "Required" });
+    // One rule for every order, paid now or later: there has to be something to identify the
+    // customer by. Either alone is enough — a rider can work from a name and an address, and a
+    // debt can be chased by name — but nothing at all leaves the order belonging to no one.
+    if (!input.customerName?.trim() && !input.customerPhone?.trim()) {
+      throw new ServiceError("Add the customer's name or phone number.", {
+        customerName: "Name or phone",
+        customerPhone: "Name or phone",
+      });
     }
     const now = new Date();
     const status: Order["status"] = input.paymentMethod ? "completed" : "pending";
+
+    // The phone is what files someone, so any order carrying one joins that customer's history
+    // — not just credit. A name with no number has nothing to file it under, so that order keeps
+    // its snapshot and belongs to no customer row.
+    let customerId = input.customerId ?? null;
+    if (!customerId && input.customerPhone?.trim()) {
+      customerId = (
+        await findOrCreateCustomer(tx, { name: input.customerName, phone: input.customerPhone })
+      ).id;
+    }
 
     // 5. Numbering
     const businessDate = businessDateFor(now, settings.businessDayCutoffHour);
@@ -264,9 +280,12 @@ export async function placeOrder(input: PlaceOrderInput, user: CurrentUser): Pro
         dailySeq,
         status,
         orderType: input.orderType,
+        customerId,
         customerName: input.customerName ? titleCaseName(input.customerName) || null : null,
-        customerPhone: input.customerPhone?.trim() || null,
-        deliveryAddress: input.orderType === "delivery" ? input.deliveryAddress?.trim() || null : null,
+        // Normalised like the customer record, so the two always match and a number typed
+        // three ways never splits one person across three rows.
+        customerPhone: input.customerPhone?.trim() ? normalisePhone(input.customerPhone) : null,
+        deliveryAddress: input.deliveryAddress?.trim() || null,
         subtotal,
         discountAmount: discount,
         deliveryCharge,
