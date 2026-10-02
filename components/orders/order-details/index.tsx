@@ -3,9 +3,14 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Ban, Phone, Plus, Printer, Trash2, Wallet } from "lucide-react";
+import { Ban, Pencil, Phone, Plus, Printer, Trash2, Undo2, Wallet } from "lucide-react";
 import toast from "react-hot-toast";
-import { cancelOrderAction, deleteOrderAction, markOrderPaidAction } from "@/app/(app)/orders/actions";
+import {
+  cancelOrderAction,
+  deleteOrderAction,
+  markOrderPaidAction,
+  markOrderUnpaidAction,
+} from "@/app/(app)/orders/actions";
 import Badge from "@/components/common/Badge";
 import BottomSheet from "@/components/common/BottomSheet";
 import Button from "@/components/common/Button";
@@ -21,9 +26,10 @@ import type { PaymentMethod } from "@/db/schema/orders";
 import type { UserRole } from "@/db/schema/users";
 import PrinterSheet from "@/components/printing/printer-sheet";
 import { usePrinter } from "@/components/printing/use-printer";
-import type { OrderDetails as OrderDetailsData } from "@/server/orders/queries";
+import type { CatalogCategory, OrderDetails as OrderDetailsData } from "@/server/orders/queries";
+import EditOrderSheet from "../edit-order-sheet";
 import { callAction } from "@/utils/call-action";
-import { formatDateTime, formatMoney, formatOrderNumber } from "@/utils/helper";
+import { formatBusinessDate, formatDateTime, formatMoney, formatOrderNumber } from "@/utils/helper";
 import { routes } from "@/utils/routes";
 import { validateAndSetErrors } from "@/utils/validation";
 import { ORDER_TYPE_LABELS, PAYMENT_LABELS, STATUS_BADGE, STATUS_LABELS, lineLabel } from "../format";
@@ -36,12 +42,17 @@ interface OrderDetailsProps {
   canCancel: boolean;
   /** Why Cancel is missing (staff outside the window, someone else's order); shown instead of the button. */
   cancelBlockedReason?: string | null;
+  /** Editing follows the same rule as cancelling — the order can be corrected in place. */
+  canEdit: boolean;
+  editBlockedReason?: string | null;
+  /** The live menu, so the edit sheet can add items; empty when editing is not allowed. */
+  catalog: CatalogCategory[];
   printKitchenCopy: boolean;
 }
 
-type Sheet = "paid" | "cancel" | "printer" | "delete" | null;
+type Sheet = "paid" | "unpaid" | "cancel" | "printer" | "delete" | "edit" | null;
 
-export default function OrderDetails({ order, viewer, canCancel, cancelBlockedReason, printKitchenCopy }: OrderDetailsProps) {
+export default function OrderDetails({ order, viewer, canCancel, cancelBlockedReason, canEdit, editBlockedReason, catalog, printKitchenCopy }: OrderDetailsProps) {
   const router = useRouter();
   const printer = usePrinter();
   const [sheet, setSheet] = useState<Sheet>(null);
@@ -101,6 +112,19 @@ export default function OrderDetails({ order, viewer, canCancel, cancelBlockedRe
       }
       toast.success(`Order ${formatOrderNumber(order.dailySeq)} cancelled`);
       setSheet(null);
+    });
+  };
+
+  const markUnpaid = () => {
+    startTransition(async () => {
+      const result = await callAction(markOrderUnpaidAction(order.id));
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      setSheet(null);
+      toast.success("Moved back to unpaid");
+      router.refresh();
     });
   };
 
@@ -168,6 +192,12 @@ export default function OrderDetails({ order, viewer, canCancel, cancelBlockedRe
             {order.discountAmount > 0 && <div className="flex justify-between"><dt className="text-muted">Discount</dt><dd className="tabular-nums">− {formatMoney(order.discountAmount)}</dd></div>}
             {order.deliveryCharge > 0 && <div className="flex justify-between"><dt className="text-muted">Delivery</dt><dd className="tabular-nums">{formatMoney(order.deliveryCharge)}</dd></div>}
             <div className="flex justify-between border-t border-border pt-1 text-base font-bold"><dt>Total</dt><dd className="tabular-nums">{formatMoney(order.total)}</dd></div>
+            {order.editedAt && (
+              <div className="flex justify-between text-xs text-muted">
+                <dt>Edited</dt>
+                <dd>{formatDateTime(order.editedAt)}</dd>
+              </div>
+            )}
             <div className="flex justify-between text-xs text-muted">
               <dt>Payment</dt>
               <dd>{order.paymentMethod ? `${PAYMENT_LABELS[order.paymentMethod]}${order.paidAt ? ` · ${formatDateTime(order.paidAt)}` : ""}` : "Not paid yet"}</dd>
@@ -195,6 +225,21 @@ export default function OrderDetails({ order, viewer, canCancel, cancelBlockedRe
           * Cancel and Delete sit below a rule with room between them — they used to be centred
           * ghost buttons 4px apart, which is a mis-tap waiting to happen on a phone.
           */}
+        {canEdit && (
+          <Button
+            variant="outline"
+            size="lg"
+            className="w-full lg:max-w-md"
+            startIcon={<Pencil className="h-4 w-4" />}
+            onClick={() => setSheet("edit")}
+          >
+            Edit order
+          </Button>
+        )}
+        {!canEdit && editBlockedReason && order.status !== "cancelled" && (
+          <p className="px-4 text-center text-label text-muted">{editBlockedReason}</p>
+        )}
+
         {(canCancel || canDelete || (cancelBlockedReason && order.status !== "cancelled")) && (
           <div className="space-y-3 pt-4">
             <div className="border-t border-border" />
@@ -202,6 +247,11 @@ export default function OrderDetails({ order, viewer, canCancel, cancelBlockedRe
               <p className="px-4 text-center text-label text-muted">{cancelBlockedReason}</p>
             )}
             <div className="flex flex-col items-center gap-3">
+              {canEdit && order.status === "completed" && (
+                <Button variant="ghost" startIcon={<Undo2 className="h-4 w-4" />} onClick={() => setSheet("unpaid")}>
+                  Mark as unpaid
+                </Button>
+              )}
               {canCancel && (
                 <Button variant="ghost" className="text-danger" startIcon={<Ban className="h-4 w-4" />} onClick={openCancel}>
                   Cancel order
@@ -252,6 +302,27 @@ export default function OrderDetails({ order, viewer, canCancel, cancelBlockedRe
         destructive
         isLoading={isPending}
         onConfirm={handleDelete}
+      />
+
+      <ConfirmSheet
+        open={sheet === "unpaid"}
+        onOpenChange={(open) => !open && setSheet(null)}
+        title={`Mark ${formatOrderNumber(order.dailySeq)} as unpaid?`}
+        description={`Income for ${formatBusinessDate(order.businessDate)} drops by ${formatMoney(order.total)} and the order moves to Orders → Unpaid${order.customerName ? `, on ${order.customerName}'s balance` : ""}. Mark it paid again when the money comes in.`}
+        confirmLabel="Mark as unpaid"
+        isLoading={isPending}
+        onConfirm={markUnpaid}
+      />
+
+      <EditOrderSheet
+        key={`edit-${order.editedAt?.toISOString() ?? "0"}`}
+        open={sheet === "edit"}
+        onOpenChange={(next) => !next && setSheet(null)}
+        order={order}
+        catalog={catalog}
+        // The customer is holding the old slip, so reprint straight away; printBill
+        // falls back to the pairing sheet when no printer is set up on this phone.
+        onSaved={() => void printBill()}
       />
 
       <BottomSheet

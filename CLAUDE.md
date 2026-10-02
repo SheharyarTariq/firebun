@@ -127,6 +127,24 @@ There is no test runner. Verification = typecheck + lint + build + walking throu
   any order type — delivery COD, or food taken on credit — and the order is `pending` until
   `markOrderPaid`. `cancelOrder` optionally restocks with `sale_reversal` rows;
   `cancelDenialReason` holds the staff/admin rule (also used by the page).
+- **Marking an order unpaid** (`markOrderUnpaid`): undoes a payment that was never taken — the
+  counter tapped Cash, the customer walked, and it surfaced days later. Cancelling would be
+  wrong; the food went out and the money is owed. Same `editDenialReason` gate. It only flips
+  `status` back to `pending` and clears `paymentMethod` / `paidAt` / `completedAt`, because
+  income counts `completed` orders, the unpaid list and tab badge count `pending` ones, and a
+  customer's balance is the sum of their pending orders — so the status alone makes all three
+  agree again.
+- **Editing an order** (`updateOrderItems`): change quantities, remove lines, add items. The
+  order keeps its number and business date, so the customer's slip stays valid — that is the
+  point of editing rather than cancelling and re-ringing. `editDenialReason` mirrors
+  `cancelDenialReason`, so **one setting governs both**. Stock is reversed and re-deducted, never
+  diffed: it reads what the order **still has out** by netting `sale` against `sale_reversal`
+  rows, because reading the raw `sale` rows would re-credit ingredients an earlier edit already
+  returned and a second edit would inflate stock. With `alreadyMade`, ingredients whose need
+  dropped are written as **`wastage`** rather than returned — otherwise the loss would have to be
+  recorded by hand per ingredient, which nobody does mid-service. `prepareLines` /
+  `insertOrderLines` / `ingredientNeeds` / `deductIngredients` are shared with `placeOrder` so
+  pricing and deduction cannot drift apart. Deal slot *contents* are not editable in place.
 - **Credit (udhaar) and the customer book**: **every order needs a name or a phone** — one rule
   for all order types, paid now or later — and `placeOrder` files the customer by phone
   (`findOrCreateCustomer`) whenever one is given, so ordinary orders build the book too. A name

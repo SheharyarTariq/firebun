@@ -69,6 +69,9 @@ export const orders = pgTable(
     completedAt: timestampTz(),
     cancelledAt: timestampTz(),
     cancelledBy: integer().references(() => users.id),
+    /** A correction moved money and stock, so it leaves a trace. */
+    editedAt: timestampTz(),
+    editedBy: integer().references(() => users.id, { onDelete: "set null" }),
     cancelReason: text(),
     /** Whether ingredients were returned to stock when cancelled. */
     restocked: boolean().notNull().default(false),

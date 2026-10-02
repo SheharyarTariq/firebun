@@ -1,5 +1,5 @@
 import "server-only";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 import { getDb, type DbOrTx } from "@/db";
 import {
   dailyCounters,
@@ -20,7 +20,13 @@ import { findOrCreateCustomer } from "@/server/customers/service";
 import { ServiceError } from "@/server/errors";
 import { applyMovement, recomputeItem } from "@/server/inventory/service";
 import { getSettings } from "@/server/settings/queries";
-import { businessDateFor, formatQty, normalisePhone, roundMoney, titleCaseName } from "@/utils/helper";
+import {
+  businessDateFor,
+  formatQty,
+  normalisePhone,
+  roundMoney,
+  titleCaseName,
+} from "@/utils/helper";
 
 // ---------------------------------------------------------------------------
 // Input
@@ -102,7 +108,10 @@ interface VariantInfo {
   itemAvailable: boolean;
 }
 
-async function loadVariants(tx: DbOrTx, ids: number[]): Promise<Map<number, VariantInfo>> {
+async function loadVariants(
+  tx: DbOrTx,
+  ids: number[],
+): Promise<Map<number, VariantInfo>> {
   if (ids.length === 0) return new Map();
   const rows = await tx
     .select({
@@ -122,13 +131,21 @@ async function loadVariants(tx: DbOrTx, ids: number[]): Promise<Map<number, Vari
   return new Map(rows.map((r) => [r.id, r]));
 }
 
-function assertSellable(v: VariantInfo | undefined, variantId: number): VariantInfo {
+function assertSellable(
+  v: VariantInfo | undefined,
+  variantId: number,
+): VariantInfo {
   // `lines` carries the offending variant id so the counter can name the cart line.
   if (!v || !v.isActive || !v.itemActive) {
-    throw new ServiceError("An item in the cart is no longer on the menu. Remove it and try again.", { lines: String(variantId) });
+    throw new ServiceError(
+      "An item in the cart is no longer on the menu. Remove it and try again.",
+      { lines: String(variantId) },
+    );
   }
   if (!v.itemAvailable) {
-    throw new ServiceError(`${v.itemName} is sold out. Remove it from the cart.`);
+    throw new ServiceError(
+      `${v.itemName} is sold out. Remove it from the cart.`,
+    );
   }
   return v;
 }
@@ -137,96 +154,297 @@ function assertSellable(v: VariantInfo | undefined, variantId: number): VariantI
 // Place order
 // ---------------------------------------------------------------------------
 
-export async function placeOrder(input: PlaceOrderInput, user: CurrentUser): Promise<PlaceOrderResult> {
+/** Writes the parent lines and any deal children, with their price snapshots. */
+async function insertOrderLines(
+  tx: DbOrTx,
+  orderId: number,
+  prepared: PreparedLine[],
+) {
+  for (const line of prepared) {
+    const [parent] = await tx
+      .insert(orderItems)
+      .values({
+        orderId,
+        menuItemId: line.variant.menuItemId,
+        variantId: line.variant.id,
+        nameSnapshot: line.variant.itemName,
+        variantNameSnapshot: line.variant.name,
+        unitPriceSnapshot: line.variant.price,
+        quantity: line.quantity,
+        lineTotal: line.lineTotal,
+        note: line.note,
+      })
+      .returning({ id: orderItems.id });
+
+    if (line.children.length > 0) {
+      await tx.insert(orderItems).values(
+        line.children.map((child) => ({
+          orderId,
+          parentOrderItemId: parent.id,
+          dealSlotId: child.slotId,
+          menuItemId: child.variant.menuItemId,
+          variantId: child.variant.id,
+          nameSnapshot: child.variant.itemName,
+          variantNameSnapshot: child.variant.name,
+          unitPriceSnapshot: 0,
+          quantity: child.quantity,
+          lineTotal: 0,
+          note: null,
+        })),
+      );
+    }
+  }
+}
+
+/** Σ recipe × quantity over every leaf line, plus a deal's own recipe rows. */
+async function ingredientNeeds(
+  tx: DbOrTx,
+  prepared: PreparedLine[],
+): Promise<Map<number, number>> {
+  const needs = new Map<number, number>();
+  const recipeTargets: { variantId: number; quantity: number }[] = [];
+  for (const line of prepared) {
+    recipeTargets.push({ variantId: line.variant.id, quantity: line.quantity });
+    for (const child of line.children)
+      recipeTargets.push({
+        variantId: child.variant.id,
+        quantity: child.quantity,
+      });
+  }
+  if (recipeTargets.length === 0) return needs;
+  const recipeRows = await tx
+    .select({
+      variantId: recipes.variantId,
+      inventoryItemId: recipes.inventoryItemId,
+      quantity: recipes.quantity,
+    })
+    .from(recipes)
+    .where(
+      inArray(recipes.variantId, [
+        ...new Set(recipeTargets.map((t) => t.variantId)),
+      ]),
+    );
+  for (const target of recipeTargets) {
+    for (const r of recipeRows) {
+      if (r.variantId !== target.variantId) continue;
+      needs.set(
+        r.inventoryItemId,
+        (needs.get(r.inventoryItemId) ?? 0) + r.quantity * target.quantity,
+      );
+    }
+  }
+  return needs;
+}
+
+/**
+ * Takes the ingredients out of stock, lowest item id first so concurrent orders lock in the
+ * same order. Never blocks the sale — a shortage comes back as a warning for the counter.
+ */
+async function deductIngredients(
+  tx: DbOrTx,
+  opts: {
+    needs: Map<number, number>;
+    orderId: number;
+    dailySeq: number;
+    createdBy: number;
+  },
+): Promise<string[]> {
+  const warnings: string[] = [];
+  for (const inventoryItemId of [...opts.needs.keys()].sort((a, b) => a - b)) {
+    const qty = opts.needs.get(inventoryItemId)!;
+    if (qty <= 0) continue;
+    const { item } = await applyMovement(tx, {
+      itemId: inventoryItemId,
+      type: "sale",
+      delta: -qty,
+      unitCost: "current",
+      referenceType: "order",
+      referenceId: opts.orderId,
+      note: `Order #${opts.dailySeq}`,
+      createdBy: opts.createdBy,
+    });
+    if (item.currentQty < 0) {
+      warnings.push(
+        `${item.name} is out of stock (${formatQty(item.currentQty, item.baseUnit)}). Do a count.`,
+      );
+    } else if (
+      item.lowStockThreshold !== null &&
+      item.currentQty <= item.lowStockThreshold
+    ) {
+      warnings.push(
+        `${item.name} is low: ${formatQty(item.currentQty, item.baseUnit)} left.`,
+      );
+    }
+  }
+  return warnings;
+}
+
+interface PreparedChild {
+  variant: VariantInfo;
+  slotId: number;
+  quantity: number;
+}
+interface PreparedLine {
+  variant: VariantInfo;
+  quantity: number;
+  note: string | null;
+  lineTotal: number;
+  children: PreparedChild[];
+}
+
+/**
+ * Cart lines → priced order lines, re-read from the database every time: prices, whether the
+ * item is still sellable, and that each deal slot got the right number of allowed choices.
+ * Shared by placing and editing so there is one pricing path, not two that drift apart.
+ */
+async function prepareLines(
+  tx: DbOrTx,
+  lines: PlaceOrderLine[],
+): Promise<PreparedLine[]> {
+  const variantIds = lines.flatMap((l) => [
+    l.variantId,
+    ...(l.dealChoices ?? []).flatMap((s) => s.choices.map((c) => c.variantId)),
+  ]);
+  const variants = await loadVariants(tx, variantIds);
+
+  const dealVariantIds = lines
+    .map((l) => l.variantId)
+    .filter((id) => variants.get(id)?.kind === "deal");
+  const slotRows = dealVariantIds.length
+    ? await tx
+        .select({
+          id: dealSlots.id,
+          dealVariantId: dealSlots.dealVariantId,
+          label: dealSlots.label,
+          quantity: dealSlots.quantity,
+        })
+        .from(dealSlots)
+        .where(inArray(dealSlots.dealVariantId, dealVariantIds))
+    : [];
+  const optionRows = slotRows.length
+    ? await tx
+        .select({
+          slotId: dealSlotOptions.slotId,
+          variantId: dealSlotOptions.variantId,
+        })
+        .from(dealSlotOptions)
+        .where(
+          inArray(
+            dealSlotOptions.slotId,
+            slotRows.map((s) => s.id),
+          ),
+        )
+    : [];
+  const optionsBySlot = new Map<number, Set<number>>();
+  for (const o of optionRows) {
+    const set = optionsBySlot.get(o.slotId) ?? new Set<number>();
+    set.add(o.variantId);
+    optionsBySlot.set(o.slotId, set);
+  }
+
+  const prepared: PreparedLine[] = [];
+
+  for (const line of lines) {
+    const quantity = Math.round(line.quantity);
+    if (!(quantity >= 1))
+      throw new ServiceError("Quantity must be at least 1.");
+    const variant = assertSellable(
+      variants.get(line.variantId),
+      line.variantId,
+    );
+    const children: PreparedChild[] = [];
+
+    if (variant.kind === "deal") {
+      const slots = slotRows.filter((s) => s.dealVariantId === variant.id);
+      if (slots.length === 0)
+        throw new ServiceError(
+          `${variant.itemName} has no items configured yet.`,
+        );
+      for (const slot of slots) {
+        const picked = line.dealChoices?.find((s) => s.slotId === slot.id);
+        const total =
+          picked?.choices.reduce((n, c) => n + Math.round(c.quantity), 0) ?? 0;
+        if (!picked || total !== slot.quantity) {
+          throw new ServiceError(
+            `Pick ${slot.quantity} × ${slot.label} for ${variant.itemName}.`,
+          );
+        }
+        const allowed = optionsBySlot.get(slot.id) ?? new Set<number>();
+        for (const choice of picked.choices) {
+          const qty = Math.round(choice.quantity);
+          if (qty < 1) continue;
+          if (!allowed.has(choice.variantId)) {
+            throw new ServiceError(
+              `That choice is not offered in ${slot.label}.`,
+            );
+          }
+          const child = assertSellable(
+            variants.get(choice.variantId),
+            choice.variantId,
+          );
+          children.push({
+            variant: child,
+            slotId: slot.id,
+            quantity: qty * quantity,
+          });
+        }
+      }
+    } else if (line.dealChoices?.length) {
+      throw new ServiceError("Only deals can have choices.");
+    }
+
+    prepared.push({
+      variant,
+      quantity,
+      note: line.note?.trim() || null,
+      lineTotal: roundMoney(variant.price * quantity),
+      children,
+    });
+  }
+
+  return prepared;
+}
+
+export async function placeOrder(
+  input: PlaceOrderInput,
+  user: CurrentUser,
+): Promise<PlaceOrderResult> {
   if (input.lines.length === 0) throw new ServiceError("The cart is empty.");
   const settings = await getSettings();
 
   return getDb().transaction(async (tx) => {
     // 1. Idempotency: the same cart submitted twice returns the first order.
     const [existing] = await tx
-      .select({ id: orders.id, dailySeq: orders.dailySeq, businessDate: orders.businessDate, total: orders.total, status: orders.status })
+      .select({
+        id: orders.id,
+        dailySeq: orders.dailySeq,
+        businessDate: orders.businessDate,
+        total: orders.total,
+        status: orders.status,
+      })
       .from(orders)
       .where(eq(orders.clientId, input.clientId));
     if (existing) {
-      return { orderId: existing.id, dailySeq: existing.dailySeq, businessDate: existing.businessDate, total: existing.total, status: existing.status, warnings: [], duplicate: true };
+      return {
+        orderId: existing.id,
+        dailySeq: existing.dailySeq,
+        businessDate: existing.businessDate,
+        total: existing.total,
+        status: existing.status,
+        warnings: [],
+        duplicate: true,
+      };
     }
 
-    // 2. Re-price everything from the database.
-    const variantIds = input.lines.flatMap((l) => [
-      l.variantId,
-      ...(l.dealChoices ?? []).flatMap((s) => s.choices.map((c) => c.variantId)),
-    ]);
-    const variants = await loadVariants(tx, variantIds);
-
-    const dealVariantIds = input.lines
-      .map((l) => l.variantId)
-      .filter((id) => variants.get(id)?.kind === "deal");
-    const slotRows = dealVariantIds.length
-      ? await tx
-          .select({ id: dealSlots.id, dealVariantId: dealSlots.dealVariantId, label: dealSlots.label, quantity: dealSlots.quantity })
-          .from(dealSlots)
-          .where(inArray(dealSlots.dealVariantId, dealVariantIds))
-      : [];
-    const optionRows = slotRows.length
-      ? await tx
-          .select({ slotId: dealSlotOptions.slotId, variantId: dealSlotOptions.variantId })
-          .from(dealSlotOptions)
-          .where(inArray(dealSlotOptions.slotId, slotRows.map((s) => s.id)))
-      : [];
-    const optionsBySlot = new Map<number, Set<number>>();
-    for (const o of optionRows) {
-      const set = optionsBySlot.get(o.slotId) ?? new Set<number>();
-      set.add(o.variantId);
-      optionsBySlot.set(o.slotId, set);
-    }
-
-    interface PreparedChild { variant: VariantInfo; slotId: number; quantity: number }
-    interface PreparedLine { variant: VariantInfo; quantity: number; note: string | null; lineTotal: number; children: PreparedChild[] }
-    const prepared: PreparedLine[] = [];
-
-    for (const line of input.lines) {
-      const quantity = Math.round(line.quantity);
-      if (!(quantity >= 1)) throw new ServiceError("Quantity must be at least 1.");
-      const variant = assertSellable(variants.get(line.variantId), line.variantId);
-      const children: PreparedChild[] = [];
-
-      if (variant.kind === "deal") {
-        const slots = slotRows.filter((s) => s.dealVariantId === variant.id);
-        if (slots.length === 0) throw new ServiceError(`${variant.itemName} has no items configured yet.`);
-        for (const slot of slots) {
-          const picked = line.dealChoices?.find((s) => s.slotId === slot.id);
-          const total = picked?.choices.reduce((n, c) => n + Math.round(c.quantity), 0) ?? 0;
-          if (!picked || total !== slot.quantity) {
-            throw new ServiceError(`Pick ${slot.quantity} × ${slot.label} for ${variant.itemName}.`);
-          }
-          const allowed = optionsBySlot.get(slot.id) ?? new Set<number>();
-          for (const choice of picked.choices) {
-            const qty = Math.round(choice.quantity);
-            if (qty < 1) continue;
-            if (!allowed.has(choice.variantId)) {
-              throw new ServiceError(`That choice is not offered in ${slot.label}.`);
-            }
-            const child = assertSellable(variants.get(choice.variantId), choice.variantId);
-            children.push({ variant: child, slotId: slot.id, quantity: qty * quantity });
-          }
-        }
-      } else if (line.dealChoices?.length) {
-        throw new ServiceError("Only deals can have choices.");
-      }
-
-      prepared.push({
-        variant,
-        quantity,
-        note: line.note?.trim() || null,
-        lineTotal: roundMoney(variant.price * quantity),
-        children,
-      });
-    }
+    const prepared = await prepareLines(tx, input.lines);
 
     // 3. Money
     const subtotal = roundMoney(prepared.reduce((n, l) => n + l.lineTotal, 0));
     const discount = roundMoney(Math.max(0, input.discountAmount || 0));
-    if (discount > subtotal) throw new ServiceError("Discount cannot exceed the subtotal.", { discountAmount: "Too high" });
+    if (discount > subtotal)
+      throw new ServiceError("Discount cannot exceed the subtotal.", {
+        discountAmount: "Too high",
+      });
     if (user.role === "staff") {
       const cap = roundMoney((subtotal * settings.staffMaxDiscountPct) / 100);
       if (discount > cap) {
@@ -234,13 +452,15 @@ export async function placeOrder(input: PlaceOrderInput, user: CurrentUser): Pro
           settings.staffMaxDiscountPct === 0
             ? "Only an admin can give discounts."
             : `Staff can discount up to ${settings.staffMaxDiscountPct}% (Rs ${cap}). Ask an admin for more.`,
-          { discountAmount: "Over your limit" }
+          { discountAmount: "Over your limit" },
         );
       }
     }
     const deliveryCharge =
       input.orderType === "delivery"
-        ? roundMoney(Math.max(0, input.deliveryCharge ?? settings.defaultDeliveryCharge))
+        ? roundMoney(
+            Math.max(0, input.deliveryCharge ?? settings.defaultDeliveryCharge),
+          )
         : 0;
     const total = roundMoney(subtotal - discount + deliveryCharge);
 
@@ -255,7 +475,9 @@ export async function placeOrder(input: PlaceOrderInput, user: CurrentUser): Pro
       });
     }
     const now = new Date();
-    const status: Order["status"] = input.paymentMethod ? "completed" : "pending";
+    const status: Order["status"] = input.paymentMethod
+      ? "completed"
+      : "pending";
 
     // The phone is what files someone, so any order carrying one joins that customer's history
     // — not just credit. A name with no number has nothing to file it under, so that order keeps
@@ -263,7 +485,10 @@ export async function placeOrder(input: PlaceOrderInput, user: CurrentUser): Pro
     let customerId = input.customerId ?? null;
     if (!customerId && input.customerPhone?.trim()) {
       customerId = (
-        await findOrCreateCustomer(tx, { name: input.customerName, phone: input.customerPhone })
+        await findOrCreateCustomer(tx, {
+          name: input.customerName,
+          phone: input.customerPhone,
+        })
       ).id;
     }
 
@@ -281,10 +506,14 @@ export async function placeOrder(input: PlaceOrderInput, user: CurrentUser): Pro
         status,
         orderType: input.orderType,
         customerId,
-        customerName: input.customerName ? titleCaseName(input.customerName) || null : null,
+        customerName: input.customerName
+          ? titleCaseName(input.customerName) || null
+          : null,
         // Normalised like the customer record, so the two always match and a number typed
         // three ways never splits one person across three rows.
-        customerPhone: input.customerPhone?.trim() ? normalisePhone(input.customerPhone) : null,
+        customerPhone: input.customerPhone?.trim()
+          ? normalisePhone(input.customerPhone)
+          : null,
         deliveryAddress: input.deliveryAddress?.trim() || null,
         subtotal,
         discountAmount: discount,
@@ -298,82 +527,25 @@ export async function placeOrder(input: PlaceOrderInput, user: CurrentUser): Pro
       })
       .returning({ id: orders.id });
 
-    for (const line of prepared) {
-      const [parent] = await tx
-        .insert(orderItems)
-        .values({
-          orderId: order.id,
-          menuItemId: line.variant.menuItemId,
-          variantId: line.variant.id,
-          nameSnapshot: line.variant.itemName,
-          variantNameSnapshot: line.variant.name,
-          unitPriceSnapshot: line.variant.price,
-          quantity: line.quantity,
-          lineTotal: line.lineTotal,
-          note: line.note,
-        })
-        .returning({ id: orderItems.id });
+    await insertOrderLines(tx, order.id, prepared);
 
-      if (line.children.length > 0) {
-        await tx.insert(orderItems).values(
-          line.children.map((child) => ({
-            orderId: order.id,
-            parentOrderItemId: parent.id,
-            dealSlotId: child.slotId,
-            menuItemId: child.variant.menuItemId,
-            variantId: child.variant.id,
-            nameSnapshot: child.variant.itemName,
-            variantNameSnapshot: child.variant.name,
-            unitPriceSnapshot: 0,
-            quantity: child.quantity,
-            lineTotal: 0,
-            note: null,
-          }))
-        );
-      }
-    }
+    // 7. Inventory
+    const warnings = await deductIngredients(tx, {
+      needs: await ingredientNeeds(tx, prepared),
+      orderId: order.id,
+      dailySeq,
+      createdBy: user.id,
+    });
 
-    // 7. Inventory: Σ recipe × quantity over every leaf line, plus the deal's own recipe.
-    const needs = new Map<number, number>();
-    const recipeTargets: { variantId: number; quantity: number }[] = [];
-    for (const line of prepared) {
-      recipeTargets.push({ variantId: line.variant.id, quantity: line.quantity });
-      for (const child of line.children) recipeTargets.push({ variantId: child.variant.id, quantity: child.quantity });
-    }
-    const recipeRows = await tx
-      .select({ variantId: recipes.variantId, inventoryItemId: recipes.inventoryItemId, quantity: recipes.quantity })
-      .from(recipes)
-      .where(inArray(recipes.variantId, [...new Set(recipeTargets.map((t) => t.variantId))]));
-    for (const target of recipeTargets) {
-      for (const r of recipeRows) {
-        if (r.variantId !== target.variantId) continue;
-        needs.set(r.inventoryItemId, (needs.get(r.inventoryItemId) ?? 0) + r.quantity * target.quantity);
-      }
-    }
-
-    const warnings: string[] = [];
-    for (const inventoryItemId of [...needs.keys()].sort((a, b) => a - b)) {
-      const qty = needs.get(inventoryItemId)!;
-      if (qty <= 0) continue;
-      const { item } = await applyMovement(tx, {
-        itemId: inventoryItemId,
-        type: "sale",
-        delta: -qty,
-        unitCost: "current",
-        referenceType: "order",
-        referenceId: order.id,
-        note: `Order #${dailySeq}`,
-        createdBy: user.id,
-      });
-
-      if (item.currentQty < 0) {
-        warnings.push(`${item.name} is out of stock (${formatQty(item.currentQty, item.baseUnit)}). Do a count.`);
-      } else if (item.lowStockThreshold !== null && item.currentQty <= item.lowStockThreshold) {
-        warnings.push(`${item.name} is low: ${formatQty(item.currentQty, item.baseUnit)} left.`);
-      }
-    }
-
-    return { orderId: order.id, dailySeq, businessDate, total, status, warnings, duplicate: false };
+    return {
+      orderId: order.id,
+      dailySeq,
+      businessDate,
+      total,
+      status,
+      warnings,
+      duplicate: false,
+    };
   });
 }
 
@@ -381,18 +553,65 @@ export async function placeOrder(input: PlaceOrderInput, user: CurrentUser): Pro
 // Settle a delivery / cancel
 // ---------------------------------------------------------------------------
 
-export async function markOrderPaid(id: number, paymentMethod: PaymentMethod, user: CurrentUser) {
+export async function markOrderPaid(
+  id: number,
+  paymentMethod: PaymentMethod,
+  user: CurrentUser,
+) {
   return getDb().transaction(async (tx) => {
-    const [order] = await tx.select().from(orders).where(eq(orders.id, id)).for("update");
+    const [order] = await tx
+      .select()
+      .from(orders)
+      .where(eq(orders.id, id))
+      .for("update");
     if (!order) throw new ServiceError("Order not found.");
-    if (order.status !== "pending") throw new ServiceError("This order is not waiting for payment.");
+    if (order.status !== "pending")
+      throw new ServiceError("This order is not waiting for payment.");
     const now = new Date();
     const [updated] = await tx
       .update(orders)
-      .set({ status: "completed", paymentMethod, paidAt: now, completedAt: now })
+      .set({
+        status: "completed",
+        paymentMethod,
+        paidAt: now,
+        completedAt: now,
+      })
       .where(eq(orders.id, id))
       .returning();
     void user;
+    return updated;
+  });
+}
+
+/**
+ * Undoes a payment that was never taken — the counter tapped Cash, the customer walked, and it
+ * came to light days later. Cancelling would be wrong: the food went out and the money is owed.
+ *
+ * Nothing downstream needs teaching. Income counts `completed` orders, the unpaid list and the
+ * tab badge count `pending` ones, and a customer's balance is the sum of their pending orders,
+ * so putting the status back makes all three agree again.
+ */
+export async function markOrderUnpaid(id: number, user: CurrentUser) {
+  const settings = await getSettings();
+  return getDb().transaction(async (tx) => {
+    const [order] = await tx.select().from(orders).where(eq(orders.id, id)).for("update");
+    if (!order) throw new ServiceError("Order not found.");
+    if (order.status === "pending") throw new ServiceError("This order is already unpaid.");
+    const denied = editDenialReason(order, user, settings.staffCancelWindowMinutes);
+    if (denied) throw new ServiceError(denied);
+
+    const [updated] = await tx
+      .update(orders)
+      .set({
+        status: "pending",
+        paymentMethod: null,
+        paidAt: null,
+        completedAt: null,
+        editedAt: new Date(),
+        editedBy: user.id,
+      })
+      .where(eq(orders.id, id))
+      .returning();
     return updated;
   });
 }
@@ -411,11 +630,12 @@ export function cancelDenialReason(
   order: Pick<Order, "status" | "createdBy" | "createdAt">,
   user: Pick<CurrentUser, "id" | "role">,
   staffCancelWindowMinutes: number,
-  now: Date = new Date()
+  now: Date = new Date(),
 ): string | null {
   if (order.status === "cancelled") return "This order is already cancelled.";
   if (user.role === "admin") return null;
-  if (order.createdBy !== user.id) return "Only an admin can cancel someone else's order.";
+  if (order.createdBy !== user.id)
+    return "Only an admin can cancel someone else's order.";
   const ageMinutes = (now.getTime() - order.createdAt.getTime()) / 60000;
   if (ageMinutes > staffCancelWindowMinutes) {
     return `Staff can cancel within ${staffCancelWindowMinutes} minutes. Ask an admin.`;
@@ -423,13 +643,198 @@ export function cancelDenialReason(
   return null;
 }
 
-export async function cancelOrder(id: number, input: CancelOrderInput, user: CurrentUser) {
+/**
+ * Editing follows the same rule as cancelling — admins always, staff only their own order
+ * inside the window in Settings — because it moves the same money and the same stock. One
+ * setting governs both, so raising the window later does not leave the two out of step.
+ */
+export function editDenialReason(
+  order: Pick<Order, "status" | "createdBy" | "createdAt">,
+  user: Pick<CurrentUser, "id" | "role">,
+  staffCancelWindowMinutes: number,
+  now: Date = new Date(),
+): string | null {
+  if (order.status === "cancelled") return "This order is cancelled, so it cannot be changed.";
+  if (user.role === "admin") return null;
+  if (order.createdBy !== user.id) return "Only an admin can change someone else's order.";
+  const ageMinutes = (now.getTime() - order.createdAt.getTime()) / 60000;
+  if (ageMinutes > staffCancelWindowMinutes) {
+    return `Staff can change an order within ${staffCancelWindowMinutes} minutes. Ask an admin.`;
+  }
+  return null;
+}
+
+export interface EditOrderInput {
+  lines: PlaceOrderLine[];
+  discountAmount: number;
+  /** null = keep the shop default (delivery only). */
+  deliveryCharge: number | null;
+  /**
+   * The removed food had already been cooked, so its ingredients do not come back — they are
+   * recorded as wastage instead. Same question `cancelOrder` asks, for the same reason.
+   */
+  alreadyMade: boolean;
+}
+
+export interface EditOrderResult {
+  total: number;
+  /** New total minus the old one: what to collect, or refund if negative. */
+  difference: number;
+  warnings: string[];
+}
+
+/**
+ * Corrects an order in place: change quantities, remove lines, add new ones. The order keeps
+ * its number and business date, so the slip the customer is holding stays valid.
+ *
+ * Stock is reversed and re-deducted rather than diffed. Reversing replays what was actually
+ * taken, recorded costs and all; a diff would have to recompute against *today's* recipes,
+ * which may no longer be the ones that were used. More ledger rows, but no drift.
+ */
+export async function updateOrderItems(
+  id: number,
+  input: EditOrderInput,
+  user: CurrentUser,
+): Promise<EditOrderResult> {
+  if (input.lines.length === 0) {
+    throw new ServiceError("An order needs at least one item. Cancel it instead.");
+  }
   const settings = await getSettings();
+
   return getDb().transaction(async (tx) => {
     const [order] = await tx.select().from(orders).where(eq(orders.id, id)).for("update");
     if (!order) throw new ServiceError("Order not found.");
+    const denied = editDenialReason(order, user, settings.staffCancelWindowMinutes);
+    if (denied) throw new ServiceError(denied);
 
-    const denied = cancelDenialReason(order, user, settings.staffCancelWindowMinutes);
+    const prepared = await prepareLines(tx, input.lines);
+
+    // Money, on the same rules as placing.
+    const subtotal = roundMoney(prepared.reduce((n, l) => n + l.lineTotal, 0));
+    const discount = roundMoney(Math.max(0, input.discountAmount || 0));
+    if (discount > subtotal) {
+      throw new ServiceError("Discount cannot exceed the subtotal.", { discountAmount: "Too high" });
+    }
+    if (user.role === "staff") {
+      const cap = roundMoney((subtotal * settings.staffMaxDiscountPct) / 100);
+      if (discount > cap) {
+        throw new ServiceError(
+          settings.staffMaxDiscountPct === 0
+            ? "Only an admin can give discounts."
+            : `Staff can discount up to ${settings.staffMaxDiscountPct}% (Rs ${cap}). Ask an admin for more.`,
+          { discountAmount: "Over your limit" },
+        );
+      }
+    }
+    const deliveryCharge =
+      order.orderType === "delivery"
+        ? roundMoney(Math.max(0, input.deliveryCharge ?? settings.defaultDeliveryCharge))
+        : 0;
+    const total = roundMoney(subtotal - discount + deliveryCharge);
+
+    // What this order *still* has out of stock, netting every sale against every reversal it
+    // has already had. Reading the raw sale rows instead would re-credit ingredients that an
+    // earlier edit already returned, so a second edit would quietly inflate stock.
+    const movements = await tx
+      .select()
+      .from(stockMovements)
+      .where(
+        and(
+          eq(stockMovements.referenceType, "order"),
+          eq(stockMovements.referenceId, id),
+          inArray(stockMovements.type, ["sale", "sale_reversal"]),
+        ),
+      );
+    const oldNeeds = new Map<number, number>();
+    const costOf = new Map<number, number | null>();
+    for (const m of movements) {
+      // A sale is negative and a reversal positive, so negating sums to "still out".
+      oldNeeds.set(m.inventoryItemId, (oldNeeds.get(m.inventoryItemId) ?? 0) - m.quantityDelta);
+      if (m.type === "sale") costOf.set(m.inventoryItemId, m.unitCost);
+    }
+
+    // Put back what is still out, at the cost it went out at.
+    for (const [itemId, outstanding] of [...oldNeeds.entries()].sort((a, b) => a[0] - b[0])) {
+      if (outstanding <= 0) continue;
+      await applyMovement(tx, {
+        itemId,
+        type: "sale_reversal",
+        delta: outstanding,
+        unitCost: costOf.get(itemId) ?? "current",
+        referenceType: "order",
+        referenceId: id,
+        note: `Order #${order.dailySeq} changed`,
+        createdBy: user.id,
+      });
+    }
+
+    // Children first: parentOrderItemId points at another order_items row.
+    await tx.delete(orderItems).where(and(eq(orderItems.orderId, id), isNotNull(orderItems.parentOrderItemId)));
+    await tx.delete(orderItems).where(eq(orderItems.orderId, id));
+    await insertOrderLines(tx, id, prepared);
+
+    const newNeeds = await ingredientNeeds(tx, prepared);
+    const warnings = await deductIngredients(tx, {
+      needs: newNeeds,
+      orderId: id,
+      dailySeq: order.dailySeq,
+      createdBy: user.id,
+    });
+
+    // Food already cooked does not go back on the shelf; the shortfall is a loss, and saying so
+    // in the ledger is the only way it shows up anywhere.
+    if (input.alreadyMade) {
+      for (const [itemId, oldQty] of [...oldNeeds.entries()].sort((a, b) => a[0] - b[0])) {
+        const wasted = Math.round((oldQty - (newNeeds.get(itemId) ?? 0) + Number.EPSILON) * 1e3) / 1e3;
+        if (wasted <= 0) continue;
+        await applyMovement(tx, {
+          itemId,
+          type: "wastage",
+          delta: -wasted,
+          unitCost: "current",
+          referenceType: "order",
+          referenceId: id,
+          note: `Order #${order.dailySeq} changed — already made`,
+          createdBy: user.id,
+        });
+      }
+    }
+
+    await tx
+      .update(orders)
+      .set({
+        subtotal,
+        discountAmount: discount,
+        deliveryCharge,
+        total,
+        editedAt: new Date(),
+        editedBy: user.id,
+      })
+      .where(eq(orders.id, id));
+
+    return { total, difference: roundMoney(total - order.total), warnings };
+  });
+}
+
+export async function cancelOrder(
+  id: number,
+  input: CancelOrderInput,
+  user: CurrentUser,
+) {
+  const settings = await getSettings();
+  return getDb().transaction(async (tx) => {
+    const [order] = await tx
+      .select()
+      .from(orders)
+      .where(eq(orders.id, id))
+      .for("update");
+    if (!order) throw new ServiceError("Order not found.");
+
+    const denied = cancelDenialReason(
+      order,
+      user,
+      settings.staffCancelWindowMinutes,
+    );
     if (denied) throw new ServiceError(denied);
 
     const now = new Date();
@@ -449,7 +854,13 @@ export async function cancelOrder(id: number, input: CancelOrderInput, user: Cur
       const sales = await tx
         .select()
         .from(stockMovements)
-        .where(and(eq(stockMovements.referenceType, "order"), eq(stockMovements.referenceId, id), eq(stockMovements.type, "sale")));
+        .where(
+          and(
+            eq(stockMovements.referenceType, "order"),
+            eq(stockMovements.referenceId, id),
+            eq(stockMovements.type, "sale"),
+          ),
+        );
       for (const m of sales) {
         await applyMovement(tx, {
           itemId: m.inventoryItemId,
@@ -479,21 +890,40 @@ export async function cancelOrder(id: number, input: CancelOrderInput, user: Cur
  */
 export async function deleteOrder(id: number): Promise<void> {
   await getDb().transaction(async (tx) => {
-    const [order] = await tx.select().from(orders).where(eq(orders.id, id)).for("update");
+    const [order] = await tx
+      .select()
+      .from(orders)
+      .where(eq(orders.id, id))
+      .for("update");
     if (!order) throw new ServiceError("Order not found.");
-    if (order.status !== "cancelled") throw new ServiceError("Cancel the order first, then delete it.");
+    if (order.status !== "cancelled")
+      throw new ServiceError("Cancel the order first, then delete it.");
 
     const affected = await tx
       .selectDistinct({ itemId: stockMovements.inventoryItemId })
       .from(stockMovements)
-      .where(and(eq(stockMovements.referenceType, "order"), eq(stockMovements.referenceId, id)));
+      .where(
+        and(
+          eq(stockMovements.referenceType, "order"),
+          eq(stockMovements.referenceId, id),
+        ),
+      );
 
-    await tx.delete(stockMovements).where(and(eq(stockMovements.referenceType, "order"), eq(stockMovements.referenceId, id)));
+    await tx
+      .delete(stockMovements)
+      .where(
+        and(
+          eq(stockMovements.referenceType, "order"),
+          eq(stockMovements.referenceId, id),
+        ),
+      );
     await tx.delete(orderItems).where(eq(orderItems.orderId, id));
     await tx.delete(orders).where(eq(orders.id, id));
 
     // Item ids ascending, matching placeOrder's lock order.
-    for (const { itemId } of [...affected].sort((a, b) => a.itemId - b.itemId)) {
+    for (const { itemId } of [...affected].sort(
+      (a, b) => a.itemId - b.itemId,
+    )) {
       await recomputeItem(tx, itemId);
     }
   });

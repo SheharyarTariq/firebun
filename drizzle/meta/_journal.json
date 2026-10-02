@@ -50,6 +50,13 @@
       "when": 1790588478452,
       "tag": "0006_optional_customer_name",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790592831977,
+      "tag": "0007_order_edits",
+      "breakpoints": true
     }
   ]
 }

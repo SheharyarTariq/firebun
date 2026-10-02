@@ -217,12 +217,12 @@ export default function SettingsScreen({ settings }: SettingsScreenProps) {
             hint="0 = only admins can give discounts."
           />
           <Input
-            label="Staff can cancel their own orders within (minutes)"
+            label="Staff can change their own orders within (minutes)"
             inputMode="numeric"
             value={form.cancelWindow}
             onChange={(e) => set("cancelWindow", e.target.value, "staffCancelWindowMinutes")}
             error={errors.staffCancelWindowMinutes}
-            hint="0 = only admins can cancel orders."
+            hint="Covers cancelling, editing and marking an order unpaid. 0 = only admins."
           />
           <Toggle label="Staff can add expenses" description="They only see what they added themselves." checked={form.staffExpenses} onChange={(v) => set("staffExpenses", v)} />
           <Select
