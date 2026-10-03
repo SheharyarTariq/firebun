@@ -1,6 +1,6 @@
 import "server-only";
 import { cache } from "react";
-import { and, asc, count, desc, eq, isNull, sum } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, isNull, lte, sum } from "drizzle-orm";
 import { getDb } from "@/db";
 import {
   menuCategories,
@@ -133,17 +133,21 @@ export async function getPosCatalog(): Promise<CatalogCategory[]> {
 // ---------------------------------------------------------------------------
 
 export interface ListOrdersFilter {
-  businessDate: string;
+  /** Inclusive business dates; a single day is `from === to`. */
+  from: string;
+  to: string;
   status?: OrderStatus;
 }
 
 export async function listOrders(filter: ListOrdersFilter) {
   return getDb().query.orders.findMany({
     where: and(
-      eq(orders.businessDate, filter.businessDate),
+      gte(orders.businessDate, filter.from),
+      lte(orders.businessDate, filter.to),
       filter.status ? eq(orders.status, filter.status) : undefined
     ),
-    orderBy: [desc(orders.dailySeq)],
+    // The number restarts every day, so the date has to sort first.
+    orderBy: [desc(orders.businessDate), desc(orders.dailySeq)],
     with: {
       createdByUser: { columns: { name: true } },
       // Parent lines only: enough for the "2× Zinger Burger, Deal 1" summary.
@@ -228,11 +232,12 @@ export interface DaySummary {
   pendingAmount: number;
 }
 
-export async function getOrderSummaryForDay(businessDate: string): Promise<DaySummary> {
+/** Counts and totals over inclusive business dates (one day is `from === to`). */
+export async function getOrderSummary({ from, to }: { from: string; to: string }): Promise<DaySummary> {
   const rows = await getDb()
     .select({ status: orders.status, n: count(), total: sum(orders.total) })
     .from(orders)
-    .where(eq(orders.businessDate, businessDate))
+    .where(and(gte(orders.businessDate, from), lte(orders.businessDate, to)))
     .groupBy(orders.status);
   const summary: DaySummary = { completed: 0, pending: 0, cancelled: 0, revenue: 0, pendingAmount: 0 };
   for (const r of rows) {

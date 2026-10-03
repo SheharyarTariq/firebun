@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useOptimistic, useState } from "react";
-import { BluetoothOff, Search, ShoppingBag, X } from "lucide-react";
+import { ArrowUpDown, BluetoothOff, Check, Search, ShoppingBag, X } from "lucide-react";
 import toast from "react-hot-toast";
 import Button from "@/components/common/Button";
 import Chips from "@/components/common/Chips";
@@ -14,6 +14,7 @@ import type { UserRole } from "@/db/schema/users";
 import type { CatalogCategory, CatalogItem } from "@/server/orders/queries";
 import type { PlaceOrderResult } from "@/server/orders/service";
 import { formatOrderNumber } from "@/utils/helper";
+import ArrangeGrid from "./arrange-grid";
 import CartBar from "./cart-bar";
 import CartSheet from "./cart-sheet";
 import { quantitiesByItem, quantitiesByVariant, useCart, useHydrated } from "./cart-store";
@@ -55,6 +56,18 @@ export default function PosScreen({ catalog: serverCatalog, settings, user, busi
   const [catalog, applyAvailability] = useOptimistic(serverCatalog, withAvailability);
   const [query, setQuery] = useState("");
   const [categoryId, setCategoryId] = useState<string>(ALL);
+  // Admin-only: drag cards to set the counter order. Order is per category, so it needs one.
+  const [arranging, setArranging] = useState(false);
+  const canArrange = user.role === "admin" && catalog.length > 0;
+  const arrangeCategory = arranging ? catalog.find((c) => String(c.id) === categoryId) : undefined;
+
+  const startArranging = () => {
+    setQuery("");
+    if (categoryId === ALL || !catalog.some((c) => String(c.id) === categoryId)) {
+      setCategoryId(String(catalog[0].id));
+    }
+    setArranging(true);
+  };
 
   // Which sheet is open, and the item the item/deal sheets show. The item is kept after
   // closing so vaul can play the slide-out; `sheetKey` remounts a sheet on every open.
@@ -167,7 +180,18 @@ export default function PosScreen({ catalog: serverCatalog, settings, user, busi
         title="Counter"
         subtitle={`${businessDateLabel} · ${user.name}`}
         actions={
-          printer.needsPairing ? (
+          <>
+          {canArrange && (
+            <Button
+              size="sm"
+              variant="header"
+              startIcon={arranging ? <Check className="h-4 w-4" /> : <ArrowUpDown className="h-4 w-4" />}
+              onClick={arranging ? () => setArranging(false) : startArranging}
+            >
+              {arranging ? "Done" : "Arrange"}
+            </Button>
+          )}
+          {printer.needsPairing && (
             <button
               type="button"
               onClick={() => show("printer")}
@@ -178,7 +202,8 @@ export default function PosScreen({ catalog: serverCatalog, settings, user, busi
               <BluetoothOff className="h-3.5 w-3.5" />
               No printer
             </button>
-          ) : undefined
+          )}
+          </>
         }
       />
 
@@ -207,6 +232,7 @@ export default function PosScreen({ catalog: serverCatalog, settings, user, busi
           }
           className="[&::-webkit-search-cancel-button]:hidden"
           value={query}
+          disabled={arranging}
           onChange={(e) => setQuery(e.target.value)}
         />
       </div>
@@ -217,13 +243,20 @@ export default function PosScreen({ catalog: serverCatalog, settings, user, busi
             aria-label="Category"
             value={categoryId}
             onChange={setCategoryId}
-            options={[{ value: ALL, label: "All" }, ...catalog.map((c) => ({ value: String(c.id), label: c.name }))]}
+            options={[...(arranging ? [] : [{ value: ALL, label: "All" }]), ...catalog.map((c) => ({ value: String(c.id), label: c.name }))]}
           />
         </div>
       </div>
 
       <div className="page-gutter pb-28 lg:pb-6">
-        {items.length === 0 ? (
+        {arrangeCategory ? (
+          <>
+            <p className="pt-2 text-caption text-muted">
+              Drag a card by its handle to set the counter order for {arrangeCategory.name}. Changes save as you go.
+            </p>
+            <ArrangeGrid key={arrangeCategory.id} categoryId={arrangeCategory.id} items={arrangeCategory.items} />
+          </>
+        ) : items.length === 0 ? (
           <EmptyState
             icon={ShoppingBag}
             title={catalog.length === 0 ? "The menu is empty" : "Nothing matches"}

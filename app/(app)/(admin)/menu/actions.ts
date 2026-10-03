@@ -31,6 +31,7 @@ import {
   deleteVariant,
   moveCategory,
   removeRecipeLine,
+  reorderMenuItems,
   setItemAvailability,
   setRecipeLine,
   updateCategory,
@@ -103,6 +104,17 @@ export async function updateMenuItemAction(
   await requireAdmin();
   return validatedAction(updateMenuItemSchema, input, async () => {
     await updateMenuItem(id, input);
+    revalidateMenu();
+  });
+}
+
+export async function reorderMenuItemsAction(
+  categoryId: number,
+  itemIds: number[]
+): Promise<ActionResult<void>> {
+  await requireAdmin();
+  return runAction(async () => {
+    await reorderMenuItems(categoryId, itemIds);
     revalidateMenu();
   });
 }

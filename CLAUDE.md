@@ -120,6 +120,10 @@ There is no test runner. Verification = typecheck + lint + build + walking throu
   auto-unique), variants (≥1 active size; delete blocked only by a deal, never by past orders), recipes
   (upsert per variant+ingredient, `copyRecipe` between sizes) and deal slots/options (single-kind
   variants only). `setItemAvailability` is the sold-out toggle staff will also use from the POS.
+  Item order is per category (`menu_items.sort_order`) and set by admins on the Counter's
+  **Arrange** mode (`components/pos/arrange-grid`, `@dnd-kit`, drag by the grip or "to top");
+  `reorderMenuItems` receives only the counter's active items, so hidden ones keep their slots.
+  Moving an item to another category puts it last there.
 - **Orders**: `server/orders/service.ts#placeOrder` is one transaction: idempotent by `clientId`,
   re-prices from the DB, enforces the staff discount cap, expands deal slot choices into child
   lines (price 0), numbers per business day via `daily_counters`, and deducts stock with
@@ -127,6 +131,10 @@ There is no test runner. Verification = typecheck + lint + build + walking throu
   any order type — delivery COD, or food taken on credit — and the order is `pending` until
   `markOrderPaid`. `cancelOrder` optionally restocks with `sale_reversal` rows;
   `cancelDenialReason` holds the staff/admin rule (also used by the page).
+- **Orders list dates**: `/orders?date=` is one business day (‹ › arrows); `?from=&to=` is an
+  inclusive span (calendar button → `components/orders/date-range-sheet`), capped at 92 days in
+  the page and grouped by business date on screen because `daily_seq` restarts every day.
+  `listOrders` / `getOrderSummary` both take `{ from, to }`; one day is `from === to`.
 - **Marking an order unpaid** (`markOrderUnpaid`): undoes a payment that was never taken — the
   counter tapped Cash, the customer walked, and it surfaced days later. Cancelling would be
   wrong; the food went out and the money is owed. Same `editDenialReason` gate. It only flips

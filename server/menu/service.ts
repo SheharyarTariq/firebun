@@ -172,6 +172,34 @@ export async function createMenuItem(input: CreateMenuItemInput): Promise<{ id: 
   });
 }
 
+/**
+ * Sets the order of a category's items from the counter. The counter only shows active items,
+ * so hidden ones are not in `itemIds`: they keep their slots, and the submitted ids fill the
+ * positions the submitted items held, in their new order. Renumbers 0..n-1.
+ */
+export async function reorderMenuItems(categoryId: number, itemIds: number[]) {
+  await getDb().transaction(async (tx) => {
+    const all = await tx
+      .select({ id: menuItems.id })
+      .from(menuItems)
+      .where(eq(menuItems.categoryId, categoryId))
+      .orderBy(asc(menuItems.sortOrder), asc(menuItems.name))
+      .for("update");
+
+    const known = new Set(all.map((i) => i.id));
+    if (new Set(itemIds).size !== itemIds.length || itemIds.some((id) => !known.has(id))) {
+      throw new ServiceError("The menu changed — refresh and try again.");
+    }
+
+    const moved = new Set(itemIds);
+    let next = 0;
+    const order = all.map((i) => (moved.has(i.id) ? itemIds[next++] : i.id));
+    for (let i = 0; i < order.length; i++) {
+      await tx.update(menuItems).set({ sortOrder: i }).where(eq(menuItems.id, order[i]));
+    }
+  });
+}
+
 export interface UpdateMenuItemInput {
   categoryId: number;
   name: string;
@@ -195,10 +223,21 @@ export async function updateMenuItem(id: number, input: UpdateMenuItemInput) {
     // Normalise once: the same text typed again must keep the item's existing slug.
     const name = titleCaseName(input.name);
 
+    // A moved item goes to the end of its new category rather than reusing its old number.
+    let sortOrder = existing.sortOrder;
+    if (existing.categoryId !== input.categoryId) {
+      const [{ m }] = await tx
+        .select({ m: max(menuItems.sortOrder) })
+        .from(menuItems)
+        .where(eq(menuItems.categoryId, input.categoryId));
+      sortOrder = (m ?? -1) + 1;
+    }
+
     const [row] = await tx
       .update(menuItems)
       .set({
         categoryId: input.categoryId,
+        sortOrder,
         name,
         slug: existing.name === name && existing.slug ? existing.slug : await uniqueSlug(tx, name, id),
         description: input.description?.trim() || null,
